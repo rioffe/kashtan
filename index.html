@@ -436,11 +436,12 @@ var roomLight;
   for (let i = 0; i < 3; i++){ const sp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), nm); sp.scale.y = 0.8; sp.position.set(wx0 + 0.25 + i * 0.07, 8.09, BZ - 0.45 + (i % 2) * 0.05); room.add(sp); }
 
   /* the table, on the right as you look out */
-  const tz0 = BZ - 0.48, tz1 = BZ - 1.68, ty = 7.95;
+  const TB = BZ - 0.5; // table, chair and bookshelf stand half a metre back from the window
+  const tz0 = TB - 0.48, tz1 = TB - 1.68, ty = 7.95;
   rbox(x0, x0 + 0.7, ty - 0.035, ty, tz1, tz0, veneer);
   for (const [dx, dz] of [[0.05, -0.05], [0.65, -0.05], [0.05, -1.15], [0.65, -1.15]]) rbox(x0 + dx - 0.025, x0 + dx + 0.025, y0, ty - 0.035, tz0 + dz - 0.025, tz0 + dz + 0.025, wood);
   rbox(x0 + 0.02, x0 + 0.66, ty - 0.2, ty - 0.035, tz0 - 0.75, tz0 - 0.05, wood); // drawer box
-  { const cx = x0 + 0.95, cz = BZ - 1.12, sy = y0 + 0.45, chairM = new THREE.MeshStandardMaterial({ color: '#8a5a32', roughness: 0.6 });
+  { const cx = x0 + 0.95, cz = TB - 1.12, sy = y0 + 0.45, chairM = new THREE.MeshStandardMaterial({ color: '#8a5a32', roughness: 0.6 });
     rbox(cx - 0.2, cx + 0.2, sy - 0.03, sy, cz - 0.2, cz + 0.2, chairM);
     for (const [dx, dz] of [[-0.17, -0.17], [-0.17, 0.17], [0.17, -0.17], [0.17, 0.17]]) rbox(cx + dx - 0.018, cx + dx + 0.018, y0, sy - 0.03, cz + dz - 0.018, cz + dz + 0.018, chairM);
     for (const dz of [-0.17, 0.17]) rbox(cx + 0.17 - 0.018, cx + 0.17 + 0.018, sy, sy + 0.45, cz + dz - 0.018, cz + dz + 0.018, chairM);
@@ -451,7 +452,7 @@ var roomLight;
     const chrome = new THREE.MeshStandardMaterial({ color: '#d4d8da', metalness: 0.9, roughness: 0.22 });
     deskLamp.inner = new THREE.MeshStandardMaterial({ color: '#f2ead6', side: THREE.BackSide, roughness: 0.6, emissive: '#ffd890', emissiveIntensity: 0 });
     deskLamp.bulbM = new THREE.MeshStandardMaterial({ color: '#f4f0e4', emissive: '#fff0c0', emissiveIntensity: 0, roughness: 0.2 });
-    const G = new THREE.Group(); G.position.set(x0 + 0.13, ty, BZ - 0.64); room.add(G);
+    const G = new THREE.Group(); G.position.set(x0 + 0.13, ty, TB - 0.64); room.add(G);
     const lathe = (pts, mat) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 40), mat);
     const add = (m) => { G.add(m); deskLamp.parts.push(m); return m; };
     add(lathe([[0, 0], [0.085, 0], [0.09, 0.006], [0.086, 0.014], [0.06, 0.024], [0.03, 0.03], [0.014, 0.036], [0, 0.036]], enamel));
@@ -463,7 +464,7 @@ var roomLight;
     const sw = add(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 10), new THREE.MeshStandardMaterial({ color: '#202020' }))); sw.position.set(0.045, 0.03, 0.02);
     // the shade hangs from the top joint, aimed at the notebook
     const S = new THREE.Group(); S.position.copy(P[2]); G.add(S);
-    const aim = new V3(x0 + 0.38, ty, BZ - 1.0).sub(G.position).sub(P[2]).normalize();
+    const aim = new V3(x0 + 0.38, ty, TB - 1.0).sub(G.position).sub(P[2]).normalize();
     S.quaternion.setFromUnitVectors(new V3(0, -1, 0), aim);
     const prof = [[0.094, -0.122], [0.09, -0.115], [0.08, -0.085], [0.062, -0.045], [0.04, -0.01], [0.022, 0.012], [0.012, 0.02]]; // bottom rim → top, so the enamel faces outward
     const outer = lathe(prof, enamel); S.add(outer); deskLamp.parts.push(outer);
@@ -498,9 +499,9 @@ var roomLight;
     g.font = 'italic 13px Georgia'; g.fillText('проверить: остановится ли?', ox + 6, 352);
     g.strokeStyle = 'rgba(160,30,30,.7)'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(ox + 52, 296, 46, 13, 0.05, 0, TAU); g.stroke();
   });
-  rbox(x0 + 0.23, x0 + 0.53, ty, ty + 0.008, BZ - 1.33, BZ - 0.91, new THREE.MeshStandardMaterial({ color: '#2a4a6a' }));
-  label(0.42, 0.3, noteTex, x0 + 0.38, ty + 0.0095, BZ - 1.12);
-  const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.17, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#c8402a' })); pencil.position.set(x0 + 0.56, ty + 0.012, BZ - 1.12); pencil.rotation.y = 0.2; room.add(pencil);
+  rbox(x0 + 0.23, x0 + 0.53, ty, ty + 0.008, TB - 1.33, TB - 0.91, new THREE.MeshStandardMaterial({ color: '#2a4a6a' }));
+  label(0.42, 0.3, noteTex, x0 + 0.38, ty + 0.0095, TB - 1.12);
+  const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.17, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#c8402a' })); pencil.position.set(x0 + 0.56, ty + 0.012, TB - 1.12); pencil.rotation.y = 0.2; room.add(pencil);
   // the Soviet calculator
   const calcTex = tex(160, 280, (g, w, h) => {
     g.fillStyle = '#262624'; g.fillRect(0, 0, w, h); g.fillStyle = '#3a3a38'; g.fillRect(8, 8, w - 16, h - 16);
@@ -509,8 +510,8 @@ var roomLight;
     for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++){ g.fillStyle = r === 0 ? '#c86a2a' : c === 4 ? '#5a5a58' : '#d8d4c8'; g.fillRect(18 + c * 26, 86 + r * 30, 20, 20);
       g.fillStyle = '#1a1a1a'; g.font = '10px sans-serif'; g.fillText(r > 1 && c < 3 ? String((7 - (r - 2) * 3 + c) > 0 ? 7 - (r - 2) * 3 + c : 0) : '', 25, 100 + r * 30); }
   });
-  rbox(x0 + 0.34, x0 + 0.5, ty, ty + 0.02, BZ - 1.56, BZ - 1.47, new THREE.MeshStandardMaterial({ color: '#262624', roughness: 0.5 }));
-  label(0.09, 0.16, calcTex, x0 + 0.42, ty + 0.0205, BZ - 1.515);
+  rbox(x0 + 0.34, x0 + 0.5, ty, ty + 0.02, TB - 1.56, TB - 1.47, new THREE.MeshStandardMaterial({ color: '#262624', roughness: 0.5 }));
+  label(0.09, 0.16, calcTex, x0 + 0.42, ty + 0.0205, TB - 1.515);
   // the book by Uspensky — "Машина Поста"
   const coverTex = tex(300, 420, (g, w, h) => {
     g.fillStyle = '#e6dcc0'; g.fillRect(0, 0, w, h); g.fillStyle = '#2a5a8a'; g.fillRect(0, 0, w, 54);
@@ -521,13 +522,13 @@ var roomLight;
     g.beginPath(); g.moveTo(15 + 3 * 30 + 15, 306); g.lineTo(15 + 3 * 30 + 7, 322); g.lineTo(15 + 3 * 30 + 23, 322); g.closePath(); g.fill();
     g.font = '13px Georgia'; g.fillText('ИЗДАТЕЛЬСТВО «НАУКА»', 70, 385); g.fillText('1979', 132, 404);
   });
-  const usp = rbox(x0 + 0.37, x0 + 0.52, ty, ty + 0.022, BZ - 0.83, BZ - 0.62, new THREE.MeshStandardMaterial({ color: '#d8ccb0' }));
-  const cover = label(0.21, 0.15, coverTex, x0 + 0.445, ty + 0.0225, BZ - 0.725);
+  const usp = rbox(x0 + 0.37, x0 + 0.52, ty, ty + 0.022, TB - 0.83, TB - 0.62, new THREE.MeshStandardMaterial({ color: '#d8ccb0' }));
+  const cover = label(0.21, 0.15, coverTex, x0 + 0.445, ty + 0.0225, TB - 0.725);
   usp.userData.title = cover.userData.title = 'В. А. Успенский — «Машина Поста»';
   BOOKS.push(usp, cover);
 
   /* the bookshelf, on the left: maths, physics and poetry */
-  const sx0 = x1 - 0.3, sz0 = BZ - 0.55, sz1 = BZ - 1.85;
+  const sx0 = x1 - 0.3, sz0 = TB - 0.55, sz1 = TB - 1.85;
   rbox(sx0, x1, y0, y0 + 2.1, sz0 - 0.02, sz0, veneer); rbox(sx0, x1, y0, y0 + 2.1, sz1, sz1 + 0.02, veneer); rbox(x1 - 0.015, x1, y0, y0 + 2.1, sz1, sz0, veneer);
   const shelvesY = [7.24, 7.64, 8.04, 8.44, 8.84, 9.28];
   for (const y of shelvesY) rbox(sx0, x1, y - 0.02, y, sz1, sz0, veneer);
@@ -582,7 +583,7 @@ var roomLight;
 {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, down = null;
   const pickBook = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects([...BOOKS, ...lamp.parts], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
+    const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
   const setHover = (b) => { if (b === hovered) return;
     if (hovered && !hovered.userData.lamp) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
@@ -1552,7 +1553,7 @@ function frame(){
       if (keys.has('KeyD')) mx += 1; if (keys.has('KeyA')) mx -= 1; if (keys.has('ArrowLeft')) cam.yaw += dt * 1.4; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.4;
       if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * 1.1 * dt).addScaledVector(right, mx / l * 1.1 * dt); }
       const p = camera.position; p.z = clamp(p.z, BZ - 5.1, BZ - 0.72);
-      const xlo = p.z > BZ - 1.8 ? HOME.x + 0.28 : p.z < BZ - 2.8 ? HOME.x - 0.1 : HOME.x - 0.75, xhi = p.z > BZ - 1.95 ? HOME.x + 0.58 : HOME.x + 0.75;
+      const xlo = p.z > BZ - 2.3 ? HOME.x + 0.28 : p.z < BZ - 2.8 ? HOME.x - 0.1 : HOME.x - 0.75, xhi = p.z > BZ - 2.45 ? HOME.x + 0.58 : HOME.x + 0.75;
       p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.1, 0.9);
     } else if (mode === 'lie'){ cam.pitch = clamp(cam.pitch, 0.1, 1.5); }
     else if (mode === 'climb'){ camera.position.y += Math.sin(t * 0.9) * 0.0015; }
@@ -1641,7 +1642,12 @@ function frame(){
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
     S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? 4), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
-    if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('ct')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); renderer.render(scene, camera); window.open = (u) => console.log('OPEN', u); window.__dbgClick = 1; const tests = [['book', BOOKS[1]], ['lamp', deskLamp.parts[deskLamp.parts.length - 1]]];
+      for (const [n, o] of tests){ const wp = o.getWorldPosition(new V3()); cam.yaw = yawTo(camera.position, wp); cam.pitch = Math.atan2(wp.y - camera.position.y, Math.hypot(wp.x - camera.position.x, wp.z - camera.position.z)); camera.rotation.set(cam.pitch, cam.yaw, 0); camera.updateMatrixWorld();
+        const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
+        console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
+        for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
+        console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
