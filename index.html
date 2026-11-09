@@ -1672,9 +1672,14 @@ function frame(){
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
       if (keys.has('KeyD')) mx += 1; if (keys.has('KeyA')) mx -= 1; if (keys.has('ArrowLeft')) cam.yaw += dt * 1.4; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.4;
       if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * 1.1 * dt).addScaledVector(right, mx / l * 1.1 * dt); }
-      const p = camera.position; p.z = clamp(p.z, BZ - 5.1, BZ - 0.72);
-      const xlo = p.z > BZ - 2.3 ? HOME.x + 0.28 : p.z < BZ - 2.8 ? HOME.x - 0.1 : HOME.x - 0.75, xhi = p.z > BZ - 2.45 ? HOME.x + 0.58 : HOME.x + 0.75;
-      p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.1, 0.9);
+      // up to the sill; with the window open you can lean right out over the yard
+      const p = camera.position; p.z = clamp(p.z, BZ - 5.1, winOpen.v > 0.6 ? BZ + 0.3 : BZ - 0.45);
+      let xlo = HOME.x - 0.75, xhi = HOME.x + 0.75;
+      if (p.z > BZ - 0.62){ xlo = HOME.x - 0.55; xhi = HOME.x + 0.55; }                         // in the window opening
+      else if (p.z < BZ - 0.98 && p.z > BZ - 2.3){ xlo = HOME.x + 0.28; xhi = HOME.x + 0.58; }   // between the table/chair and the bookshelf
+      else if (p.z <= BZ - 2.3 && p.z > BZ - 2.45) xhi = HOME.x + 0.58;
+      else if (p.z < BZ - 2.8) xlo = HOME.x - 0.1;                                               // beside the bed
+      p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.35, 0.95);
     } else if (mode === 'lie'){ cam.pitch = clamp(cam.pitch, 0.1, 1.5); }
     else if (mode === 'climb'){ camera.position.y += Math.sin(t * 0.9) * 0.0015; }
     camera.rotation.set(cam.pitch, cam.yaw, 0);
