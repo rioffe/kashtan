@@ -226,6 +226,7 @@ function drawStucco(g, w, h, ppm){
 const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
+const ROAD_X = -3.7, GX0 = -1.4;   // one-car lane (x -5.3…-2.1); the gardens start right at its edge
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -272,8 +273,8 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
 }
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(7, 300).rotateX(-Math.PI / 2), flatMat(dirtTex, '#ffffff', 0.85, -1));
-  road.position.set(0, 0.01, 0); road.receiveShadow = true; scene.add(road);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 300).rotateX(-Math.PI / 2), flatMat(dirtTex, '#ffffff', 0.85, -1));
+  road.position.set(ROAD_X, 0.01, 0); road.receiveShadow = true; scene.add(road);
   const yt = dirtTex.clone(); yt.repeat.set(5, 2); yt.needsUpdate = true;
   const yard = new THREE.Mesh(new THREE.PlaneGeometry(46, 14).rotateX(-Math.PI / 2), flatMat(yt, '#e8e0d4', 0.9, -2));
   yard.position.set(2, 0.012, BZ + 6.5); yard.receiveShadow = true; scene.add(yard);
@@ -740,8 +741,8 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
 {
   const poleMat = snowify(new THREE.MeshStandardMaterial({ color: '#4a3f35', roughness: 1 }));
   const tops = [];
-  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(-4.4, 4, z); p.castShadow = true; scene.add(p);
-    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(-4.4, 7.6, z); scene.add(cb); tops.push(new V3(-4.4, 7.6, z)); }
+  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(-1.85, 4, z); p.castShadow = true; scene.add(p);
+    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(-1.85, 7.6, z); scene.add(cb); tops.push(new V3(-1.85, 7.6, z)); }
   tops.push(new V3(-6, 9.5, BZ + 0.2));
   const wm = new THREE.LineBasicMaterial({ color: '#1d1d1f', transparent: true, opacity: 0.8 });
   for (const off of [-0.6, 0.6]) for (let i = 0; i < tops.length - 1; i++){
@@ -752,6 +753,13 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
 /* ============================== gardens ============================== */
 const shrubLeafMat = new THREE.MeshStandardMaterial({ color: '#4a7a35', roughness: 0.9, flatShading: true });
 let shrubs, veg, flowers, stems, sunHeads, sunStems, lilacBloom;
+const FLOWER_KINDS = [ // bloom windows on the season axis (0 = Dec … 4), so something is flowering from March to October
+  { win: [0.86, 0.96, 1.18, 1.3], h: [0.1, 0.14], s: [0.45, 0.6], cols: ['#ffffff', '#f4f4ff'] },                                   // snowdrops
+  { win: [1.1, 1.2, 1.4, 1.5], h: [0.1, 0.16], s: [0.55, 0.75], cols: ['#9a6ad8', '#ffffff', '#f2c73a', '#b890e8'] },                // crocuses
+  { win: [1.36, 1.46, 1.7, 1.82], h: [0.32, 0.45], s: [0.8, 1.0], cols: ['#d8202a', '#f2c020', '#f06aa0', '#ffffff', '#e8501a'] },   // tulips, daffodils
+  { win: [1.72, 1.84, 2.12, 2.24], h: [0.55, 0.8], s: [1.3, 1.7], cols: ['#f4a0c0', '#ffffff', '#d8304a'] },                         // peonies
+  { win: [2.0, 2.15, 3.15, 3.3], h: [0.5, 0.95], s: [0.7, 1.3], cols: ['#d83a4a', '#f06aa0', '#f2c73a', '#8a4ab8', '#ffffff', '#e8702a'] }, // roses, dahlias, phlox
+  { win: [2.88, 3.02, 3.62, 3.8], h: [0.35, 0.7], s: [0.7, 1.0], cols: ['#8a5ad0', '#ffffff', '#f2c73a', '#e080b0', '#b84a8a'] } ];  // asters, chrysanthemums
 const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [], fruitSpots = [];
 {
   const woodMat = snowify(new THREE.MeshStandardMaterial({ color: '#8a7a62', roughness: 1 }), 1.2);
@@ -759,20 +767,24 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
   // picket fence along the road
   const pick_ = []; for (let z = -126; z < 110; z += 0.16){ if (((z + 126) % 18) > 16.2) continue; pick_.push(z); }
   const pk = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 1.0, 0.09).translate(0, 0.5, 0), woodMat, pick_.length);
-  const m = new THREE.Matrix4(); pick_.forEach((z, i) => { m.makeRotationZ(rnd(-0.04, 0.04)); m.setPosition(4.4, 0, z); m.scale(new V3(1, rnd(0.85, 1.1), 1)); pk.setMatrixAt(i, m); });
+  const m = new THREE.Matrix4(); pick_.forEach((z, i) => { m.makeRotationZ(rnd(-0.04, 0.04)); m.setPosition(GX0 - 0.15, 0, z); m.scale(new V3(1, rnd(0.85, 1.1), 1)); pk.setMatrixAt(i, m); });
   pk.castShadow = true; scene.add(pk);
-  for (const y of [0.3, 0.8]){ const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 236), woodMat); rail.position.set(4.36, y, -8); scene.add(rail); }
+  for (const y of [0.3, 0.8]){ const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 236), woodMat); rail.position.set(GX0 - 0.19, y, -8); scene.add(rail); }
   // plots
   const shrubGeo = new THREE.IcosahedronGeometry(0.55, 1), sm = new THREE.Matrix4();
   for (let z0 = -126; z0 < 108; z0 += 18){
-    for (let x = 5; x < 17; x += 1.2){ const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 0.06), woodMat); post.position.set(x, 0.45, z0); scene.add(post); }
-    const beds = 2 + Math.floor(rng() * 3);
-    for (let b = 0; b < beds; b++){ const bx = 6.5 + b * 2.4, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; scene.add(bed);
+    for (let x = GX0; x < 17; x += 1.2){ const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 0.06), woodMat); post.position.set(x, 0.45, z0); scene.add(post); }
+    const beds = 3 + Math.floor(rng() * 3);
+    for (let b = 0; b < beds; b++){ const bx = 3.2 + b * 2.15, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; scene.add(bed);
       for (let k = 0; k < 14; k++) vegData.push({ p: new V3(bx + rnd(-0.35, 0.35), 0.2, z0 + 4 + k * 0.75), s: rnd(0.8, 1.2), kind: rng() });
     }
     for (let k = 0; k < 5; k++) shrubData.push({ p: new V3(rnd(13.8, 16.6), 0.45, z0 + rnd(2, 16)), s: rnd(0.8, 1.15), kind: rng() < 0.55 ? 'currant' : 'goose' });
-    fruitSpots.push({ x: rnd(7, 10.5), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(9.5, 12.5), z: z0 + 16.3, type: pick(['apple', 'pear', 'plum', 'plum']) });
-    for (let k = 0; k < 18; k++) flowerData.push({ p: new V3(rnd(5.0, 5.8), rnd(0.5, 0.95), z0 + rnd(1, 17)), c: C(pick(['#d83a4a', '#f06aa0', '#f2c73a', '#8a4ab8', '#ffffff', '#e8702a'])), s: rnd(0.7, 1.3) });
+    fruitSpots.push({ x: rnd(1.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + 16.3, type: pick(['apple', 'pear', 'plum', 'plum']) });
+    const flower = (x, z, kind = pick(FLOWER_KINDS)) => flowerData.push({ p: new V3(x, rnd(kind.h[0], kind.h[1]), z), c: C(pick(kind.cols)), s: rnd(kind.s[0], kind.s[1]), win: kind.win, yaw: rng() * TAU });
+    for (let k = 0; k < 70; k++) flower(rnd(GX0 + 0.15, GX0 + 1.1), z0 + rnd(0.6, 17.4));                                  // border along the fence
+    const fbz = z0 + rnd(6, 12), fb = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.25, 0.12, 28), soilMat); fb.position.set(1.15, 0.06, fbz); fb.receiveShadow = true; scene.add(fb);
+    for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(1.15 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
+    for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, 17), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
     if (rng() < 0.6) for (let k = 0; k < 3; k++) sunData.push({ p: new V3(16.4 + rnd(-0.3, 0.3), 0, z0 + 6 + k * 1.1), h: rnd(1.6, 2.3) });
     if (rng() < 0.45){ const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
       const sr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 2.4), tarMat); sr.position.set(15.6, 2.2, z0 + 15.5); sr.rotation.x = 0.12; sr.castShadow = true; scene.add(sr); }
@@ -815,7 +827,7 @@ const FRUIT_TYPES = {
   pear:  { bloom: C('#ffffff'), fruit: [C('#d8c050'), C('#c8b048'), C('#c8a040')], fr: 0.07, fy: 1.35, spread: [0.4, 0.65], up: 0.3, bloomS: [1.46, 1.56, 1.7, 1.8], fruitS: [2.5, 3.0, 3.4, 3.55], leafC: C('#3f7a35') },
   plum:  { bloom: C('#fffaf2'), fruit: [C('#4a2a6a'), C('#5a2a5a'), C('#3a2a5a')], fr: 0.045, fy: 1.15, spread: [0.6, 0.9], up: 0.1, bloomS: [1.4, 1.5, 1.62, 1.74], fruitS: [2.4, 2.8, 3.2, 3.36], leafC: C('#4a7a3a') } };
 const FLV = [], FBL = [], FFR = [], SHL = [], BER = [];
-let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries;
+let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeaves;
 {
   const segs = [];
   function growSmall(p, dir, len, rad, depth, T, tips){
@@ -846,6 +858,8 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries;
     if (!sh.lilac) for (let k = 0; k < 30; k++){ const d = new V3(rnd(-1, 1), rnd(-0.5, 0.7), rnd(-1, 1)).normalize();
       const goose = sh.kind === 'goose';
       BER.push({ p: sh.p.clone().addScaledVector(d, (0.5 + rnd(0, 0.15)) * sh.s), s: goose ? rnd(0.026, 0.034) : rnd(0.014, 0.019), c0: C('#86a850'), c1: goose ? C(rng() < 0.7 ? '#b8c870' : '#a05a4a') : C('#d0142c'), r: rng() }); } }
+  flowers.geometry = clusterGeo; flowers.material = new THREE.MeshStandardMaterial({ map: bloomClusterTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.6 });
+  flowerLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, flowerData.length); flowerData.forEach((f, i) => flowerLeaves.setColorAt(i, C(pick(['#4f8a3a', '#5a9a40', '#46803a'])))); scene.add(flowerLeaves);
   orchardLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, FLV.length); orchardLeaves.castShadow = true; scene.add(orchardLeaves);
   orchardBloom = new THREE.InstancedMesh(clusterGeo, bloomMat, FBL.length); scene.add(orchardBloom);
   FBL.forEach((B, i) => orchardBloom.setColorAt(i, B.T.bloom));
@@ -1114,7 +1128,7 @@ function catEpisode(){
   } else {                                        // through the old ladies' gardens
     cat.where = 'garden'; const z0 = rnd(-120, 100); let z = z0; R.set(18.2, 0, z0);
     const n = 3 + Math.floor(rng() * 3);
-    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, 106); catGo(V(rnd(6, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
+    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, 106); catGo(V(rnd(-0.5, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
     catGo(V(18.2, 0, z + rnd(-4, 4)), 1.2);
   }
   cat.state = 'on'; cat.root.visible = true; cat.root.rotation.set(0, 0, 0);
@@ -1267,9 +1281,12 @@ function updateSeasonal(sp){
   // gardens
   updateOrchard();
   vegData.forEach((v, i) => { SC.setScalar(v.s * sp.veg * (v.kind < 0.5 ? 1 : 0.7)); Q.identity(); M4.compose(v.p, Q, SC); veg.setMatrixAt(i, M4); }); veg.instanceMatrix.needsUpdate = true; veg.visible = sp.veg > 0.001;
-  flowerData.forEach((f, i) => { const k = sp.flowers; SC.setScalar(f.s * k); Q.identity(); P3.copy(f.p); P3.y = f.p.y * k; M4.compose(P3, Q, SC); flowers.setMatrixAt(i, M4);
+  let anyFl = false;
+  flowerData.forEach((f, i) => { const k = bump(S, ...f.win); anyFl = anyFl || k > 0; Q.setFromAxisAngle(P3.set(0, 1, 0), f.yaw);
+    SC.setScalar(f.s * 0.3 * k); P3.copy(f.p); P3.y = f.p.y * k; M4.compose(P3, Q, SC); flowers.setMatrixAt(i, M4);
+    SC.set(f.s * 0.34 * k, Math.min(f.p.y, 0.4) * k, f.s * 0.34 * k); P3.set(f.p.x, Math.min(f.p.y, 0.4) * 0.5 * k, f.p.z); M4.compose(P3, Q, SC); flowerLeaves.setMatrixAt(i, M4); Q.identity();
     SC.set(1, f.p.y * k, 1); P3.set(f.p.x, 0, f.p.z); M4.compose(P3, Q, SC); stems.setMatrixAt(i, M4); });
-  flowers.instanceMatrix.needsUpdate = stems.instanceMatrix.needsUpdate = true; flowers.visible = stems.visible = sp.flowers > 0.001;
+  flowers.instanceMatrix.needsUpdate = stems.instanceMatrix.needsUpdate = true; flowers.visible = stems.visible = flowerLeaves.visible = anyFl; flowerLeaves.instanceMatrix.needsUpdate = true;
   sunData.forEach((s, i) => { const k = sp.sunfl, h = s.h * k; Q.setFromEuler(new THREE.Euler(-0.3, 0, 0)); SC.setScalar(k); P3.set(s.p.x, h, s.p.z + 0.08); M4.compose(P3, Q, SC); sunHeads.setMatrixAt(i, M4);
     Q.identity(); SC.set(1, Math.max(h, 0.001), 1); P3.set(s.p.x, 0, s.p.z); M4.compose(P3, Q, SC); sunStems.setMatrixAt(i, M4); });
   sunHeads.instanceMatrix.needsUpdate = sunStems.instanceMatrix.needsUpdate = true; sunHeads.visible = sunStems.visible = sp.sunfl > 0.001;
@@ -1509,7 +1526,7 @@ function updateSeasonHUD(){
 /* ============================== begin ============================== */
 $('begin').onclick = () => {
   started = true; sfx.start(); $('intro').classList.add('gone'); $('ui').classList.remove('hidden');
-  fadeThen(() => { mode = 'walk'; place(new V3(0, 1.6, -28), 0, 0.02); syncButtons(); });
+  fadeThen(() => { mode = 'walk'; place(new V3(ROAD_X, 1.6, -28), 0, 0.02); syncButtons(); });
   setTimeout(() => caption('Engelsa iela 78, Rīga. Summer of 1984 — no, every season of it.'), 1600);
   setTimeout(() => caption('At the end of the road, to the right: the chestnut tree.'), 9500);
   setTimeout(() => { $('hint').style.opacity = 0.35; }, 30000);
@@ -1544,7 +1561,7 @@ function frame(){
       if (keys.has('ArrowLeft')) cam.yaw += dt * 1.6; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.6;
       const sp_ = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
       if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * sp_ * dt).addScaledVector(right, mx / l * sp_ * dt); bob += dt * sp_ * 2.2; }
-      const p = camera.position; p.x = clamp(p.x, -4.9, 18.1); p.z = clamp(p.z, -148.6, 150);
+      const p = camera.position; p.x = clamp(p.x, -5.1, 18.1); p.z = clamp(p.z, -148.6, 150);
       const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
       p.y = 1.6 + Math.sin(bob) * 0.035;
     } else if (mode === 'window'){
@@ -1641,7 +1658,7 @@ function frame(){
 
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
-    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? 4), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
+    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
     if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('ct')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); renderer.render(scene, camera); window.open = (u) => console.log('OPEN', u); window.__dbgClick = 1; const tests = [['book', BOOKS[1]], ['lamp', deskLamp.parts[deskLamp.parts.length - 1]]];
       for (const [n, o] of tests){ const wp = o.getWorldPosition(new V3()); cam.yaw = yawTo(camera.position, wp); cam.pitch = Math.atan2(wp.y - camera.position.y, Math.hypot(wp.x - camera.position.x, wp.z - camera.position.z)); camera.rotation.set(cam.pitch, cam.yaw, 0); camera.updateMatrixWorld();
         const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
