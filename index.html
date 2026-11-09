@@ -1006,10 +1006,13 @@ var blockMats = [];
 }
 
 /* ============================== weather: clouds, rain, puddles ============================== */
-const cloudTex = tex(256, 128, (g) => { for (let i = 0; i < 30; i++){ const x = rnd(40, 216), y = 70 + rnd(-24, 12) * (1 - Math.abs(x - 128) / 160), r = rnd(16, 40);
-  const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); } });
+// an opaque grey-scale opacity mask (white = cloud) — no colour in the texture, so no colour fringes
+const cloudTex = tex(256, 128, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 30; i++){ const x = rnd(40, 216), y = 70 + rnd(-24, 12) * (1 - Math.abs(x - 128) / 160), r = rnd(16, 40);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgb(110,110,110)'); gr.addColorStop(1, 'rgb(0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  g.globalCompositeOperation = 'source-over'; }, { srgb: false });
 const CLOUDS = [];
-for (let i = 0; i < 90; i++){ const m = new THREE.SpriteMaterial({ map: cloudTex, transparent: true, depthWrite: false, fog: false, opacity: 0 }), sp = new THREE.Sprite(m);
+for (let i = 0; i < 90; i++){ const m = new THREE.SpriteMaterial({ alphaMap: cloudTex, color: '#ffffff', transparent: true, depthWrite: false, fog: false, opacity: 0 }), sp = new THREE.Sprite(m);
   const a = rng() * TAU, r = rnd(120, 750); sp.position.set(Math.cos(a) * r, rnd(130, 260), Math.sin(a) * r - 40); const k = rnd(0.7, 1.6); sp.scale.set(230 * k, 90 * k, 1);
   sp.renderOrder = -8; scene.add(sp); CLOUDS.push({ sp, r: rng() }); }
 const RAIN_N = 3200, rainP = new Float32Array(RAIN_N * 6);
