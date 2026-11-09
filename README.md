@@ -9,6 +9,12 @@ chestnut tree at the end. Watch it through four seasons and any time of day; cli
 lie under it and look at the stars, sit at the third-floor window, kick the trunk, gather
 chestnuts in autumn and roast them over a fire. Generative meditative music throughout.
 
+Behind the garages and the gardens stand the squat red-brick workshops with their tin roofs; the
+gardens are full of apple, pear and plum trees, red currant and gooseberry bushes; and all around,
+as far as the eye can see, the five-storey buildings of Rīga's old centre. The neighbourhood cat —
+black, with white paws and a white breast — turns up out of nowhere: on the garage roofs, in the
+gardens (sometimes with a mouse or a bird), or dozing on a limb of the chestnut.
+
 Single-file Three.js — open `index.html` or serve the folder.
 
 ## Controls
