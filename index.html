@@ -319,7 +319,8 @@ function drawFacade(g, W, H, lit){
       if (w.drape){ g.fillStyle = w.drape; g.fillRect(x0 + 2, y0 + 2, pw * 0.17, ph - 4); g.fillRect(x0 + pw * 0.83 - 2, y0 + 2, pw * 0.17, ph - 4); }
       g.fillStyle = '#ddd8cb'; const fw = 4;
       g.fillRect(x0, y0, pw, fw); g.fillRect(x0, y0 + ph - fw, pw, fw); g.fillRect(x0, y0, fw, ph); g.fillRect(x0 + pw - fw, y0, fw, ph);
-      if (!w.stair){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph * 0.3, pw, 4); g.fillRect(x0 + pw * 0.25 - 1.5, y0, 3, ph * 0.3); }
+      if (w.home){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph / 3, pw, 3); g.fillRect(x0, y0 + 2 * ph / 3, pw, 3); }
+      else if (!w.stair){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph * 0.3, pw, 4); g.fillRect(x0 + pw * 0.25 - 1.5, y0, 3, ph * 0.3); }
       else g.fillRect(x0, y0 + ph / 2 - 2, pw, 4);
       g.fillStyle = '#8e8b83'; g.fillRect(x0 - 8, y0 + ph + 4, pw + 16, 6);
       if (w.plant){ for (let k = 0; k < 4; k++) blot(g, x0 + pw * (0.3 + k * 0.13), y0 + ph - 8, 5, k % 2 ? '#c03030' : '#3d6b2e'); }
@@ -332,7 +333,8 @@ function drawFacade(g, W, H, lit){
       g.fillStyle = gr; g.fillRect(x0, y0, pw, ph);
       if (w.drape){ g.fillStyle = 'rgba(70,30,10,.65)'; g.fillRect(x0 + 2, y0 + 2, pw * 0.17, ph - 4); g.fillRect(x0 + pw * 0.83 - 2, y0 + 2, pw * 0.17, ph - 4); }
       g.fillStyle = '#000'; g.fillRect(x0, y0, pw, 4); g.fillRect(x0, y0 + ph - 4, pw, 4); g.fillRect(x0, y0, 4, ph); g.fillRect(x0 + pw - 4, y0, 4, ph);
-      if (!w.stair){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph * 0.3, pw, 4); } else g.fillRect(x0, y0 + ph / 2 - 2, pw, 4);
+      if (w.home){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph / 3, pw, 3); g.fillRect(x0, y0 + 2 * ph / 3, pw, 3); }
+      else if (!w.stair){ g.fillRect(x0 + pw / 2 - 2, y0, 4, ph); g.fillRect(x0, y0 + ph * 0.3, pw, 4); } else g.fillRect(x0, y0 + ph / 2 - 2, pw, 4);
     }
   }
 }
@@ -430,20 +432,20 @@ var roomLight;
   const fz0 = BZ - 0.26, fz1 = BZ - 0.18;
   rbox(wx0, wx1, wy0, wy0 + 0.07, fz0, fz1, paint); rbox(wx0, wx1, wy1 - 0.07, wy1, fz0, fz1, paint);
   rbox(wx0, wx0 + 0.07, wy0, wy1, fz0, fz1, paint); rbox(wx1 - 0.07, wx1, wy0, wy1, fz0, fz1, paint);
-  rbox(wx0, wx1, wy1 - 0.53, wy1 - 0.47, fz0, fz1, paint);
+  // two tall casements, no transom or upper pane
   const glassM = new THREE.MeshStandardMaterial({ color: '#d6e6ee', transparent: true, opacity: 0.1, roughness: 0.04, metalness: 0.3, depthWrite: false, side: THREE.DoubleSide });
-  for (const [xa, xb] of [[wx0 + 0.07, HOME.x - 0.38], [HOME.x - 0.33, wx1 - 0.07]]){ const gp = new THREE.Mesh(new THREE.PlaneGeometry(xb - xa, 0.4), glassM); gp.position.set((xa + xb) / 2, wy1 - 0.27, (fz0 + fz1) / 2); room.add(gp); }
+
   // the two lower casements, hinged at the outer edges, opening out over the yard
-  const SW = (wx1 - wx0 - 0.14) / 2, ya = wy0 + 0.07, yb = wy1 - 0.53, brass = new THREE.MeshStandardMaterial({ color: '#c8a050', metalness: 0.7, roughness: 0.35 });
+  const SW = (wx1 - wx0 - 0.14) / 2, ya = wy0 + 0.07, yb = wy1 - 0.07, brass = new THREE.MeshStandardMaterial({ color: '#c8a050', metalness: 0.7, roughness: 0.35 });
   for (const [hx, dir] of [[wx0 + 0.07, 1], [wx1 - 0.07, -1]]){
     const g = new THREE.Group(); g.position.set(hx, 0, fz1); room.add(g); winOpen.sashes.push({ g, dir });
     const bar = (ta, tb, y_a, y_b, m = paint) => { const me = new THREE.Mesh(new THREE.BoxGeometry(tb - ta, y_b - y_a, 0.055), m); me.position.set(dir * (ta + tb) / 2, (y_a + y_b) / 2, -0.035); g.add(me); WIN_PARTS.push(me); return me; };
-    bar(0, 0.05, ya, yb); bar(SW - 0.05, SW, ya, yb); bar(0, SW, ya, ya + 0.055); bar(0, SW, yb - 0.05, yb); bar(0, SW, (ya + yb) / 2 + 0.1, (ya + yb) / 2 + 0.13);
+    bar(0, 0.05, ya, yb); bar(SW - 0.05, SW, ya, yb); bar(0, SW, ya, ya + 0.055); bar(0, SW, yb - 0.05, yb); bar(0, SW, ya + (yb - ya) / 3 - 0.015, ya + (yb - ya) / 3 + 0.015); bar(0, SW, ya + 2 * (yb - ya) / 3 - 0.015, ya + 2 * (yb - ya) / 3 + 0.015);
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(SW - 0.1, yb - ya - 0.1), glassM); gl.position.set(dir * SW / 2, (ya + yb) / 2, -0.035); g.add(gl); WIN_PARTS.push(gl);
     const hd = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.09, 0.025), brass); hd.position.set(dir * (SW - 0.03), (ya + yb) / 2, -0.075); g.add(hd); WIN_PARTS.push(hd);
   }
   WIN_PARTS.forEach(m => m.userData.win = true);
-  rbox(HOME.x - 0.38, HOME.x - 0.33, wy1 - 0.5, wy1, fz0, fz1, paint);
+
   rbox(wx0 - 0.1, wx1 + 0.1, wy0 - 0.04, wy0, BZ - 0.62, BZ - 0.2, paint);
   rbox(HOME.x - 0.55, HOME.x + 0.55, 7.45, 7.95, BZ - 0.55, BZ - 0.45, new THREE.MeshStandardMaterial({ color: '#d8d3c6', roughness: 0.5 }));
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.15, 12), new THREE.MeshStandardMaterial({ color: '#b5603a' })); pot.position.set(wx1 - 0.25, 8.17, BZ - 0.42); room.add(pot);
