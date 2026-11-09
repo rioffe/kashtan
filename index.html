@@ -812,8 +812,8 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
   }
-  for (let k = 0; k < 6; k++){ const x = -15 + k * 2.2 + rnd(-0.3, 0.3); if (Math.abs(x + 9) < 2.6 || x < -12.6 || (x > ROAD_X - ROAD_W / 2 - 1.2 && x < GX0)) continue; // keep entrance 1 clear, and clear of the brick wall
-    lilacData.push({ p: new V3(x, 1.1, BZ + 1.6 + rnd(0, 0.6)), s: rnd(1.1, 1.5) }); }
+  // lilacs along the front of the building, clear of the lane, its verges and both entrances
+  for (const x0_ of [-16.4, -14.2, -2.6, -0.4, 1.8, 4.0, 6.2]) lilacData.push({ p: new V3(x0_ + rnd(-0.25, 0.25), 1.1, BZ + 1.6 + rnd(0, 0.6)), s: rnd(1.1, 1.5) });
   for (const L of lilacData) shrubData.push({ p: L.p, s: L.s * 1.2, lilac: true });
   veg = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: '#8fb86a', roughness: 0.7, flatShading: true }), vegData.length); veg.castShadow = true; scene.add(veg);
   flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.09, 1), new THREE.MeshStandardMaterial({ roughness: 0.6 }), flowerData.length); scene.add(flowers);
