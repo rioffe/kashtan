@@ -424,8 +424,11 @@ var roomLight;
   const plaster = new THREE.MeshStandardMaterial({ color: '#e9e5db', roughness: 0.9 }), winWall = [plaster, plaster, plaster, plaster, plaster, wm]; // wallpaper only on the room side
   rbox(x0, wx0, y0, y1, zb, zf, winWall, 0.5); rbox(wx1, x1, y0, y1, zb, zf, winWall, 0.5); rbox(wx0, wx1, y0, wy0, zb, zf, winWall, 0.5); rbox(wx0, wx1, wy1, y1, zb, zf, winWall, 0.5);
   rbox(x0 - 0.1, x0, y0, y1, zr, zb, wm, 0.5); rbox(x1, x1 + 0.1, y0, y1, zr, zb, wm, 0.5); rbox(x0, x1, y0, y1, zr - 0.1, zr, wm, 0.5);
-  rbox(HOME.x + 0.12, HOME.x + 0.94, y0, y0 + 2.05, zr, zr + 0.04, veneer);
-  rbox(HOME.x + 0.18, HOME.x + 0.26, y0 + 0.98, y0 + 1.02, zr + 0.04, zr + 0.1, new THREE.MeshStandardMaterial({ color: '#c8b070', metalness: 0.6, roughness: 0.4 }));
+  // two doors facing each other near the back: on the right (as you look into the room) mine, on the left my sister's
+  const handleM = new THREE.MeshStandardMaterial({ color: '#c8b070', metalness: 0.6, roughness: 0.4 }), dz0 = zr + 0.15, dz1 = zr + 0.97;
+  rbox(x1 - 0.04, x1, y0, y0 + 2.05, dz0, dz1, veneer); rbox(x1 - 0.1, x1 - 0.04, y0 + 0.98, y0 + 1.02, dz1 - 0.12, dz1 - 0.04, handleM);
+  rbox(x0, x0 + 0.04, y0, y0 + 2.05, dz0, dz1, veneer); rbox(x0 + 0.04, x0 + 0.1, y0 + 0.98, y0 + 1.02, dz1 - 0.12, dz1 - 0.04, handleM);
+  for (const [xa, xb] of [[x1 - 0.06, x1 - 0.04], [x0 + 0.04, x0 + 0.06]]){ rbox(xa, xb, y0, y0 + 2.12, dz0 - 0.07, dz0, paint); rbox(xa, xb, y0, y0 + 2.12, dz1, dz1 + 0.07, paint); rbox(xa, xb, y0 + 2.05, y0 + 2.12, dz0, dz1, paint); }  // door casings
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, zb - zr).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: planks, roughness: 0.55 })); fl.position.set(HOME.x, y0, (zb + zr) / 2); room.add(fl);
   const ce = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, zb - zr).rotateX(Math.PI / 2), paint); ce.position.set(HOME.x, y1, (zb + zr) / 2); room.add(ce);
   // window frame, sill, radiator
@@ -571,8 +574,8 @@ var roomLight;
       bk.userData.title = title; room.add(bk); BOOKS.push(bk); z -= t + (rng() < 0.08 ? rnd(0.03, 0.1) : 0.002); } }
 
   /* a narrow sofa-bed further back on the right, with the obligatory carpet on the wall */
-  rbox(x0, x0 + 0.8, y0, y0 + 0.3, BZ - 4.95, BZ - 2.9, wood);
-  rbox(x0 + 0.02, x0 + 0.78, y0 + 0.3, y0 + 0.45, BZ - 4.93, BZ - 2.92, new THREE.MeshStandardMaterial({ color: '#8a4a3a', roughness: 1 }));
+  rbox(x0, x0 + 0.8, y0, y0 + 0.3, BZ - 4.3, BZ - 2.4, wood);
+  rbox(x0 + 0.02, x0 + 0.78, y0 + 0.3, y0 + 0.45, BZ - 4.28, BZ - 2.42, new THREE.MeshStandardMaterial({ color: '#8a4a3a', roughness: 1 }));
   const worldMap = tex(1024, 600, (g, w, h) => {
     const X = lon => 30 + (lon + 180) / 360 * (w - 60), Y = lat => 70 + (90 - lat) / 180 * (h - 100);
     g.fillStyle = '#f4efe0'; g.fillRect(0, 0, w, h); g.fillStyle = '#a9cfe0'; g.fillRect(30, 70, w - 60, h - 100);
@@ -596,7 +599,7 @@ var roomLight;
     g.fillStyle = '#1a2a4a'; g.font = 'bold 30px Georgia'; g.fillText('ПОЛИТИЧЕСКАЯ КАРТА МИРА', w / 2 - 230, 48);
     g.strokeStyle = '#5a4a3a'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6); g.strokeStyle = '#1a2a4a'; g.lineWidth = 2; g.strokeRect(30, 70, w - 60, h - 100);
   });
-  const cp = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.17).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ map: worldMap, roughness: 0.85 })); cp.position.set(x0 + 0.01, 8.45, BZ - 3.92); room.add(cp);
+  const cp = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.17).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ map: worldMap, roughness: 0.85 })); cp.position.set(x0 + 0.01, 8.45, BZ - 3.35); room.add(cp);
 }
 /* clicking a book opens the Post machine */
 {
@@ -1677,8 +1680,7 @@ function frame(){
       let xlo = HOME.x - 0.75, xhi = HOME.x + 0.75;
       if (p.z > BZ - 0.62){ xlo = HOME.x - 0.55; xhi = HOME.x + 0.55; }                         // in the window opening
       else if (p.z < BZ - 0.98 && p.z > BZ - 2.3){ xlo = HOME.x + 0.28; xhi = HOME.x + 0.58; }   // between the table/chair and the bookshelf
-      else if (p.z <= BZ - 2.3 && p.z > BZ - 2.45) xhi = HOME.x + 0.58;
-      else if (p.z < BZ - 2.8) xlo = HOME.x - 0.1;                                               // beside the bed
+      else { if (p.z > BZ - 2.45) xhi = HOME.x + 0.58; if (p.z < BZ - 2.3 && p.z > BZ - 4.4) xlo = HOME.x - 0.1; }   // shelf end; beside the bed
       p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.35, 0.95);
     } else if (mode === 'lie'){ cam.pitch = clamp(cam.pitch, 0.1, 1.5); }
     else if (mode === 'climb'){ camera.position.y += Math.sin(t * 0.9) * 0.0015; }
