@@ -227,7 +227,7 @@ function drawStucco(g, w, h, ppm){
 const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
-const ROAD_X = -3.7, GX0 = -1.4;   // one-car lane (x -5.3…-2.1); the gardens start right at its edge
+const GAR_X = -15.4, ROAD_X = -10.6, GX0 = -8.3;   // garages back onto the left brick row (mirror of the right one); one-car lane x -12.2…-9.0; gardens from its edge
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -751,17 +751,17 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
   for (let z = -128, i = 0; z < 130; z += 3.4, i++){
     const h = rnd(2.3, 2.65), wall = rng() < 0.3 ? brick : corr;
     const gm = new THREE.Mesh(new THREE.BoxGeometry(6, h, 3.25), [doorMats[i % doorMats.length], wall, tarMat, wall, wall, wall]);
-    GARAGES.push({ z, h }); gm.position.set(-8.5, h / 2, z); gm.castShadow = gm.receiveShadow = true; scene.add(gm);
-    const rf = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.1, 3.4), tarMat); rf.position.set(-8.4, h + 0.05, z); rf.rotation.z = -0.03; rf.castShadow = rf.receiveShadow = true; scene.add(rf);
+    GARAGES.push({ z, h }); gm.position.set(GAR_X, h / 2, z); gm.castShadow = gm.receiveShadow = true; scene.add(gm);
+    const rf = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.1, 3.4), tarMat); rf.position.set(GAR_X + 0.1, h + 0.05, z); rf.rotation.z = -0.03; rf.castShadow = rf.receiveShadow = true; scene.add(rf);
   }
 }
 /* telegraph poles & wires */
 {
   const poleMat = snowify(new THREE.MeshStandardMaterial({ color: '#4a3f35', roughness: 1 }));
   const tops = [];
-  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(-1.85, 4, z); p.castShadow = true; scene.add(p);
-    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(-1.85, 7.6, z); scene.add(cb); tops.push(new V3(-1.85, 7.6, z)); }
-  tops.push(new V3(-6, 9.5, BZ + 0.2));
+  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(ROAD_X + 1.85, 4, z); p.castShadow = true; scene.add(p);
+    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(ROAD_X + 1.85, 7.6, z); scene.add(cb); tops.push(new V3(ROAD_X + 1.85, 7.6, z)); }
+  tops.push(new V3(-12, 9.5, BZ + 0.2));
   const wm = new THREE.LineBasicMaterial({ color: '#1d1d1f', transparent: true, opacity: 0.8 });
   for (const off of [-0.6, 0.6]) for (let i = 0; i < tops.length - 1; i++){
     const a = tops[i].clone().add(new V3(0, 0, off)), b = tops[i + 1].clone().add(new V3(0, 0, off)), mid = a.clone().lerp(b, 0.5); mid.y -= 1.2;
@@ -792,16 +792,16 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
   const shrubGeo = new THREE.IcosahedronGeometry(0.55, 1), sm = new THREE.Matrix4();
   for (let z0 = -126; z0 < 108; z0 += 18){
     for (let x = GX0; x < 17; x += 1.2){ const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 0.06), woodMat); post.position.set(x, 0.45, z0); scene.add(post); }
-    const beds = 3 + Math.floor(rng() * 3);
-    for (let b = 0; b < beds; b++){ const bx = 3.2 + b * 2.15, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; scene.add(bed);
+    const beds = 4 + Math.floor(rng() * 3);
+    for (let b = 0; b < beds; b++){ const bx = GX0 + 5.2 + b * 2.15, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; scene.add(bed);
       for (let k = 0; k < 14; k++) vegData.push({ p: new V3(bx + rnd(-0.35, 0.35), 0.2, z0 + 4 + k * 0.75), s: rnd(0.8, 1.2), kind: rng() });
     }
     for (let k = 0; k < 5; k++) shrubData.push({ p: new V3(rnd(13.8, 16.6), 0.45, z0 + rnd(2, 16)), s: rnd(0.8, 1.15), kind: rng() < 0.55 ? 'currant' : 'goose' });
-    fruitSpots.push({ x: rnd(1.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + 16.3, type: pick(['apple', 'pear', 'plum', 'plum']) });
+    fruitSpots.push({ x: rnd(GX0 + 3.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + 16.3, type: pick(['apple', 'pear', 'plum', 'plum']) });
     const flower = (x, z, kind = pick(FLOWER_KINDS)) => flowerData.push({ p: new V3(x, rnd(kind.h[0], kind.h[1]), z), c: C(pick(kind.cols)), s: rnd(kind.s[0], kind.s[1]), win: kind.win, yaw: rng() * TAU });
     for (let k = 0; k < 70; k++) flower(rnd(GX0 + 0.15, GX0 + 1.1), z0 + rnd(0.6, 17.4));                                  // border along the fence
-    const fbz = z0 + rnd(6, 12), fb = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.25, 0.12, 28), soilMat); fb.position.set(1.15, 0.06, fbz); fb.receiveShadow = true; scene.add(fb);
-    for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(1.15 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
+    const fbz = z0 + rnd(6, 12), fb = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.25, 0.12, 28), soilMat); fb.position.set(GX0 + 2.8, 0.06, fbz); fb.receiveShadow = true; scene.add(fb);
+    for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(GX0 + 2.8 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
     for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, 17), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
     if (rng() < 0.6) for (let k = 0; k < 3; k++) sunData.push({ p: new V3(16.4 + rnd(-0.3, 0.3), 0, z0 + 6 + k * 1.1), h: rnd(1.6, 2.3) });
     if (rng() < 0.45){ const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
@@ -809,7 +809,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
   }
-  for (let k = 0; k < 6; k++){ const x = -15 + k * 2.2 + rnd(-0.3, 0.3); if (Math.abs(x + 9) < 2.6 || x < -11.4) continue; // keep entrance 1 clear, and clear of the brick wall
+  for (let k = 0; k < 6; k++){ const x = -15 + k * 2.2 + rnd(-0.3, 0.3); if (Math.abs(x + 9) < 2.6 || x < -12.6) continue; // keep entrance 1 clear, and clear of the brick wall
     lilacData.push({ p: new V3(x, 1.1, BZ + 1.6 + rnd(0, 0.6)), s: rnd(1.1, 1.5) }); }
   for (const L of lilacData) shrubData.push({ p: L.p, s: L.s * 1.2, lilac: true });
   veg = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: '#8fb86a', roughness: 0.7, flatShading: true }), vegData.length); veg.castShadow = true; scene.add(veg);
@@ -938,14 +938,13 @@ const brickBayTex = tex(1024, 352, (g, w, h) => {
   const industrial = (x0, x1, z0, z1, H) => { const w = x1 - x0, d = z1 - z0, g = boxUV(w, H, d, 16); g.translate((x0 + x1) / 2, H / 2, (z0 + z1) / 2); walls.push(g);
     const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, rnd(1.2, 1.8))]), { depth: d + 0.7, bevelEnabled: false });
     r.translate((x0 + x1) / 2, H, z0 - 0.35); roofs.push(r); };
-  industrial(-31, -18.4, -180, -146, 5.8);   // wing running past the side of the apartment building and on behind it
-  for (let z = -146; z < 150;){ const len = rnd(20, 42); industrial(-29, -12.2, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
+  for (let z = -150; z < 150;){ const len = rnd(20, 42); industrial(-34, -18.6, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
   for (let z = -150; z < 140;){ const len = rnd(18, 38); industrial(18.6, 34, z, Math.min(z + len, 142), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
   const wm = new THREE.Mesh(mergeGeometries(walls), snowify(new THREE.MeshStandardMaterial({ map: brickBayTex, roughness: 0.95 })));
   const rm = new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2));
   wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 24, 16), snowify(new THREE.MeshStandardMaterial({ color: '#6a3426', roughness: 1 }), 0.5));
-  stack.position.set(-23, 12, 34); stack.castShadow = true; scene.add(stack);
+  stack.position.set(-27, 12, 34); stack.castShadow = true; scene.add(stack);
 }
 
 /* ---------- the old city: five-storey buildings from the early 1900s, as far as the eye can see ---------- */
@@ -1153,7 +1152,7 @@ const fire = { on: false, t: 0, roastT: 0, g: new THREE.Group(), flames: [] };
 }
 
 /* ============================== the neighbourhood cat ============================== */
-function roofY(z, x = -8.6){ let best = null, bd = 1e9; for (const g of GARAGES){ const d = Math.abs(g.z - z); if (d < bd){ bd = d; best = g; } } return (best ? best.h + 0.1 : 2.6) + (-8.4 - x) * 0.03; }
+function roofY(z, x = GAR_X - 0.1){ let best = null, bd = 1e9; for (const g of GARAGES){ const d = Math.abs(g.z - z); if (d < bd){ bd = d; best = g; } } return (best ? best.h + 0.1 : 2.6) + (GAR_X + 0.1 - x) * 0.03; }
 const cat = { root: new THREE.Group(), body: new THREE.Group(), head: new THREE.Group(), legs: [], tail: [], q: [], state: 'hidden', timer: 7, phase: 0,
   seen: false, preySeen: false, meowT: 0, where: '', force: null, cur: { by: 0.2, rx: 0, l: [0, 0, 0, 0], ls: [1, 1, 1, 1], tx: 0.25, ty: 0, hx: 0 } };
 {
@@ -1204,15 +1203,15 @@ function catEpisode(){
     catGo(V(18.2, 0, TREE.z + rnd(4, 18)), 1.8);
   } else if (r < 0.7){                            // along the garage roofs
     cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-100, 100); let z = z0;
-    R.set(-11.4, roofY(z0, -11.4), z0); catGo(V(-9.4, roofY(z0, -9.4), z0 + dir * 1.5), 0.8);
+    R.set(GAR_X - 2.9, roofY(z0, GAR_X - 2.9), z0); catGo(V(GAR_X - 0.9, roofY(z0, GAR_X - 0.9), z0 + dir * 1.5), 0.8);
     const segs = 6 + Math.floor(rng() * 10);
-    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, 126); const x = -8.6 + rnd(-0.6, 0.6); catGo(V(x, roofY(z, x), z), 0.9);
+    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, 126); const x = GAR_X - 0.1 + rnd(-0.6, 0.6); catGo(V(x, roofY(z, x), z), 0.9);
       if (rng() < 0.18) catPose(pick(['sit', 'lie', 'sit']), rnd(5, 14)); }
-    catPose('sit', rnd(4, 10)); catGo(V(-11.4, roofY(z, -11.4), z + dir * 1.2), 1.0);
+    catPose('sit', rnd(4, 10)); catGo(V(GAR_X - 2.9, roofY(z, GAR_X - 2.9), z + dir * 1.2), 1.0);
   } else {                                        // through the old ladies' gardens
     cat.where = 'garden'; const z0 = rnd(-120, 100); let z = z0; R.set(18.2, 0, z0);
     const n = 3 + Math.floor(rng() * 3);
-    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, 106); catGo(V(rnd(-0.5, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
+    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, 106); catGo(V(rnd(GX0 + 1, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
     catGo(V(18.2, 0, z + rnd(-4, 4)), 1.2);
   }
   cat.state = 'on'; cat.root.visible = true; cat.root.rotation.set(0, 0, 0);
@@ -1665,7 +1664,7 @@ function frame(){
       if (keys.has('ArrowLeft')) cam.yaw += dt * 1.6; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.6;
       const sp_ = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
       if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * sp_ * dt).addScaledVector(right, mx / l * sp_ * dt); bob += dt * sp_ * 2.2; }
-      const p = camera.position; p.x = clamp(p.x, -5.1, 18.1); p.z = clamp(p.z, -148.6, 150);
+      const p = camera.position; p.x = clamp(p.x, ROAD_X - 1.4, 18.1); p.z = clamp(p.z, -148.6, 150);
       const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
       p.y = 1.6 + Math.sin(bob) * 0.035;
     } else if (mode === 'window'){
