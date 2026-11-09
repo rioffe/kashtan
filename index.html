@@ -847,7 +847,8 @@ const brickBayTex = tex(1024, 352, (g, w, h) => {
   const industrial = (x0, x1, z0, z1, H) => { const w = x1 - x0, d = z1 - z0, g = boxUV(w, H, d, 16); g.translate((x0 + x1) / 2, H / 2, (z0 + z1) / 2); walls.push(g);
     const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, rnd(1.2, 1.8))]), { depth: d + 0.7, bevelEnabled: false });
     r.translate((x0 + x1) / 2, H, z0 - 0.35); roofs.push(r); };
-  for (let z = -150; z < 150;){ const len = rnd(20, 42); industrial(-29, -12.2, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
+  industrial(-31, -18.4, -180, -146, 5.8);   // wing running past the side of the apartment building and on behind it
+  for (let z = -146; z < 150;){ const len = rnd(20, 42); industrial(-29, -12.2, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
   for (let z = -150; z < 140;){ const len = rnd(18, 38); industrial(18.6, 34, z, Math.min(z + len, 142), rnd(5.2, 6.2)); z += len + rnd(1.5, 5); }
   const wm = new THREE.Mesh(mergeGeometries(walls), snowify(new THREE.MeshStandardMaterial({ map: brickBayTex, roughness: 0.95 })));
   const rm = new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2));
