@@ -758,18 +758,6 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
     const rf = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.1, 3.4), tarMat); rf.position.set(GAR_X + 0.1, h + 0.05, z); rf.rotation.z = -0.03; rf.castShadow = rf.receiveShadow = true; scene.add(rf);
   }
 }
-/* telegraph poles & wires */
-{
-  const poleMat = snowify(new THREE.MeshStandardMaterial({ color: '#4a3f35', roughness: 1 }));
-  const tops = [];
-  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(ROAD_X + ROAD_W / 2 + 1, 4, z); p.castShadow = true; scene.add(p);
-    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(ROAD_X + ROAD_W / 2 + 1, 7.6, z); scene.add(cb); tops.push(new V3(ROAD_X + ROAD_W / 2 + 1, 7.6, z)); }
-  tops.push(new V3(-12, 9.5, BZ + 0.2));
-  const wm = new THREE.LineBasicMaterial({ color: '#1d1d1f', transparent: true, opacity: 0.8 });
-  for (const off of [-0.6, 0.6]) for (let i = 0; i < tops.length - 1; i++){
-    const a = tops[i].clone().add(new V3(0, 0, off)), b = tops[i + 1].clone().add(new V3(0, 0, off)), mid = a.clone().lerp(b, 0.5); mid.y -= 1.2;
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(new THREE.QuadraticBezierCurve3(a, mid, b).getPoints(16)), wm)); }
-}
 
 /* ============================== gardens ============================== */
 const shrubLeafMat = new THREE.MeshStandardMaterial({ color: '#4a7a35', roughness: 0.9, flatShading: true });
