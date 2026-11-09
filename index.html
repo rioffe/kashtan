@@ -377,6 +377,8 @@ lampGlow.position.copy(bulb.position); lampGlow.scale.set(1.6, 1.6, 1); scene.ad
 /* ---------- my room (for the window view): 2 m wide, 5 m deep ---------- */
 const room = new THREE.Group(); scene.add(room);
 const BOOKS = [], POST_URL = 'https://rioffe.github.io/post-machine/';
+const deskLamp = { on: true, parts: [] };
+function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
 var roomLight;
 {
   const wallpaper = tex(128, 128, (g, w, h) => {
@@ -412,7 +414,8 @@ var roomLight;
   const x0 = HOME.x - 1, x1 = HOME.x + 1, y0 = 7.2, y1 = 10.1, zf = BZ - 0.05, zb = BZ - 0.42, zr = BZ - 5.42;
   const wx0 = HOME.x - 0.7, wx1 = HOME.x + 0.7, wy0 = 8.1, wy1 = 9.8;
   // walls with the window opening, side walls, back wall with a door
-  rbox(x0, wx0, y0, y1, zb, zf, wm, 0.5); rbox(wx1, x1, y0, y1, zb, zf, wm, 0.5); rbox(wx0, wx1, y0, wy0, zb, zf, wm, 0.5); rbox(wx0, wx1, wy1, y1, zb, zf, wm, 0.5);
+  const plaster = new THREE.MeshStandardMaterial({ color: '#e9e5db', roughness: 0.9 }), winWall = [plaster, plaster, plaster, plaster, plaster, wm]; // wallpaper only on the room side
+  rbox(x0, wx0, y0, y1, zb, zf, winWall, 0.5); rbox(wx1, x1, y0, y1, zb, zf, winWall, 0.5); rbox(wx0, wx1, y0, wy0, zb, zf, winWall, 0.5); rbox(wx0, wx1, wy1, y1, zb, zf, winWall, 0.5);
   rbox(x0 - 0.1, x0, y0, y1, zr, zb, wm, 0.5); rbox(x1, x1 + 0.1, y0, y1, zr, zb, wm, 0.5); rbox(x0, x1, y0, y1, zr - 0.1, zr, wm, 0.5);
   rbox(HOME.x + 0.12, HOME.x + 0.94, y0, y0 + 2.05, zr, zr + 0.04, veneer);
   rbox(HOME.x + 0.18, HOME.x + 0.26, y0 + 0.98, y0 + 1.02, zr + 0.04, zr + 0.1, new THREE.MeshStandardMaterial({ color: '#c8b070', metalness: 0.6, roughness: 0.4 }));
@@ -442,15 +445,37 @@ var roomLight;
     for (const [dx, dz] of [[-0.17, -0.17], [-0.17, 0.17], [0.17, -0.17], [0.17, 0.17]]) rbox(cx + dx - 0.018, cx + dx + 0.018, y0, sy - 0.03, cz + dz - 0.018, cz + dz + 0.018, chairM);
     for (const dz of [-0.17, 0.17]) rbox(cx + 0.17 - 0.018, cx + 0.17 + 0.018, sy, sy + 0.45, cz + dz - 0.018, cz + dz + 0.018, chairM);
     rbox(cx + 0.155, cx + 0.19, sy + 0.28, sy + 0.44, cz - 0.19, cz + 0.19, chairM); rbox(cx + 0.16, cx + 0.18, sy + 0.12, sy + 0.16, cz - 0.17, cz + 0.17, chairM); }
-  // the desk lamp
-  const lampM = new THREE.MeshStandardMaterial({ color: '#2f5a4a', roughness: 0.4, metalness: 0.5 });
-  const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.025, 20), lampM); lb.position.set(x0 + 0.14, ty + 0.012, BZ - 0.64); room.add(lb);
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.42, 8), new THREE.MeshStandardMaterial({ color: '#bfc4c4', metalness: 0.8, roughness: 0.3 }));
-  arm.position.set(x0 + 0.2, ty + 0.21, BZ - 0.7); arm.rotation.set(0.3, 0, -0.35); room.add(arm);
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 20, 1, true), new THREE.MeshStandardMaterial({ color: '#3f7a5e', side: THREE.DoubleSide, metalness: 0.3, roughness: 0.45, emissive: '#2a2010', emissiveIntensity: 0.4 }));
-  shade.position.set(x0 + 0.3, ty + 0.4, BZ - 0.8); shade.rotation.set(-0.15, 0, 0.3); room.add(shade);
-  const bulbR = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff2c8' })); bulbR.position.set(x0 + 0.31, ty + 0.36, BZ - 0.82); room.add(bulbR);
-  roomLight = new THREE.PointLight(0xffd59a, 0, 7, 1.4); roomLight.position.set(x0 + 0.33, ty + 0.3, BZ - 0.86); scene.add(roomLight);
+  // the desk lamp: weighted base, jointed chrome arm, green enamel dome shade
+  {
+    const enamel = new THREE.MeshStandardMaterial({ color: '#3f8a68', roughness: 0.3, metalness: 0.1 });
+    const chrome = new THREE.MeshStandardMaterial({ color: '#d4d8da', metalness: 0.9, roughness: 0.22 });
+    deskLamp.inner = new THREE.MeshStandardMaterial({ color: '#f2ead6', side: THREE.BackSide, roughness: 0.6, emissive: '#ffd890', emissiveIntensity: 0 });
+    deskLamp.bulbM = new THREE.MeshStandardMaterial({ color: '#f4f0e4', emissive: '#fff0c0', emissiveIntensity: 0, roughness: 0.2 });
+    const G = new THREE.Group(); G.position.set(x0 + 0.13, ty, BZ - 0.64); room.add(G);
+    const lathe = (pts, mat) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 40), mat);
+    const add = (m) => { G.add(m); deskLamp.parts.push(m); return m; };
+    add(lathe([[0, 0], [0.085, 0], [0.09, 0.006], [0.086, 0.014], [0.06, 0.024], [0.03, 0.03], [0.014, 0.036], [0, 0.036]], enamel));
+    const P = [new V3(0, 0.034, 0), new V3(0.05, 0.27, -0.06), new V3(0.17, 0.34, -0.2)];
+    const rod = (a, b) => { const len = a.distanceTo(b), m = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, len, 10), chrome);
+      m.position.copy(a).lerp(b, 0.5); m.quaternion.setFromUnitVectors(new V3(0, 1, 0), b.clone().sub(a).normalize()); return add(m); };
+    rod(P[0], P[1]); rod(P[1], P[2]);
+    for (const q of P){ const j = add(new THREE.Mesh(new THREE.SphereGeometry(0.014, 14, 10), chrome)); j.position.copy(q); }
+    const sw = add(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 10), new THREE.MeshStandardMaterial({ color: '#202020' }))); sw.position.set(0.045, 0.03, 0.02);
+    // the shade hangs from the top joint, aimed at the notebook
+    const S = new THREE.Group(); S.position.copy(P[2]); G.add(S);
+    const aim = new V3(x0 + 0.38, ty, BZ - 1.0).sub(G.position).sub(P[2]).normalize();
+    S.quaternion.setFromUnitVectors(new V3(0, -1, 0), aim);
+    const prof = [[0.094, -0.122], [0.09, -0.115], [0.08, -0.085], [0.062, -0.045], [0.04, -0.01], [0.022, 0.012], [0.012, 0.02]]; // bottom rim → top, so the enamel faces outward
+    const outer = lathe(prof, enamel); S.add(outer); deskLamp.parts.push(outer);
+    const inner = lathe(prof.map(([x, y]) => [x * 0.97, y]), deskLamp.inner); S.add(inner); deskLamp.parts.push(inner);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 8), chrome); cap.position.y = 0.02; S.add(cap);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), deskLamp.bulbM); bulb.position.y = -0.055; S.add(bulb); deskLamp.parts.push(bulb);
+    deskLamp.parts.forEach(m => m.userData.lamp = true);
+    G.updateMatrixWorld(true);
+    const bw = bulb.getWorldPosition(new V3());
+    roomLight = new THREE.PointLight(0xffd59a, 0, 6, 1.5); roomLight.position.copy(bw).addScaledVector(aim, 0.04); scene.add(roomLight);
+    deskLamp.spot = new THREE.SpotLight(0xffe2b0, 0, 3, 0.85, 0.55, 1.3); deskLamp.spot.position.copy(bw); deskLamp.spot.target.position.copy(bw).addScaledVector(aim, 1); scene.add(deskLamp.spot, deskLamp.spot.target);
+  }
   // notebook: a pencil sketch of the tree, and Post machine exercises
   const noteTex = tex(600, 420, (g, w, h) => {
     g.fillStyle = '#f2eedf'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(w / 2 - 3, 0, 6, h);
@@ -557,15 +582,16 @@ var roomLight;
 {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, down = null;
   const pickBook = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects(BOOKS, false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
+    const hits = ray.intersectObjects([...BOOKS, ...lamp.parts], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
   const setHover = (b) => { if (b === hovered) return;
-    if (hovered) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
+    if (hovered && !hovered.userData.lamp) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
+    if (b && b.userData.lamp){ hovered = b; return; }
     if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + ' — click to open', 3); } };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
-    const b = pickBook(e); if (b){ window.open(POST_URL, '_blank', 'noopener'); } });
+    const b = pickBook(e); if (b){ if (b.userData.lamp) toggleLamp(); else window.open(POST_URL, '_blank', 'noopener'); } });
 }
 
 /* ============================== the chestnut tree ============================== */
@@ -1202,7 +1228,9 @@ function updateEnv(sp){
   const lit = 1 - env.day;
   buildingFront.emissiveIntensity = lit * 1.6; for (const m of blockMats) m.emissiveIntensity = lit * 1.2;
   lamp.intensity = lit * 14; lampGlow.material.opacity = lit * 0.9;
-  roomLight.intensity = mode === 'window' ? 1.5 + lit * 4 : 0;
+  const lampOn = mode === 'window' && deskLamp.on;
+  roomLight.intensity = lampOn ? 0.5 + lit * 2.2 : 0; deskLamp.spot.intensity = lampOn ? 1.2 + lit * 3.5 : 0;
+  deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
   groundMat.color.copy(cyc(S, groundKeys, tmpC));
   snowU.value = sp.snow;
   liftU.value = 0.03 + 0.2 * env.day;
@@ -1276,6 +1304,7 @@ addEventListener('keydown', e => {
   if (k === 'KeyF' || k === 'KeyK') shake();
   if (k === 'KeyR') roast();
   if (k === 'KeyM') toggleMusic();
+  if (k === 'KeyO' && mode === 'window') toggleLamp();
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
@@ -1425,6 +1454,7 @@ const sfx = (() => {
       f2.type = 'bandpass'; f2.Q.value = 6; f2.frequency.setValueAtTime(2400, t); f2.frequency.linearRampToValueAtTime(3000, t + 0.3);
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.08); g.gain.setValueAtTime(vol * 0.9, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
       o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(amb); o.start(t); o.stop(t + 0.85); },
+    click(){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 3500, 0.12, 0.015); tone(ctx.currentTime, 1800, 900, 0.03, 0.03, 'square'); } },
     flutter(){ if (ctx) for (let i = 0; i < 14; i++) noiseHit(ctx.currentTime + i * 0.03 + Math.random() * 0.2, 'bandpass', 600 + Math.random() * 500, 0.06, 0.05); },
   };
 })();
@@ -1454,7 +1484,7 @@ function syncButtons(){
   ['walk', 'window', 'climb', 'lie'].forEach(m => $('bm' + m).classList.toggle('on', m === mode));
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
   const hints = { walk: 'WASD / arrows to walk · drag to look · Shift to run · E at the trunk to climb · F to shake the tree',
-    window: 'Drag to look · WASD to move about the room · click a book on the shelf or the table', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
+    window: 'Drag to look · WASD to move about the room · click the lamp (or O) to switch it · click a book to open it', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
   $('hint').textContent = hints[mode] || '';
 }
 let ctxState = '';
