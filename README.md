@@ -20,6 +20,7 @@ Single-file Three.js — open `index.html` or serve the folder.
 ## Controls
 - **WASD / arrows** walk · **drag** to look · **Shift** run
 - **1–4** seasons · **T** time of day · **V** window · **C** climb (W/S up/down) · **L** lie down · **Esc** walk
-- **F** shake the tree · **R** roast chestnuts · **M** music
+- **F** shake the tree (in your room: open the window) · **O** desk lamp · **R** roast chestnuts · **M** music
+- **Y** weather: fair, cloudy, rain (snow in deep winter) · click a book in your room to open the Post machine
 
 See [`setting.md`](setting.md) for the original brief.
