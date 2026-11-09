@@ -227,7 +227,7 @@ function drawStucco(g, w, h, ppm){
 const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
-const GAR_X = -15.0, ROAD_X = -9.4, GX0 = -6.65;   // garages (x -18…-12) back onto the left brick row; 1 m verge; one-car lane x -11…-7.8; 1 m verge; garden fence
+const GAR_X = -15.0, ROAD_X = -7.9, ROAD_W = 4.2, GX0 = -3.65;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -275,7 +275,7 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
   var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 300).rotateX(-Math.PI / 2), roadMat);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, 300).rotateX(-Math.PI / 2), roadMat);
   road.position.set(ROAD_X, 0.01, 0); road.receiveShadow = true; scene.add(road);
   const yt = dirtTex.clone(); yt.repeat.set(5, 2); yt.needsUpdate = true;
   const yard = new THREE.Mesh(new THREE.PlaneGeometry(46, 14).rotateX(-Math.PI / 2), flatMat(yt, '#e8e0d4', 0.9, -2));
@@ -762,8 +762,8 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
 {
   const poleMat = snowify(new THREE.MeshStandardMaterial({ color: '#4a3f35', roughness: 1 }));
   const tops = [];
-  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(ROAD_X + 1.85, 4, z); p.castShadow = true; scene.add(p);
-    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(ROAD_X + 1.85, 7.6, z); scene.add(cb); tops.push(new V3(ROAD_X + 1.85, 7.6, z)); }
+  for (let z = 110; z > -130; z -= 42){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 8, 8), poleMat); p.position.set(ROAD_X + ROAD_W / 2 + 1, 4, z); p.castShadow = true; scene.add(p);
+    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), poleMat); cb.position.set(ROAD_X + ROAD_W / 2 + 1, 7.6, z); scene.add(cb); tops.push(new V3(ROAD_X + ROAD_W / 2 + 1, 7.6, z)); }
   tops.push(new V3(-12, 9.5, BZ + 0.2));
   const wm = new THREE.LineBasicMaterial({ color: '#1d1d1f', transparent: true, opacity: 0.8 });
   for (const off of [-0.6, 0.6]) for (let i = 0; i < tops.length - 1; i++){
@@ -812,7 +812,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
   }
-  for (let k = 0; k < 6; k++){ const x = -15 + k * 2.2 + rnd(-0.3, 0.3); if (Math.abs(x + 9) < 2.6 || x < -12.6) continue; // keep entrance 1 clear, and clear of the brick wall
+  for (let k = 0; k < 6; k++){ const x = -15 + k * 2.2 + rnd(-0.3, 0.3); if (Math.abs(x + 9) < 2.6 || x < -12.6 || (x > ROAD_X - ROAD_W / 2 - 1.2 && x < GX0)) continue; // keep entrance 1 clear, and clear of the brick wall
     lilacData.push({ p: new V3(x, 1.1, BZ + 1.6 + rnd(0, 0.6)), s: rnd(1.1, 1.5) }); }
   for (const L of lilacData) shrubData.push({ p: L.p, s: L.s * 1.2, lilac: true });
   veg = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: '#8fb86a', roughness: 0.7, flatShading: true }), vegData.length); veg.castShadow = true; scene.add(veg);
@@ -1029,7 +1029,7 @@ const inBuilding = (x, y, z) => x > -18.6 && x < 18.6 && z < BZ + 0.6 && z > BZ 
 const puddleMat = new THREE.MeshStandardMaterial({ color: '#2a3036', roughness: 0.06, metalness: 0.5, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
 const puddles = new THREE.Group(); scene.add(puddles);
 for (let i = 0; i < 46; i++){ const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), puddleMat);
-  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.1, 1.1) : rnd(-12, 16), 0.02, onRoad ? rnd(-140, 140) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
+  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.5, 1.5) : rnd(-12, 16), 0.02, onRoad ? rnd(-140, 140) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
 function updateWeather(dt, t, sp){
   const T = WEATHERS[weather], k = Math.min(1, dt * 0.35);
   W.cloud += (T.cloud - W.cloud) * k; W.rain += (T.rain - W.rain) * k;
@@ -1667,7 +1667,7 @@ function frame(){
       if (keys.has('ArrowLeft')) cam.yaw += dt * 1.6; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.6;
       const sp_ = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
       if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * sp_ * dt).addScaledVector(right, mx / l * sp_ * dt); bob += dt * sp_ * 2.2; }
-      const p = camera.position; p.x = clamp(p.x, ROAD_X - 2.4, 17.6); p.z = clamp(p.z, -148.6, 150);
+      const p = camera.position; p.x = clamp(p.x, ROAD_X - ROAD_W / 2 - 1.9, 17.6); p.z = clamp(p.z, -148.6, 150);
       const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
       p.y = 1.6 + Math.sin(bob) * 0.035;
     } else if (mode === 'window'){
