@@ -1149,13 +1149,14 @@ var blockMats = [];
       for (let y = y0; y < y0 + Hh; y += 8){ g.fillStyle = `hsl(${6 + rng() * 6},${38 + rng() * 14}%,${21 + rng() * 7}%)`; g.fillRect(0, y, W, 7); g.fillStyle = 'rgba(20,8,6,.55)'; g.fillRect(0, y + 7, W, 1); }
       for (let i = 0; i < W * Hh / 900; i++) blot(g, rng() * W, y0 + rng() * Hh, rnd(3, 22), rng() < 0.6 ? 'rgba(150,120,100,.16)' : 'rgba(30,14,10,.22)');   // flaking paint, damp
       for (let i = 0; i < W / 30; i++){ const x = rng() * W, gr = g.createLinearGradient(0, y0, 0, y0 + Hh); gr.addColorStop(0, 'rgba(25,14,10,.0)'); gr.addColorStop(1, 'rgba(25,14,10,.25)'); g.fillStyle = gr; g.fillRect(x, y0, rnd(4, 18), Hh); } };
-    const win = (g, x, sill, ww, wh) => { const X = x * ppm, Y = (H - sill - wh) * ppm, W_ = ww * ppm, Hh = wh * ppm;
+    let rects = [];
+    const win = (g, x, sill, ww, wh) => { const X = x * ppm, Y = (H - sill - wh) * ppm, W_ = ww * ppm, Hh = wh * ppm; rects.push([X, Y, W_, Hh]);
       g.fillStyle = '#ddd6c8'; g.fillRect(X - 7, Y - 14, W_ + 14, Hh + 20); g.fillRect(X - 11, Y - 20, W_ + 22, 7);   // casing with a little cornice
       g.fillStyle = '#c9c0b0'; g.fillRect(X - 9, Y + Hh + 4, W_ + 18, 5);
       g.fillStyle = '#1c262c'; g.fillRect(X, Y, W_, Hh); g.fillStyle = 'rgba(160,180,190,.18)'; g.fillRect(X + 3, Y + 3, W_ * 0.45, Hh * 0.5);
       g.fillStyle = '#ece6da'; g.fillRect(X + W_ / 2 - 2, Y + Hh * 0.27, 4, Hh * 0.73); g.fillRect(X, Y + Hh * 0.27 - 2, W_, 4); g.fillRect(X, Y + Hh * 0.62, W_, 3);
       if (rng() < 0.5){ g.fillStyle = 'rgba(240,236,226,.55)'; g.fillRect(X + 3, Y + Hh * 0.29, W_ - 6, Hh * 0.35); } };
-    const wallTex = (street) => tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { boards(g, W, Hh);
+    const wallTex = (street) => { rects = []; const map = tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { boards(g, W, Hh);
       g.fillStyle = '#7c776e'; g.fillRect(0, Hh - 0.75 * ppm, W, 0.75 * ppm); speckle(g, W, 0.75 * ppm, 400, ['rgba(0,0,0,.18)', 'rgba(255,255,255,.1)']);   // plaster plinth
       g.save(); g.translate(0, Hh - 0.75 * ppm); speckle(g, W, 0.75 * ppm, 300, ['rgba(40,40,36,.25)']); g.restore();
       g.fillStyle = '#4e1e18'; g.fillRect(0, 0, W, 10); g.fillRect(0, 3.55 * ppm, W, 6);   // eaves board, belt between the storeys
@@ -1167,8 +1168,14 @@ var blockMats = [];
         else win(g, x, 1.25, 0.96, 1.6);
         win(g, x, 4.35, 0.96, 1.6); }
       for (const x of [0.25, w - 0.35]){ g.fillStyle = '#6a6c6c'; g.fillRect(x * ppm, 0, 5, Hh - 0.2 * ppm); } });   // drainpipes
+      // night: about half the windows lit, warm behind the curtains (same light switch as every other house)
+      const em = tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, Hh);
+        rects.forEach(([X, Y, W_, Hw], i) => { if (hash2(i * 3.1 + (street ? 7 : 1), 4.2) > 0.5) return;
+          g.fillStyle = ['#ffcf8a', '#ffd9a0', '#f6c070', '#ffe2b8', '#ffc070'][Math.floor(hash2(i, street ? 2 : 9) * 5)]; g.fillRect(X, Y, W_, Hw);
+          g.fillStyle = '#000'; g.fillRect(X + W_ / 2 - 2, Y + Hw * 0.27, 4, Hw * 0.73); g.fillRect(X, Y + Hw * 0.27 - 2, W_, 4); g.fillRect(X, Y + Hw * 0.62, W_, 3); }); });
+      return { map, em }; };
     const plank = tex(64, 64, (g, W, Hh) => boards(g, W, Hh));   // one metre of clapboard, tiled on the gable ends
-    const wm = (t) => snowify(new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }), 0.4);
+    const wm = (t) => { const m = snowify(new THREE.MeshStandardMaterial(t.isTexture ? { map: t, roughness: 0.95 } : { map: t.map, emissiveMap: t.em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 }), 0.4); if (!t.isTexture) blockMats.push(m); return m; };
     const back = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(false))); back.rotation.y = Math.PI; back.position.set(cx, H / 2, zb);
     const front = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(true))); front.position.set(cx, H / 2, zf);
     const end = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(d / 2, H), new THREE.Vector2(0, H + rise), new THREE.Vector2(-d / 2, H)]);
