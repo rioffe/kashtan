@@ -1901,8 +1901,8 @@ function frame(){
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime; timeU.value = t;
   // advance season & time
   if (drift) S = (S + dt / 150) % 4;
-  else if (sTarget !== null){ const diff = ((sTarget - S) % 4 + 4) % 4; if (diff < 0.003){ S = sTarget; sTarget = null; } else S = (S + Math.min(diff, dt * (diff > 1 ? 0.7 : 0.35))) % 4; }
-  if (todTarget !== null){ const diff = ((todTarget - TOD) % 1 + 1) % 1; if (diff < 0.002){ TOD = todTarget; todTarget = null; } else TOD = (TOD + Math.min(diff, dt * 0.09)) % 1; }
+  else if (sTarget !== null){ const diff = ((sTarget - S) % 4 + 4) % 4, step = dt * (diff > 1 ? 0.7 : 0.35); if (diff < 0.003 || diff > 3.997 || step >= diff){ S = sTarget; sTarget = null; } else S = (S + step) % 4; }
+  if (todTarget !== null){ const diff = ((todTarget - TOD) % 1 + 1) % 1, step = dt * 0.09; if (diff < 0.002 || diff > 0.998 || step >= diff){ TOD = todTarget; todTarget = null; } else TOD = (TOD + step) % 1; }
   else if (drift) TOD = (TOD + dt / 240) % 1;
   const sp = SP(S);
   updateSeasonal(sp); updateEnv(sp); updateSeasonHUD();
