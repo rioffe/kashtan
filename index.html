@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kashtan">
 <title>Kashtan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -42,7 +46,17 @@
     font-family:var(--serif);font-style:italic;font-size:clamp(20px,3.2vw,28px);line-height:1.35;z-index:10;pointer-events:none;
     opacity:0;transition:opacity 1.4s ease;text-shadow:0 2px 14px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.6)}
   #caption.on{opacity:1}
-  #ui{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px 14px;transition:opacity .8s}
+  #ui{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px calc(14px + env(safe-area-inset-bottom));transition:opacity .8s}
+  html,body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  button{touch-action:manipulation}
+  /* touch screens (iPad): a stick to walk, a button to jump */
+  #stick,#jumpBtn{position:fixed;z-index:11;display:none;touch-action:none;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:50%}
+  #stick{left:calc(28px + env(safe-area-inset-left));bottom:calc(var(--ctl-b,170px) + env(safe-area-inset-bottom));width:132px;height:132px}
+  #knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:rgba(255,248,235,.85);box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none}
+  #jumpBtn{right:calc(32px + env(safe-area-inset-right));bottom:calc(var(--ctl-b,170px) + 24px + env(safe-area-inset-bottom));width:84px;height:84px;color:var(--ink);font:500 30px var(--sans);cursor:pointer}
+  #jumpBtn:active{background:rgba(255,248,235,.35)}
+  body.touch #stick.on,body.touch #jumpBtn.on{display:block}
+  body.touch #caption{width:min(640px,calc(100% - 360px))}
   #ui.hidden{opacity:0;pointer-events:none}
   #ctx{display:flex;gap:8px;min-height:36px}
   #ctx button{background:rgba(232,194,122,.9);color:#1a1408;border-color:transparent}
@@ -84,6 +98,7 @@
   </div>
   <div id="hint"></div>
 </div>
+<div id="stick"><div id="knob"></div></div><button id="jumpBtn" aria-label="Jump">⤒</button>
 <div id="fade"></div>
 
 <script type="module">
@@ -120,7 +135,9 @@ function speckle(g, w, h, n, cols, r0 = 0.5, r1 = 1.6){ for (let i = 0; i < n; i
 
 /* ============================== renderer ============================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const TOUCH = new URLSearchParams(location.search).has('touch') || navigator.maxTouchPoints > 1 || matchMedia('(any-pointer: coarse)').matches;
+if (TOUCH) document.body.classList.add('touch');
+renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.5 : 2));   // iPads: a little lighter on the GPU
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
@@ -1838,6 +1855,14 @@ const I18N = {   // English → [Russian, Latvian]
     ['Тянуть мышью — смотреть · WASD — ходить · клик по окну (F) — открыть · по лампе (O) — включить · по книге — открыть её',
      'Velc ar peli — skatīties · WASD — staigāt · klikšķis uz loga (F) — atvērt · uz lampas (O) — ieslēgt · uz grāmatas — atvērt to'],
   'W / S or E / Q to climb up and down · drag to look · F to shake': ['W / S или E / Q — вверх и вниз · тянуть мышью — смотреть · F — потрясти', 'W / S vai E / Q — augšup un lejup · velc ar peli — skatīties · F — sapurināt'],
+  'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof':
+    ['Джойстик — идти (до упора — бегом) · тянуть пальцем — смотреть · ⤒ — прыжок или залезть на крышу', 'Kursorsvira — iet (līdz galam — skriet) · velc ar pirkstu — skatīties · ⤒ — lēkt vai uzrāpties uz jumta'],
+  'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it':
+    ['Джойстик — ходить · тянуть пальцем — смотреть · коснитесь окна, чтобы открыть его, лампы — чтобы включить, книги — чтобы открыть её',
+     'Kursorsvira — staigāt · velc ar pirkstu — skatīties · pieskarieties logam, lai to atvērtu, lampai — lai ieslēgtu, grāmatai — lai to atvērtu'],
+  'Higher / Lower to climb · drag to look': ['«Выше» / «Ниже» — лезть по дереву · тянуть пальцем — смотреть', '«Augstāk» / «Zemāk» — kāpt · velc ar pirkstu — skatīties'],
+  'Drag to look around · Walk to get up': ['Тянуть пальцем — оглядеться · «Гулять» — встать', 'Velc ar pirkstu — paskatīties apkārt · «Staigāt» — piecelties'],
+  'Higher': ['Выше', 'Augstāk'], 'Lower': ['Ниже', 'Zemāk'], 'Climb down': ['Слезть', 'Kāpt lejā'],
   'Drag to look around · Esc to get up': ['Тянуть мышью — оглядеться · Esc — встать', 'Velc ar peli — paskatīties apkārt · Esc — piecelties'],
   // captions
   'The window swung out over the yard, and the tree came in with the air.': ['Окно распахнулось над двором, и вместе с воздухом в комнату вошло дерево.', 'Logs atvērās pāri pagalmam, un kopā ar gaisu istabā ienāca koks.'],
@@ -1943,17 +1968,21 @@ function syncButtons(){
   ['walk', 'window', 'climb', 'lie'].forEach(m => $('bm' + m).classList.toggle('on', m === mode));
   Object.keys(WEATHERS).forEach(n => $('bw' + n).classList.toggle('on', n === weather));
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
-  const hints = { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
+  const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
+    window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
     window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · a book to open it', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
   $('hint').textContent = tr(hints[mode] || '');
+  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window'); $('jumpBtn').classList.toggle('on', mode === 'walk');
+  placeSticks();
 }
 let ctxState = '';
 function syncCtx(){
   const canShake = (mode === 'walk' && distTree() < 6) || mode === 'climb';
   const canRoast = nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie') && !fire.on;
   const canSnow = mode === 'walk' && body.feet < 0.3 && SP(S).snow > 0.6 && !SNOWMEN.some(s => s.build < 1);
-  const st = (canShake ? 's' : '') + (canRoast ? 'r' : '') + (canSnow ? 'm' : '');
+  const st = (canShake ? 's' : '') + (canRoast ? 'r' : '') + (canSnow ? 'm' : '') + (mode === 'climb' ? 'c' + perch : '');
   if (st === ctxState) return; ctxState = st; const c = $('ctx'); c.innerHTML = '';
+  if (mode === 'climb'){ if (perch < PERCH.length - 1) btn('ctx', 'Higher', () => climb(1)); btn('ctx', perch ? 'Lower' : 'Climb down', () => climb(-1)); }
   if (canShake) btn('ctx', mode === 'climb' ? 'Shake the branch' : 'Kick the trunk', shake);
   if (canRoast) btn('ctx', 'Roast chestnuts', roast).textContent += ` (${nutsHeld})`;
   if (canSnow) btn('ctx', 'Build a snowman', buildSnowman);
@@ -1966,6 +1995,22 @@ function updateSeasonHUD(){
     $('seasonS').textContent = LANG === 'en' ? `${SEASON_EN[si]} · ${MONTH[mo]} · Rīga 1984` : LANG === 'ru' ? `${MONTHS.ru[mo]} · Рига 1984` : `${MONTHS.lv[mo]} · Rīga 1984`; }
   if (si !== lastSI){ const first = lastSI === -1; lastSI = si; syncButtons(); if (started && !first) caption(pick(LINES[si])); }
   if (started && !autumnHinted && SP(S).nutfall > 0.5){ autumnHinted = true; setTimeout(() => caption('Chestnuts are falling. Walk beneath the tree to gather them.'), 7000); }
+}
+
+/* ============================== touch: the stick and the jump button ============================== */
+function placeSticks(){ requestAnimationFrame(() => document.body.style.setProperty('--ctl-b', ($('ui').offsetHeight + 18) + 'px')); }
+addEventListener('resize', placeSticks);
+const stick = { x: 0, y: 0, m: 0, id: null };
+{ const el = $('stick'), knob = $('knob'), R = 46;
+  const move = e => { const r = el.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const l = Math.hypot(dx, dy);
+    if (l > R){ dx *= R / l; dy *= R / l; } stick.x = dx / R; stick.y = dy / R; stick.m = Math.min(1, l / R); knob.style.transform = `translate(${dx}px,${dy}px)`; };
+  const end = e => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = stick.m = 0; knob.style.transform = ''; };
+  el.addEventListener('pointerdown', e => { e.preventDefault(); stick.id = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (_) {} move(e); });
+  el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) move(e); });
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('lostpointercapture', end);
+  $('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (mode === 'walk') jumpOrClimb(); });
+  for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 }
 
 /* ============================== begin ============================== */
@@ -2029,12 +2074,15 @@ function frame(){
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp') || pointers.size > 1) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
       if (keys.has('KeyD')) mx += 1; if (keys.has('KeyA')) mx -= 1;
       if (keys.has('ArrowLeft')) cam.yaw += dt * 1.6; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.6;
-      walkStep(dt, mx, mz, (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6);
+      let spd = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
+      if (stick.m > 0.12 && !mx && !mz){ mx = stick.x; mz = -stick.y; spd = stick.m > 0.92 ? 8 : 3.6 * clamp(stick.m / 0.7, 0.25, 1); }
+      walkStep(dt, mx, mz, spd);
     } else if (mode === 'window'){
       fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
       if (keys.has('KeyD')) mx += 1; if (keys.has('KeyA')) mx -= 1; if (keys.has('ArrowLeft')) cam.yaw += dt * 1.4; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.4;
-      if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * 1.1 * dt).addScaledVector(right, mx / l * 1.1 * dt); }
+      let ws = 1.1; if (stick.m > 0.12 && !mx && !mz){ mx = stick.x; mz = -stick.y; ws = 1.1 * clamp(stick.m / 0.7, 0.25, 1); }
+      if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * ws * dt).addScaledVector(right, mx / l * ws * dt); }
       // up to the sill; with the window open you can lean right out over the yard
       const p = camera.position; p.z = clamp(p.z, BZ - 5.1, winOpen.v > 0.6 ? BZ + 0.3 : BZ - 0.45);
       let xlo = HOME.x - 0.75, xhi = HOME.x + 0.75;

@@ -32,4 +32,8 @@ Single-file Three.js — open `index.html` or serve the folder.
 - **F** shake the tree (in your room: open the window) · **O** desk lamp · **R** roast chestnuts · **M** music
 - **B** build a snowman (in winter) · **Y** weather: fair, cloudy, rain (snow in deep winter) · click a book in your room to open the Post machine
 
+**On iPad / touch screens:** the stick (bottom left) walks — push it all the way to run; drag anywhere
+to look; ⤒ jumps or clambers onto a roof; *Higher* / *Lower* in the tree; tap the window, the lamp or a
+book in your room. Tip: in Safari, *Share → Add to Home Screen* runs it full-screen.
+
 See [`setting.md`](setting.md) for the original brief.
