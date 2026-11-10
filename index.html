@@ -28,6 +28,9 @@
   #begin{font:500 14px var(--sans);letter-spacing:.24em;text-transform:uppercase;color:#1a1408;background:var(--accent);
     border:0;border-radius:999px;padding:14px 38px;cursor:pointer;box-shadow:0 8px 30px rgba(232,194,122,.25)}
   #begin:hover{filter:brightness(1.08)}
+  #langs{margin-top:22px;display:flex;gap:6px;justify-content:center}
+  #langs button{font:500 12.5px var(--sans);color:var(--ink-dim);background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 13px;cursor:pointer;letter-spacing:.04em}
+  #langs button.on{color:#141210;background:rgba(255,248,235,.9);border-color:transparent}
   .small{margin-top:16px;font-size:12px;color:var(--ink-dim);letter-spacing:.06em}
   #hudtop{position:fixed;left:16px;top:14px;z-index:10;pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
   #hudtop .t{font-family:var(--serif);font-size:24px;letter-spacing:.04em}
@@ -57,12 +60,13 @@
 </head>
 <body>
 <div id="intro"><div class="card">
-  <div class="ru">Каштан</div>
-  <h1>Kashtan</h1>
-  <div class="sub">Engelsa iela 78 · Rīga · 1984</div>
-  <p>A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.</p>
+  <div class="ru" id="i-ru">Каштан</div>
+  <h1 id="i-h1">Kashtan</h1>
+  <div class="sub" id="i-sub">Engelsa iela 78 · Rīga · 1984</div>
+  <p id="i-p">A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.</p>
   <button id="begin">Begin</button>
-  <div class="small">Sound on · headphones recommended</div>
+  <div class="small" id="i-small">Sound on · headphones recommended</div>
+  <div id="langs"><button data-l="en">English</button><button data-l="ru">Русский</button><button data-l="lv">Latviešu</button></div>
 </div></div>
 <div id="hudtop"><div class="t" id="seasonT">Весна</div><div class="s" id="seasonS">May · Rīga 1984</div></div>
 <div id="nuts">🌰 <span id="nutc">0</span><span id="roastc"></span></div>
@@ -610,7 +614,7 @@ var roomLight;
     if (hovered && !hovered.userData.lamp && !hovered.userData.win) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
     if (b && (b.userData.lamp || b.userData.win)){ hovered = b; return; }
-    if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + ' — click to open', 3); } };
+    if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + tr(' — click to open'), 3); } };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
@@ -769,6 +773,7 @@ const FLOWER_KINDS = [ // bloom windows on the season axis (0 = Dec … 4), so s
   { win: [1.72, 1.84, 2.12, 2.24], h: [0.55, 0.8], s: [1.3, 1.7], cols: ['#f4a0c0', '#ffffff', '#d8304a'] },                         // peonies
   { win: [2.0, 2.15, 3.15, 3.3], h: [0.5, 0.95], s: [0.7, 1.3], cols: ['#d83a4a', '#f06aa0', '#f2c73a', '#8a4ab8', '#ffffff', '#e8702a'] }, // roses, dahlias, phlox
   { win: [2.88, 3.02, 3.62, 3.8], h: [0.35, 0.7], s: [0.7, 1.0], cols: ['#8a5ad0', '#ffffff', '#f2c73a', '#e080b0', '#b84a8a'] } ];  // asters, chrysanthemums
+const SHEDS = [], INDS = [];
 const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [], fruitSpots = [];
 {
   const woodMat = snowify(new THREE.MeshStandardMaterial({ color: '#8a7a62', roughness: 1 }), 1.2);
@@ -795,7 +800,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(GX0 + 2.8 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
     for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, 17), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
     if (rng() < 0.6) for (let k = 0; k < 3; k++) sunData.push({ p: new V3(16.4 + rnd(-0.3, 0.3), 0, z0 + 6 + k * 1.1), h: rnd(1.6, 2.3) });
-    if (rng() < 0.45){ const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
+    if (rng() < 0.45 || ((z0 + 126) / 18) % 3 === 1){ SHEDS.push({ x0: 14.3, x1: 16.9, z0: z0 + 14.3, z1: z0 + 16.7, zc: z0 + 15.5 }); const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
       const sr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 2.4), tarMat); sr.position.set(15.6, 2.2, z0 + 15.5); sr.rotation.x = 0.12; sr.castShadow = true; scene.add(sr); }
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
@@ -927,7 +932,8 @@ const brickBayTex = tex(1024, 352, (g, w, h) => {
 {
   const walls = [], roofs = [];
   const industrial = (x0, x1, z0, z1, H) => { const w = x1 - x0, d = z1 - z0, g = boxUV(w, H, d, 16); g.translate((x0 + x1) / 2, H / 2, (z0 + z1) / 2); walls.push(g);
-    const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, rnd(1.2, 1.8))]), { depth: d + 0.7, bevelEnabled: false });
+    const peak = rnd(1.2, 1.8); INDS.push({ x0, x1, z0, z1, H, peak, cx: (x0 + x1) / 2, hw: w / 2 + 0.35 });
+    const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, peak)]), { depth: d + 0.7, bevelEnabled: false });
     r.translate((x0 + x1) / 2, H, z0 - 0.35); roofs.push(r); };
   for (let z = -150; z < 150;){ const len = rnd(20, 42); industrial(-34, -18, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len; }
   for (let z = -150; z < 140;){ const len = rnd(18, 38); industrial(18, 34, z, Math.min(z + len, 142), rnd(5.2, 6.2)); z += len; }
@@ -936,6 +942,107 @@ const brickBayTex = tex(1024, 352, (g, w, h) => {
   wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 24, 16), snowify(new THREE.MeshStandardMaterial({ color: '#6a3426', roughness: 1 }), 0.5));
   stack.position.set(-27, 12, 34); stack.castShadow = true; scene.add(stack);
+}
+
+/* ---------- what you can stand on: garage roofs, workshop roofs, garden sheds (and ladders up) ---------- */
+let surfKind = 'ground';
+function surf(x, z){
+  let h = 0; surfKind = 'ground';
+  if (x > -18.15 && x < -11.65 && z > -129.7 && z < 128.7){ h = roofY(z, x); surfKind = 'tar'; }
+  for (const I of INDS){ if (Math.abs(x - I.cx) < I.hw && z > I.z0 - 0.35 && z < I.z1 + 0.35){ const y = I.H + I.peak * (1 - Math.abs(x - I.cx) / I.hw); if (y > h){ h = y; surfKind = 'tin'; } } }
+  for (const s of SHEDS){ if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1){ const y = 2.25 - (z - s.zc) * 0.12; if (y > h){ h = y; surfKind = 'tar'; } } }
+  if (Math.hypot(x + 27, z - 34) < 1.35){ h = 24; surfKind = 'tin'; }
+  return h;
+}
+const LADDERS = [];
+{
+  const wood = snowify(new THREE.MeshStandardMaterial({ color: '#7a6248', roughness: 1 }), 1.2);
+  for (const [wallX, dir, z] of [[18, 1, -133], [-18, -1, -141], [18, 1, 40]]){
+    const I = INDS.find(I => z > I.z0 + 1 && z < I.z1 - 1 && Math.sign(I.cx) === dir); if (!I) continue;
+    const top = I.H + 0.45, foot = wallX - dir * 1.25, len = Math.hypot(top, 1.25), lean = Math.atan2(1.25, top);
+    const g = new THREE.Group(); g.position.set(foot, 0, z); g.rotation.z = -dir * lean; scene.add(g);
+    for (const s of [-0.24, 0.24]){ const r = new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.06), wood); r.position.set(0, len / 2, s); r.castShadow = true; g.add(r); }
+    for (let y = 0.3; y < len - 0.1; y += 0.32){ const r = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.5, 6).rotateX(Math.PI / 2), wood); r.position.set(0, y, 0); g.add(r); }
+    LADDERS.push({ x: foot, wallX, dir, z, top: I.H + I.peak * (1 - 0.8 / I.hw) });
+  }
+}
+
+/* ---------- snowmen: build one in winter, watch it melt come spring ---------- */
+const SNOWMEN = [];
+const smGeo = (() => { const g = new THREE.SphereGeometry(1, 36, 26), p = g.attributes.position, v = new V3();
+  for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); v.multiplyScalar(1 + (fbm(v.x * 2.2 + 7, v.y * 2.2 + v.z * 1.7) - 0.47) * 0.16); p.setXYZ(i, v.x, v.y, v.z); }
+  g.computeVertexNormals(); return g; })();
+const smMat = new THREE.MeshStandardMaterial({ color: '#f3f5fa', roughness: 0.92 });
+const coalMat = new THREE.MeshStandardMaterial({ color: '#141312', roughness: 0.55 });
+const carrotMat = new THREE.MeshStandardMaterial({ color: '#e46c18', roughness: 0.7 });
+const stickMat = new THREE.MeshStandardMaterial({ color: '#4a3424', roughness: 1 });
+const bucketMat = new THREE.MeshStandardMaterial({ color: '#7d8892', roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide });
+const scarfMat = new THREE.MeshStandardMaterial({ color: '#b3262a', roughness: 0.95 });
+const smPuddleMat = new THREE.MeshStandardMaterial({ color: "#2e3230", roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0, depthWrite: false });
+function makeSnowman(P, yaw){
+  const k = rnd(0.9, 1.12), sm = { g: new THREE.Group(), R: [0.56 * k, 0.4 * k, 0.28 * k], balls: [], items: [], build: 0, melt: 0, said: 0, built: false };
+  sm.g.position.copy(P); sm.g.rotation.y = yaw; scene.add(sm.g);
+  for (let i = 0; i < 3; i++){ const b = new THREE.Mesh(smGeo, smMat); b.castShadow = b.receiveShadow = true; b.rotation.set(rng() * TAU, rng() * TAU, 0); sm.g.add(b); sm.balls.push(b); }
+  sm.puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), smPuddleMat.clone()); sm.puddle.position.y = 0.015; sm.puddle.scale.set(1.1, 1, 0.8); sm.g.add(sm.puddle);
+  const it = (mesh, ball, dir, out, rot, stage, drop, gp, gr) => { mesh.castShadow = true; mesh.visible = false; sm.g.add(mesh);
+    sm.items.push({ m: mesh, ball, dir: dir.normalize(), out, q0: new THREE.Quaternion().setFromEuler(rot), stage, drop, gp, q1: new THREE.Quaternion().setFromEuler(new THREE.Euler(gr[0], gr[1], gr[2])) }); };
+  const coal = r => new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), coalMat), E = (x, y, z) => new THREE.Euler(x, y, z), G = () => new V3(rnd(-0.9, 0.9), 0.03, rnd(-0.2, 0.9));
+  for (const s of [-1, 1]) it(coal(0.038), 2, new V3(s * 0.34, 0.3, 0.89), 0, E(0, 0, 0), 0.66, rnd(0.6, 0.75), G(), [0, 0, 0]);
+  for (let i = 0; i < 5; i++){ const x = (i - 2) * 0.15; it(coal(0.022), 2, new V3(x, -0.3 + x * x * 1.2, 0.92), 0, E(0, 0, 0), 0.69 + i * 0.008, rnd(0.6, 0.8), G(), [0, 0, 0]); }
+  it(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.24, 10).translate(0, 0.12, 0), carrotMat), 2, new V3(0, 0.02, 1), -0.02, E(Math.PI / 2, 0, 0), 0.76, 0.36, new V3(0.35, 0.04, 0.75), [0, 0, Math.PI / 2 + 0.3]);
+  for (const [y, z] of [[0.45, 0.89], [0, 1], [-0.42, 0.9]]) it(coal(0.035), 1, new V3(0, y, z), 0, E(0, 0, 0), 0.71, rnd(0.7, 0.85), G(), [0, 0, 0]);
+  for (const s of [-1, 1]){ const arm = new THREE.Group(), a = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.022, 0.8, 6).translate(0, 0.4, 0), stickMat), tw = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.22, 5).translate(0, 0.11, 0), stickMat);
+    tw.position.y = 0.55; tw.rotation.z = s * 0.6; arm.add(a, tw); a.castShadow = tw.castShadow = true;
+    it(arm, 1, new V3(s, 0.2, 0.05), -0.05, E(0, 0, -s * (Math.PI / 2 - 0.45)), 0.82, 0.52 + s * 0.03, new V3(s * rnd(0.6, 0.9), 0.03, rnd(-0.3, 0.4)), [Math.PI / 2, 0, rnd(-1, 1)]); }
+  const bucket = new THREE.Group(), bk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.19, 0.26, 18, 1, true), bucketMat), lid = new THREE.Mesh(new THREE.CircleGeometry(0.15, 18).rotateX(-Math.PI / 2), bucketMat);
+  lid.position.y = 0.13; bucket.add(bk, lid); bk.castShadow = true;
+  it(bucket, 2, new V3(0.08, 1, -0.05), 0.08, E(-0.12, 0, -0.18), 0.9, 0.46, new V3(-0.7, 0.13, 0.5), [0, 0, 0.0]);
+  const scarf = new THREE.Group(), ring = new THREE.Mesh(new THREE.TorusGeometry(0.26 * k, 0.055, 8, 22).rotateX(Math.PI / 2), scarfMat), tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.36, 0.03).translate(0, -0.18, 0), scarfMat);
+  tail.position.set(0.12, -0.02, 0.24 * k); tail.rotation.z = 0.15; scarf.add(ring, tail);
+  it(scarf, 1, new V3(0, 1, 0), -0.04, E(0, 0, 0), 0.86, 0.72, new V3(rnd(-0.3, 0.3), 0.05, 0.55), [0.06, rnd(0, 3), 0.04]);
+  SNOWMEN.push(sm); if (SNOWMEN.length > 8) removeSnowman(SNOWMEN[0]);
+  return sm;
+}
+function removeSnowman(sm){ scene.remove(sm.g); SNOWMEN.splice(SNOWMEN.indexOf(sm), 1); }
+function buildSnowman(){
+  if (!(mode === 'walk' && body.feet < 0.3 && !body.mantle)) return;
+  if (SP(S).snow < 0.6){ caption('Not enough snow — wait for winter.', 3); return; }
+  if (SNOWMEN.some(s => s.build < 1)) return;
+  const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, 2.4); P.y = 0;
+  if (surf(P.x, P.z) > 0.2 || surf(P.x + f.x * 0.7, P.z + f.z * 0.7) > 0.2 || Math.hypot(P.x - TREE.x, P.z - TREE.z) < 2 || P.z < BZ + 1){ caption('No room here for a snowman.', 3); return; }
+  makeSnowman(P, Math.atan2(camera.position.x - P.x, camera.position.z - P.z));
+  caption('Rolling a snowball until it was bigger than us…', 4); sfx.crunch(); syncCtx();
+}
+const _a = new V3(), _q = new THREE.Quaternion(), _c = [new V3(), new V3(), new V3()], _r = [0, 0, 0];
+function updateSnowmen(dt, t){
+  const mT = S < 0.74 || S > 3.9 ? 0 : clamp((S - 0.74) / 0.5);
+  for (let si = SNOWMEN.length - 1; si >= 0; si--){ const sm = SNOWMEN[si];
+    if (sm.build < 1){ const b0 = sm.build; sm.build = Math.min(1, sm.build + dt / 7);
+      if (Math.floor(b0 * 18) !== Math.floor(sm.build * 18)) sfx.crunch();
+      if (sm.build >= 1) caption(pick(['Two coals, a carrot from somebody\'s kitchen, an old bucket for a hat. Perfect.', 'He would stand guard over the yard until spring.']), 5); }
+    sm.melt = Math.max(sm.melt, mT); const m = sm.melt, b = sm.build;
+    if (m >= 1 && ((S > 1.6 && S < 3.9) || S < 0.74)){ removeSnowman(sm); continue; }
+    const dc = camera.position.distanceTo(sm.g.position);
+    if (sm.said === 0 && m > 0.15 && m < 0.9 && dc < 35){ sm.said = 1; caption('The snowman was melting — leaning, losing his nose, crying into the grass.', 6); }
+    if (sm.said < 2 && m >= 1 && dc < 25){ sm.said = 2; caption('All that was left of him: a carrot, two coals and the bucket.', 5); }
+    const gone = 1 - smooth((m - 0.82) / 0.18), sy = 1 - 0.3 * m, lean = m * 0.32 + Math.sin(sm.g.position.x) * 0.04;
+    const grow = [smooth(b / 0.3), smooth((b - 0.32) / 0.16), smooth((b - 0.5) / 0.13)];
+    for (let i = 0; i < 3; i++) _r[i] = sm.R[i] * grow[i] * (1 - m * [0.45, 0.6, 0.7][i]) * gone;
+    const y0 = _r[0] * sy * 0.9, h1 = _r[0] * sy * 0.82 + _r[1] * 0.8, h2 = h1 + _r[1] * sy * 0.78 + _r[2] * 0.85;
+    _c[0].set(0, y0, 0); _c[1].set(Math.sin(lean) * h1, y0 + Math.cos(lean) * h1, 0);
+    const fall = smooth((m - 0.5) / 0.1); _c[2].set(Math.sin(lean) * h2, y0 + Math.cos(lean) * h2, 0).lerp(_a.set(0.75, _r[2] * 0.8, 0.35), fall);
+    _c[2].y += Math.sin(fall * Math.PI) * 0.25;
+    if (b < 0.3) _c[0].z = (1 - b / 0.3) * 0.8;   // the base rolls into place
+    sm.balls.forEach((B, i) => { B.position.copy(_c[i]); B.scale.set(_r[i], _r[i] * (i === 2 ? 1 : sy), _r[i]); B.visible = _r[i] > 0.005; });
+    if (b < 0.3) sm.balls[0].rotation.x -= dt * 2.5;
+    for (const I of sm.items){ I.m.visible = b >= I.stage; if (!I.m.visible) continue;
+      const pop = clamp((b - I.stage) / 0.03), d = smooth((m - I.drop) / 0.07);
+      _a.copy(I.dir).multiplyScalar(_r[I.ball] + I.out).add(_c[I.ball]);
+      I.m.position.copy(_a).lerp(I.gp, d); I.m.position.y += Math.sin(d * Math.PI) * 0.2;
+      I.m.quaternion.slerpQuaternions(I.q0, I.q1, d); I.m.scale.setScalar(Math.max(0.001, pop)); }
+    const pm = sm.puddle.material; pm.opacity = 0.55 * smooth(m / 0.3) * (1 - smooth((S - 1.35) / 0.2)); sm.puddle.visible = pm.opacity > 0.01;
+    sm.puddle.scale.setScalar(0.6 + m * 0.7); sm.puddle.scale.z *= 0.8;
+  }
 }
 
 /* ---------- the old city: five-storey buildings from the early 1900s, as far as the eye can see ---------- */
@@ -1380,6 +1487,8 @@ function updateSeasonal(sp){
 
 /* ============================== camera & controls ============================== */
 const cam = { yaw: 0, pitch: 0 };
+const body = { feet: 0, vy: 0, mantle: null, push: 0, fallFrom: 0, roofSaid: {} };
+function resetBody(){ body.feet = 0; body.vy = 0; body.mantle = null; body.push = 0; }
 let mode = 'intro', perch = 0, tween = null, nutsHeld = 0, roasted = 0, started = false;
 const keys = new Set(), pointers = new Map();
 let drag = null;
@@ -1404,6 +1513,8 @@ addEventListener('keydown', e => {
   if (mode === 'climb' && (k === 'KeyS' || k === 'ArrowDown')) climb(-1);
   if ((k === 'KeyF' && mode !== 'window') || k === 'KeyK') shake();
   if (k === 'KeyR') roast();
+  if (k === 'KeyB') buildSnowman();
+  if (k === 'Space'){ e.preventDefault(); if (mode === 'walk') jumpOrClimb(); }
   if (k === 'KeyM') toggleMusic();
   if (k === 'KeyO' && mode === 'window') toggleLamp();
   if (k === 'KeyF' && mode === 'window') toggleWindow();
@@ -1421,7 +1532,7 @@ function setMode(m){
   if (!started || m === mode && m !== 'climb') return;
   const prev = mode;
   if (m === 'walk'){
-    mode = 'walk';
+    mode = 'walk'; resetBody();
     if (prev === 'climb' || prev === 'lie'){ const p = TREE.clone().add(new V3(-2.5, 1.6, 5)); goTo(p, yawTo(p, TREE) + Math.PI, 0, 1.8); }
     else if (prev === 'window') fadeThen(() => { const p = new V3(10.5, 1.6, BZ + 3.5); place(p, yawTo(p, TREE.clone().add(new V3(0, 0, 3))), 0.15); });
   } else if (m === 'window'){
@@ -1444,6 +1555,26 @@ function climb(dir){
   if (n >= PERCH.length){ caption('No higher. Only sky up there.', 3); return; }
   perch = n; const P = PERCH[n]; goTo(P.p, P.yaw, P.pitch, 2.0); caption(P.text);
 }
+
+function nearLadder(){ const p = camera.position, f = -Math.sin(cam.yaw);
+  return LADDERS.find(L => Math.abs(p.z - L.z) < 0.9 && Math.abs(p.x - L.x) < 1.3 && body.feet < 0.5 && Math.sign(f) === L.dir && Math.abs(f) > 0.35); }
+function jumpOrClimb(){
+  if (mode !== 'walk' || body.mantle || body.vy !== 0 || tween) return; body.push = 0;
+  const p = camera.position, f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw));
+  const L = nearLadder();
+  if (L){ body.mantle = { t: 0, dur: 2.6, p0: p.clone(), p1: new V3(L.wallX + L.dir * 0.8, 0, L.z), f0: body.feet, f1: surf(L.wallX + L.dir * 0.8, L.z) }; sfx.step('tar');
+    if (!body.roofSaid.ladder){ body.roofSaid.ladder = 1; caption('Someone had left a ladder against the wall. Of course we used it.', 4); } return; }
+  for (let d = 0.35; d <= 1.6; d += 0.1){ const x = p.x + f.x * d, z = p.z + f.z * d, top = surf(x, z);
+    if (top > body.feet + 0.45){
+      if (top - body.feet > 4.2){ caption('Too high from here — get onto a garage or a garden shed first.', 3); return; }
+      const p1 = new V3(p.x + f.x * (d + 0.5), 0, p.z + f.z * (d + 0.5)); const f1 = surf(p1.x, p1.z); if (f1 < top - 0.6) break;
+      body.mantle = { t: 0, dur: 0.55 + (top - body.feet) * 0.22, p0: p.clone(), p1, f0: body.feet, f1 }; sfx.step(surfKind, 1.2); return; } }
+  body.vy = 5.2; body.fallFrom = body.feet;
+}
+function onRoof(){ const k = surfKind, said = body.roofSaid;
+  if (k === 'tar' && camera.position.x < -11 && !said.gar){ said.gar = 1; caption('Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.', 5); }
+  else if (k === 'tin' && !said.tin){ said.tin = 1; caption('The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.', 6); }
+  else if (said.gar && said.tin && !said.run && k === 'tin'){ said.run = 1; caption('We ran from roof to roof, and nobody could catch us.', 4); } }
 
 /* ============================== interactions ============================== */
 let shakeT = 0;
@@ -1563,6 +1694,10 @@ const sfx = (() => {
       o.connect(f1); o.connect(f2); f1.connect(g); f2.connect(g); g.connect(amb); o.start(t); o.stop(t + 0.85); },
     creak(){ if (ctx){ const t = ctx.currentTime, o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(140, t); o.frequency.linearRampToValueAtTime(220, t + 0.35);
       f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 5; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.04, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45); o.connect(f); f.connect(g); g.connect(amb); o.start(t); o.stop(t + 0.5); noiseHit(t + 0.42, 'bandpass', 2200, 0.08, 0.02); } },
+    step(kind, v = 1){ if (!ctx) return; const t = ctx.currentTime;
+      if (kind === 'tin'){ tone(t, 120 + Math.random() * 30, 80, 0.07 * v, 0.35, 'triangle'); noiseHit(t, 'bandpass', 900 + Math.random() * 400, 0.06 * v, 0.12); }
+      else if (kind === 'tar') noiseHit(t, 'lowpass', 600, 0.08 * v, 0.07); else noiseHit(t, 'lowpass', 900, 0.1 * v, 0.06); },
+    crunch(){ if (!ctx) return; const t = ctx.currentTime; for (let i = 0; i < 4; i++) noiseHit(t + i * 0.035 + Math.random() * 0.02, 'bandpass', 1200 + Math.random() * 1500, 0.07, 0.05); },
     click(){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 3500, 0.12, 0.015); tone(ctx.currentTime, 1800, 900, 0.03, 0.03, 'square'); } },
     flutter(){ if (ctx) for (let i = 0; i < 14; i++) noiseHit(ctx.currentTime + i * 0.03 + Math.random() * 0.2, 'bandpass', 600 + Math.random() * 500, 0.06, 0.05); },
   };
@@ -1570,22 +1705,125 @@ const sfx = (() => {
 function toggleMusic(){ sfx.toggle(); syncButtons(); }
 
 /* ============================== UI ============================== */
+/* ============================== languages: English, Русский, Latviešu ============================== */
+const I18N = {   // English → [Russian, Latvian]
+  // interface
+  'Winter': ['Зима', 'Ziema'], 'Spring': ['Весна', 'Pavasaris'], 'Summer': ['Лето', 'Vasara'], 'Autumn': ['Осень', 'Rudens'],
+  'Dawn': ['Рассвет', 'Rītausma'], 'Day': ['День', 'Diena'], 'Dusk': ['Сумерки', 'Krēsla'], 'Night': ['Ночь', 'Nakts'],
+  'Fair': ['Ясно', 'Skaidrs'], 'Cloudy': ['Облачно', 'Mākoņains'], 'Rain': ['Дождь', 'Lietus'],
+  'Walk': ['Гулять', 'Staigāt'], 'Window': ['Окно', 'Logs'], 'Climb': ['Залезть', 'Kāpt'], 'Lie down': ['Лечь', 'Apgulties'],
+  '↻ Drift': ['↻ Год идёт', '↻ Gads rit'], 'Music (M)': ['Музыка (M)', 'Mūzika (M)'], 'Language': ['Язык', 'Valoda'],
+  'Shake the branch': ['Потрясти ветку', 'Sapurināt zaru'], 'Kick the trunk': ['Пнуть ствол', 'Iespert stumbrā'],
+  'Roast chestnuts': ['Жарить каштаны', 'Cept kastaņus'], 'Build a snowman': ['Слепить снеговика', 'Uztaisīt sniegavīru'], 'roasted': ['пожарено', 'izcepti'],
+  ' — click to open': [' — нажмите, чтобы открыть', ' — klikšķiniet, lai atvērtu'],
+  'Begin': ['Начать', 'Sākt'], 'Sound on · headphones recommended': ['Включите звук · лучше в наушниках', 'Ieslēdziet skaņu · ieteicamas austiņas'],
+  'Engelsa iela 78 · Rīga · 1984': ['Улица Энгельса, 78 · Рига · 1984', 'Engelsa iela 78 · Rīga · 1984'],
+  "A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.":
+    ['Длинная гравийная дорога, гаражи, огородики старушек —<br>а в самом конце, справа, — дерево.', 'Garš grants ceļš, garāžas, vecenīšu dārziņi —<br>un pašā galā, pa labi, — koks.'],
+  'Rīga 1984': ['Рига 1984', 'Rīga 1984'],
+  'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)':
+    ['WASD / стрелки — идти · тянуть мышью — смотреть · Shift — бегом · Пробел — прыжок или залезть на крышу · E у ствола — на дерево · F — потрясти дерево · B — снеговик (зимой)',
+     'WASD / bultiņas — iet · velc ar peli — skatīties · Shift — skriet · Atstarpe — lēkt vai uzrāpties uz jumta · E pie stumbra — kāpt kokā · F — sapurināt koku · B — sniegavīrs (ziemā)'],
+  'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · a book to open it':
+    ['Тянуть мышью — смотреть · WASD — ходить · клик по окну (F) — открыть · по лампе (O) — включить · по книге — открыть её',
+     'Velc ar peli — skatīties · WASD — staigāt · klikšķis uz loga (F) — atvērt · uz lampas (O) — ieslēgt · uz grāmatas — atvērt to'],
+  'W / S or E / Q to climb up and down · drag to look · F to shake': ['W / S или E / Q — вверх и вниз · тянуть мышью — смотреть · F — потрясти', 'W / S vai E / Q — augšup un lejup · velc ar peli — skatīties · F — sapurināt'],
+  'Drag to look around · Esc to get up': ['Тянуть мышью — оглядеться · Esc — встать', 'Velc ar peli — paskatīties apkārt · Esc — piecelties'],
+  // captions
+  'The window swung out over the yard, and the tree came in with the air.': ['Окно распахнулось над двором, и вместе с воздухом в комнату вошло дерево.', 'Logs atvērās pāri pagalmam, un kopā ar gaisu istabā ienāca koks.'],
+  'Open window: the smell of rain and chestnut leaves.': ['Открытое окно: запах дождя и каштановых листьев.', 'Atvērts logs: lietus un kastaņu lapu smarža.'],
+  'Cold air, and every sound of the yard at once.': ['Холодный воздух — и сразу все звуки двора.', 'Vēss gaiss — un uzreiz visas pagalma skaņas.'],
+  'The cat did not appreciate that. A black streak, and gone.': ['Коту это не понравилось. Чёрная молния — и нет его.', 'Kaķim tas nepatika. Melns zibens — un prom.'],
+  "Our cat — nobody's and everybody's. Black, with white socks and a white shirt-front, out of nowhere as always.":
+    ['Наш кот — ничей и общий. Чёрный, в белых носочках и с белой манишкой, как всегда — из ниоткуда.', 'Mūsu kaķis — neviena un visu. Melns, ar baltām zeķītēm un baltu krūtežu, kā vienmēr — no nekurienes.'],
+  'Today it brought a mouse, and walked past us as proud as a general.': ['Сегодня он притащил мышь и прошёл мимо нас гордый, как генерал.', 'Šodien tas atnesa peli un pagāja mums garām lepns kā ģenerālis.'],
+  'It had caught a sparrow, and would not let anyone near.': ['Он поймал воробья и никого к себе не подпускал.', 'Tas bija noķēris zvirbuli un nevienu klāt nelaida.'],
+  'The cat had taken up residence in the chestnut again, draped over a limb like a black scarf.': ['Кот опять поселился на каштане — свесился с ветки, как чёрный шарф.', 'Kaķis atkal bija apmeties kastaņā — pārkāries pār zaru kā melna šalle.'],
+  'A few clouds drifting in from the Gulf.': ['С залива наплывают редкие облака.', 'No jūras līča atpeld pa mākonim.'],
+  'Grey Baltic sky, low and close.': ['Серое балтийское небо, низкое и близкое.', 'Pelēkas Baltijas debesis, zemas un tuvas.'],
+  'Heavy wet snow, the Rīga kind.': ['Тяжёлый мокрый снег — рижский.', 'Smags, slapjš sniegs — tāds, kāds ir tikai Rīgā.'],
+  'Rain again. Latvia.': ['Опять дождь. Латвия.', 'Atkal lietus. Latvija.'],
+  'From my window on the third floor, the tree was the whole world.': ['Из моего окна на третьем этаже дерево было целым миром.', 'No mana loga trešajā stāvā koks bija visa pasaule.'],
+  'I would sit here for hours, and the tree would sit there with me.': ['Я мог сидеть здесь часами, и дерево было там, со мной.', 'Es te varēju sēdēt stundām, un koks bija tur, kopā ar mani.'],
+  'Some evenings I wrote poems to it in a school notebook.': ['Иногда по вечерам я писал ему стихи в школьной тетради.', 'Dažos vakaros es tam rakstīju dzejoļus skolas burtnīcā.'],
+  'We lay in the grass and counted the stars between the leaves.': ['Мы лежали в траве и считали звёзды между листьями.', 'Mēs gulējām zālē un skaitījām zvaigznes starp lapām.'],
+  'Lying on my back in the grass, looking up into the branches.': ['Лежу на спине в траве и смотрю вверх, в ветки.', 'Guļu zālē uz muguras un skatos augšup zaros.'],
+  'No higher. Only sky up there.': ['Выше некуда. Там только небо.', 'Augstāk vairs nevar. Tur ir tikai debesis.'],
+  'The first fork, worn smooth by our sneakers. From here the road ran away like a river.': ['Первая развилка, отполированная нашими кедами. Отсюда дорога убегала вдаль, как река.', 'Pirmais žuburs, mūsu kedu nopulēts. No šejienes ceļš aizplūda tālumā kā upe.'],
+  'This limb was the deck of our pirate ship. The garages were a coastline; the gardens, the open sea.': ['Эта ветка была палубой нашего пиратского корабля. Гаражи — берег, огороды — открытое море.', 'Šis zars bija mūsu pirātu kuģa klājs. Garāžas bija krasts, dārziņi — atklāta jūra.'],
+  'The observation post. Above the roof, above the whole street — nothing higher but the sky.': ['Наблюдательный пункт. Выше крыши, выше всей улицы — выше только небо.', 'Novērošanas postenis. Augstāk par jumtu, augstāk par visu ielu — augstāk ir tikai debesis.'],
+  'Snow came down from every branch at once — straight down our collars.': ['Снег рухнул со всех веток сразу — прямо нам за шиворот.', 'Sniegs nogāzās no visiem zariem uzreiz — taisni mums aiz apkakles.'],
+  'A white blizzard of petals, in May.': ['Белая метель из лепестков — в мае.', 'Balts ziedlapiņu putenis — maijā.'],
+  'Kick the trunk and they rain down — mind your head!': ['Пни ствол — и они посыплются градом. Береги голову!', 'Iesper stumbrā — un tie birs kā krusa. Sargā galvu!'],
+  'The old tree barely noticed.': ['Старое дерево этого почти не заметило.', 'Vecais koks to gandrīz nepamanīja.'],
+  'We made a small fire and roasted chestnuts in the coals. They popped like little cannons.': ['Мы разводили костерок и пекли каштаны в углях. Они стреляли, как маленькие пушки.', 'Mēs sakūrām mazu ugunskuru un cepām kastaņus oglēs. Tie sprāga kā mazi lielgabali.'],
+  'Smoke in our hair, black fingers, the best thing we ever ate.': ['Дым в волосах, чёрные пальцы — ничего вкуснее мы не ели.', 'Dūmi matos, melni pirksti — neko gardāku mēs nebijām ēduši.'],
+  'Letting the year turn on its own.': ['Пусть год идёт своим чередом.', 'Lai gads rit savu gaitu.'],
+  'Holding still.': ['Время остановилось.', 'Laiks apstājies.'],
+  'The tree stood bare and black against the snow, like a drawing in ink.': ['Дерево стояло голое и чёрное на фоне снега, как рисунок тушью.', 'Koks stāvēja kails un melns pret sniegu kā tušas zīmējums.'],
+  'Snow on every branch — the whole tree holding its breath until spring.': ['Снег на каждой ветке — всё дерево затаило дыхание до весны.', 'Sniegs uz katra zara — viss koks aizturējis elpu līdz pavasarim.'],
+  'In winter it looked smaller, and somehow more patient.': ['Зимой оно казалось меньше и как-то терпеливее.', 'Ziemā tas šķita mazāks un kaut kā pacietīgāks.'],
+  'Sticky buds split open; the leaves unfolded like small green hands.': ['Липкие почки лопались, и листья раскрывались, как маленькие зелёные ладошки.', 'Lipīgie pumpuri pārplīsa, un lapas atvērās kā mazas zaļas plaukstiņas.'],
+  'In May it lit a thousand white candles, and the whole yard smelled of them.': ['В мае оно зажигало тысячу белых свечей, и ими пах весь двор.', 'Maijā tas iededza tūkstoš baltu sveču, un ar tām smaržoja viss pagalms.'],
+  'Even the old ladies stopped weeding to look up at it.': ['Даже старушки бросали полоть грядки, чтобы на него посмотреть.', 'Pat vecenītes pārtrauca ravēt dobes, lai paskatītos uz to.'],
+  'So thick with leaves you could hide inside it from the whole world.': ['Листва такая густая, что в ней можно было спрятаться от всего мира.', 'Lapotne tik bieza, ka tajā varēja paslēpties no visas pasaules.'],
+  'The tree was loud with birds from dawn until dark.': ['С рассвета до темноты дерево звенело птицами.', 'No rītausmas līdz tumsai koks skanēja no putniem.'],
+  'Summer evenings, the tree breathed and the swifts screamed above it.': ['Летними вечерами дерево дышало, а над ним визжали стрижи.', 'Vasaras vakaros koks elpoja, un virs tā spiedza svīres.'],
+  'Chestnuts fell like small brown planets, cracking out of their green shells.': ['Каштаны падали, как маленькие коричневые планеты, вылупляясь из зелёных колючих скорлупок.', 'Kastaņi krita kā mazas brūnas planētas, izlauzdamies no zaļajām čaulām.'],
+  'We filled our pockets until the seams tore.': ['Мы набивали карманы, пока не трещали швы.', 'Mēs pildījām kabatas, līdz plīsa vīles.'],
+  'The leaves went yellow, then rust, then the colour of strong tea.': ['Листья желтели, потом ржавели, потом становились цвета крепкого чая.', 'Lapas kļuva dzeltenas, tad rūsganas, tad stipras tējas krāsā.'],
+  'Chestnuts are falling. Walk beneath the tree to gather them.': ['Падают каштаны. Пройдитесь под деревом, чтобы их собрать.', 'Krīt kastaņi. Pastaigājiet zem koka, lai tos salasītu.'],
+  'Engelsa iela 78, Rīga. Summer of 1984 — no, every season of it.': ['Улица Энгельса, 78, Рига. Лето 1984-го — нет, весь тот год, все его времена.', 'Engelsa iela 78, Rīga. 1984. gada vasara — nē, visi tā gada laiki.'],
+  'At the end of the road, to the right: the chestnut tree.': ['В конце дороги, справа, — каштан.', 'Ceļa galā, pa labi, — kastaņa.'],
+  'A chestnut — cool, glossy, the colour of a violin.': ['Каштан — прохладный, блестящий, цвета скрипки.', 'Kastanis — vēss, spīdīgs, vijoles krāsā.'],
+  'Pockets full. Time for a fire.': ['Карманы полны. Пора разводить костёр.', 'Kabatas pilnas. Laiks kurt ugunskuru.'],
+  // roofs
+  'Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.': ['На крышах гаражей — тёплый рубероид, ржавая жесть, вся дорога как на ладони.', 'Uz garāžu jumtiem — silts ruberoīds, rūsgans skārds, viss ceļš kā uz delnas.'],
+  'The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.': ['Крыши мастерских: жесть гремит под ногами, а вокруг до горизонта — весь город.', 'Darbnīcu jumti: skārds dārd zem kājām, un visapkārt līdz apvārsnim — visa pilsēta.'],
+  'We ran from roof to roof, and nobody could catch us.': ['Мы бегали с крыши на крышу, и никто не мог нас поймать.', 'Mēs skrējām no jumta uz jumtu, un neviens mūs nespēja noķert.'],
+  'Oof. Jumped down — the knees remembered it for a week.': ['Ух! Спрыгнул — коленки помнили это неделю.', 'Ui! Nolēcu — ceļgali to atcerējās vēl nedēļu.'],
+  'Too high from here — get onto a garage or a garden shed first.': ['Отсюда не достать — сначала залезь на гараж или на сарайчик.', 'No šejienes neaizsniegt — vispirms uzrāpies uz garāžas vai šķūnīša.'],
+  'Someone had left a ladder against the wall. Of course we used it.': ['Кто-то оставил у стены лестницу. Конечно, мы ею воспользовались.', 'Kāds bija atstājis pie sienas kāpnes. Protams, mēs tās izmantojām.'],
+  // snowmen
+  'Not enough snow — wait for winter.': ['Мало снега — подожди зимы.', 'Par maz sniega — pagaidi ziemu.'],
+  'No room here for a snowman.': ['Здесь снеговику не поместиться.', 'Te sniegavīram nav vietas.'],
+  'Rolling a snowball until it was bigger than us…': ['Катим снежный ком, пока он не станет больше нас…', 'Velam sniega bumbu, līdz tā kļūst lielāka par mums…'],
+  "Two coals, a carrot from somebody's kitchen, an old bucket for a hat. Perfect.": ['Два уголька, морковка с чьей-то кухни, старое ведро вместо шляпы. Идеально.', 'Divas ogles, burkāns no kāda virtuves, vecs spainis cepures vietā. Ideāli.'],
+  'He would stand guard over the yard until spring.': ['Он будет стоять на посту во дворе до самой весны.', 'Viņš sargās pagalmu līdz pat pavasarim.'],
+  'The snowman was melting — leaning, losing his nose, crying into the grass.': ['Снеговик таял — кренился, терял нос, плакал в траву.', 'Sniegavīrs kusa — sašķiebās, zaudēja degunu, raudāja zālē.'],
+  'All that was left of him: a carrot, two coals and the bucket.': ['От него остались только морковка, угольки и ведро.', 'No viņa palika tikai burkāns, ogles un spainis.'],
+};
+const MONTHS = { ru: ['Декабрь', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь'],
+  lv: ['Decembris', 'Janvāris', 'Februāris', 'Marts', 'Aprīlis', 'Maijs', 'Jūnijs', 'Jūlijs', 'Augusts', 'Septembris', 'Oktobris', 'Novembris'] };
+const LANGS = ['en', 'ru', 'lv'], LANG_NAME = { en: 'English', ru: 'Русский', lv: 'Latviešu' };
+let LANG = (() => { const q = new URLSearchParams(location.search).get('lang'); if (LANGS.includes(q)) return q;
+  try { const v = localStorage.getItem('kashtan-lang'); if (LANGS.includes(v)) return v; } catch (e) {}
+  const n = (navigator.language || 'en').slice(0, 2); return LANGS.includes(n) ? n : 'en'; })();
+const tr = s => LANG === 'en' ? s : (I18N[s] ? I18N[s][LANG === 'ru' ? 0 : 1] : s);
 const $ = id => document.getElementById(id);
 let capTimer = 0;
-function caption(text, hold = 6.5){ const el = $('caption'); el.classList.remove('on');
+function caption(text, hold = 6.5){ text = tr(text); const el = $('caption'); el.classList.remove('on');
   clearTimeout(capTimer); capTimer = setTimeout(() => { el.textContent = text; el.classList.add('on'); capTimer = setTimeout(() => el.classList.remove('on'), hold * 1000); }, el.textContent ? 700 : 50); }
 const LINES = [
   ['The tree stood bare and black against the snow, like a drawing in ink.', 'Snow on every branch — the whole tree holding its breath until spring.', 'In winter it looked smaller, and somehow more patient.'],
   ['Sticky buds split open; the leaves unfolded like small green hands.', 'In May it lit a thousand white candles, and the whole yard smelled of them.', 'Even the old ladies stopped weeding to look up at it.'],
   ['So thick with leaves you could hide inside it from the whole world.', 'The tree was loud with birds from dawn until dark.', 'Summer evenings, the tree breathed and the swifts screamed above it.'],
   ['Chestnuts fell like small brown planets, cracking out of their green shells.', 'We filled our pockets until the seams tore.', 'The leaves went yellow, then rust, then the colour of strong tea.'] ];
-function btn(parent, label, fn, id){ const b = document.createElement('button'); b.className = 'p'; b.textContent = label; b.onclick = (e) => { e.currentTarget.blur(); fn(); }; if (id) b.id = id; $(parent).appendChild(b); return b; }
+function btn(parent, label, fn, id){ const b = document.createElement('button'); b.className = 'p'; b.dataset.en = label; b.textContent = tr(label); b.onclick = (e) => { e.currentTarget.blur(); fn(); }; if (id) b.id = id; $(parent).appendChild(b); return b; }
 SEASON_EN.forEach((n, i) => btn('g-season', n, () => setSeason(i), 'bs' + i));
 Object.keys(TIMES).forEach(n => btn('g-time', n, () => setTime(n), 'bt' + n));
 Object.keys(WEATHERS).forEach(n => btn('g-weather', WEATHERS[n].label, () => setWeather(n), 'bw' + n));
 function setWeather(n){ weather = n; syncButtons(); if (started) caption(WEATHERS[n].say(SP(S)), 4); }
 [['Walk', 'walk'], ['Window', 'window'], ['Climb', 'climb'], ['Lie down', 'lie']].forEach(([n, m]) => btn('g-view', n, () => setMode(m), 'bm' + m));
-btn('g-opt', '♪', toggleMusic, 'bmusic').title = 'Music (M)'; btn('g-opt', '↻ Drift', () => { drift = !drift; sTarget = null; syncButtons(); caption(drift ? 'Letting the year turn on its own.' : 'Holding still.', 3); }, 'bdrift');
+btn('g-opt', '♪', toggleMusic, 'bmusic').dataset.title = 'Music (M)'; btn('g-opt', 'EN', () => setLang(LANGS[(LANGS.indexOf(LANG) + 1) % 3]), 'blang').dataset.title = 'Language'; btn('g-opt', '↻ Drift', () => { drift = !drift; sTarget = null; syncButtons(); caption(drift ? 'Letting the year turn on its own.' : 'Holding still.', 3); }, 'bdrift');
+function setLang(l){ LANG = l; try { localStorage.setItem('kashtan-lang', l); } catch (e) {}
+  document.documentElement.lang = l;
+  document.querySelectorAll('button.p').forEach(b => { if (b.dataset.en && b.id !== 'blang') b.textContent = tr(b.dataset.en); if (b.dataset.title) b.title = tr(b.dataset.title); });
+  $('blang').textContent = l.toUpperCase();
+  for (const id of ['i-sub', 'i-p', 'begin', 'i-small']){ const el = $(id); el.dataset.en ??= el.innerHTML; el.innerHTML = tr(el.dataset.en); }
+  $('i-ru').textContent = l === 'ru' ? 'Kashtan' : l === 'lv' ? 'Kastaņa · Каштан' : 'Каштан'; $('i-h1').textContent = l === 'ru' ? 'Каштан' : 'Kashtan';
+  document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.l === l));
+  lastMonth = -1; ctxState = '?'; syncButtons(); }
 function setSeason(i){ drift = false; sTarget = SEASON_MID[i]; syncButtons(); }
 function setTime(n){ todTarget = TIMES[n]; syncButtons(); }
 function syncButtons(){
@@ -1595,24 +1833,27 @@ function syncButtons(){
   ['walk', 'window', 'climb', 'lie'].forEach(m => $('bm' + m).classList.toggle('on', m === mode));
   Object.keys(WEATHERS).forEach(n => $('bw' + n).classList.toggle('on', n === weather));
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
-  const hints = { walk: 'WASD / arrows to walk · drag to look · Shift to run · E at the trunk to climb · F to shake the tree',
+  const hints = { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
     window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · a book to open it', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
-  $('hint').textContent = hints[mode] || '';
+  $('hint').textContent = tr(hints[mode] || '');
 }
 let ctxState = '';
 function syncCtx(){
   const canShake = (mode === 'walk' && distTree() < 6) || mode === 'climb';
   const canRoast = nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie') && !fire.on;
-  const st = (canShake ? 's' : '') + (canRoast ? 'r' : '');
+  const canSnow = mode === 'walk' && body.feet < 0.3 && SP(S).snow > 0.6 && !SNOWMEN.some(s => s.build < 1);
+  const st = (canShake ? 's' : '') + (canRoast ? 'r' : '') + (canSnow ? 'm' : '');
   if (st === ctxState) return; ctxState = st; const c = $('ctx'); c.innerHTML = '';
   if (canShake) btn('ctx', mode === 'climb' ? 'Shake the branch' : 'Kick the trunk', shake);
-  if (canRoast) btn('ctx', `Roast chestnuts (${nutsHeld})`, roast);
+  if (canRoast) btn('ctx', 'Roast chestnuts', roast).textContent += ` (${nutsHeld})`;
+  if (canSnow) btn('ctx', 'Build a snowman', buildSnowman);
 }
-function updateNutHUD(){ $('nuts').style.display = nutsHeld + roasted > 0 ? 'block' : 'none'; $('nutc').textContent = nutsHeld; $('roastc').textContent = roasted ? `  ·  roasted ${roasted}` : ''; ctxState = '?'; }
+function updateNutHUD(){ $('nuts').style.display = nutsHeld + roasted > 0 ? 'block' : 'none'; $('nutc').textContent = nutsHeld; $('roastc').textContent = roasted ? `  ·  ${tr('roasted')} ${roasted}` : ''; ctxState = '?'; }
 let lastSI = -1, lastMonth = -1, autumnHinted = false;
 function updateSeasonHUD(){
   const si = Math.floor(S) % 4, mo = Math.floor(S * 3 + 0.5) % 12;
-  if (mo !== lastMonth){ lastMonth = mo; $('seasonT').textContent = SEASON_RU[si]; $('seasonS').textContent = `${SEASON_EN[si]} · ${MONTH[mo]} · Rīga 1984`; }
+  if (mo !== lastMonth){ lastMonth = mo; $('seasonT').textContent = LANG === 'lv' ? tr(SEASON_EN[si]) : SEASON_RU[si];
+    $('seasonS').textContent = LANG === 'en' ? `${SEASON_EN[si]} · ${MONTH[mo]} · Rīga 1984` : LANG === 'ru' ? `${MONTHS.ru[mo]} · Рига 1984` : `${MONTHS.lv[mo]} · Rīga 1984`; }
   if (si !== lastSI){ const first = lastSI === -1; lastSI = si; syncButtons(); if (started && !first) caption(pick(LINES[si])); }
   if (started && !autumnHinted && SP(S).nutfall > 0.5){ autumnHinted = true; setTimeout(() => caption('Chestnuts are falling. Walk beneath the tree to gather them.'), 7000); }
 }
@@ -1630,6 +1871,31 @@ $('begin').onclick = () => {
 const clock = new THREE.Clock();
 const fwd = new V3(), right = new V3();
 let bob = 0;
+function walkStep(dt, mx, mz, sp_){
+  fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+  const p = camera.position;
+  if (body.mantle){ const M = body.mantle; M.t = Math.min(1, M.t + dt / M.dur); const up = smooth(M.t / 0.7), fw = smooth((M.t - 0.35) / 0.65);
+    p.x = lerp(M.p0.x, M.p1.x, fw); p.z = lerp(M.p0.z, M.p1.z, fw); body.feet = lerp(M.f0, M.f1 + 0.25 * Math.sin(Math.PI * M.t), up);
+    if (M.t >= 1){ body.feet = M.f1; body.mantle = null; sfx.step(surfKind); onRoof(); } }
+  else {
+    let walked = false;
+    if (mx || mz){ const l = Math.hypot(mx, mz), vx = (fwd.x * mz + right.x * mx) / l * sp_ * dt, vz = (fwd.z * mz + right.z * mx) / l * sp_ * dt, lim = body.feet + 0.45;
+      let blockTop = 0;
+      const tx = surf(p.x + vx + Math.sign(vx) * 0.3, p.z); if (tx <= lim) p.x += vx; else blockTop = tx;
+      const tz = surf(p.x, p.z + vz + Math.sign(vz) * 0.3); if (tz <= lim) p.z += vz; else blockTop = Math.max(blockTop, tz);
+      walked = true; bob += dt * sp_ * 2.2;
+      if (blockTop && mz > 0 && body.vy === 0 && (blockTop - body.feet < 2.95 || nearLadder())){ body.push += dt; if (body.push > 0.45) jumpOrClimb(); } else body.push = 0;
+    } else body.push = 0;
+    p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, 150);
+    const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4 && body.feet < 1){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
+    const gnd = surf(p.x, p.z);
+    if (body.vy !== 0 || body.feet > gnd + 0.02){ if (body.vy === 0) body.fallFrom = body.feet; body.vy -= 17 * dt; body.feet += body.vy * dt; body.fallFrom = Math.max(body.fallFrom, body.feet);
+      if (body.feet <= gnd){ const h = body.fallFrom - gnd; body.feet = gnd; body.vy = 0; sfx.step(surfKind, Math.min(2.5, 0.6 + h * 0.35));
+        if (h > 3.2){ bob = 0; caption('Oof. Jumped down — the knees remembered it for a week.', 3.5); } else if (gnd > 1) onRoof(); } }
+    else { body.feet = gnd; const ph = Math.floor(bob / Math.PI); if (walked && ph !== body.ph && gnd > 1) sfx.step(surfKind); body.ph = ph; }
+  }
+  p.y = body.feet + 1.6 + Math.sin(bob) * 0.035;
+}
 function frame(){
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime; timeU.value = t;
@@ -1653,11 +1919,7 @@ function frame(){
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp') || pointers.size > 1) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
       if (keys.has('KeyD')) mx += 1; if (keys.has('KeyA')) mx -= 1;
       if (keys.has('ArrowLeft')) cam.yaw += dt * 1.6; if (keys.has('ArrowRight')) cam.yaw -= dt * 1.6;
-      const sp_ = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
-      if (mx || mz){ const l = Math.hypot(mx, mz); camera.position.addScaledVector(fwd, mz / l * sp_ * dt).addScaledVector(right, mx / l * sp_ * dt); bob += dt * sp_ * 2.2; }
-      const p = camera.position; p.x = clamp(p.x, ROAD_X - ROAD_W / 2 - 1.9, 17.6); p.z = clamp(p.z, -148.6, 150);
-      const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
-      p.y = 1.6 + Math.sin(bob) * 0.035;
+      walkStep(dt, mx, mz, (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6);
     } else if (mode === 'window'){
       fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
@@ -1675,7 +1937,7 @@ function frame(){
     camera.rotation.set(cam.pitch, cam.yaw, 0);
   }
   sky.position.copy(camera.position); stars.forEach(s => s.position.copy(camera.position));
-  room.visible = mode === 'window' || (Math.abs(camera.position.z - BZ) < 6 && camera.position.y > 6);
+  room.visible = mode === 'window' || (Math.abs(camera.position.z - BZ) < 6 && camera.position.y > 6 && Math.abs(camera.position.x - HOME.x) < 8);
 
   // tree shake
   if (shakeT > 0){ shakeT -= dt; const k = Math.max(0, shakeT) / 1.6; treeG.rotation.z = Math.sin(t * 18) * 0.006 * k; treeG.rotation.x = Math.cos(t * 15) * 0.004 * k; windU.value = Math.max(windU.value, 2.5 * k); }
@@ -1715,7 +1977,7 @@ function frame(){
   fallLeaves.instanceMatrix.needsUpdate = true; fallLeaves.instanceColor.needsUpdate = true;
 
   // chestnuts
-  const canGather = mode === 'walk' || mode === 'lie';
+  const canGather = (mode === 'walk' && body.feet < 0.3) || mode === 'lie';
   for (let i = 0; i < NUT_N; i++){ const n = NUTs[i];
     if (n.on && !n.rest){ n.v.y -= 9.8 * dt; n.p.addScaledVector(n.v, dt);
       if (n.p.y < 0.045){ n.p.y = 0.045; if (Math.abs(n.v.y) > 1.2){ const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.12 * clamp(1 - dd / 25)); n.v.y *= -0.3; n.v.x *= 0.5; n.v.z *= 0.5; } else { n.rest = true; } } }
@@ -1739,7 +2001,7 @@ function frame(){
     b.g.position.copy(b.p);
   }
 
-  updateCat(dt, t);
+  updateCat(dt, t); updateSnowmen(dt, t);
   winOpen.v += (winOpen.target - winOpen.v) * Math.min(1, dt * 2.2);
   for (const sh of winOpen.sashes) sh.g.rotation.y = -sh.dir * smooth(winOpen.v) * 1.45;
 
@@ -1761,6 +2023,10 @@ function frame(){
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
     S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
+    body.feet = surf(camera.position.x, camera.position.z); camera.position.y = body.feet + 1.6;
+    if (q.get('sm')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('smd') || 3)); P.y = 0;
+      const sm = makeSnowman(P, Math.atan2(camera.position.x - P.x, camera.position.z - P.z)); sm.build = +q.get('sm'); if (q.get('smm')) sm.melt = +q.get('smm'); }
+    if (q.get('sim')){ const n = +q.get('sim'); for (let i = 0; i < n; i++){ if (i % 30 === 0) console.log('SIM', i, camera.position.x.toFixed(2), camera.position.z.toFixed(2), body.feet.toFixed(2), surfKind, !!body.mantle); if (i === +q.get('simj')) jumpOrClimb(); if (i === +q.get('simt')) cam.yaw += Math.PI; walkStep(1 / 30, 0, i < +(q.get('simw') || n) ? 1 : 0, +(q.get('simv') || 3.6)); } }
     if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('ct')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); renderer.render(scene, camera); window.open = (u) => console.log('OPEN', u); window.__dbgClick = 1; const tests = [['book', BOOKS[1]], ['lamp', deskLamp.parts[deskLamp.parts.length - 1]]];
       for (const [n, o] of tests){ const wp = o.getWorldPosition(new V3()); cam.yaw = yawTo(camera.position, wp); cam.pitch = Math.atan2(wp.y - camera.position.y, Math.hypot(wp.x - camera.position.x, wp.z - camera.position.z)); camera.rotation.set(cam.pitch, cam.yaw, 0); camera.updateMatrixWorld();
         const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
@@ -1772,7 +2038,8 @@ function frame(){
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
     for (let i = 0; i < +(q.get('p') || 0); i++) setTimeout(() => { tween = null; climb(1); }, 3000 + i * 3000); } }
-updateNutHUD(); syncButtons(); frame();
+document.querySelectorAll('#langs button').forEach(b => b.onclick = () => setLang(b.dataset.l));
+setLang(LANG); updateNutHUD(); syncButtons(); frame();
 window.__k = { get S(){ return S; }, set S(v){ S = v; }, get TOD(){ return TOD; }, set TOD(v){ TOD = v; }, setMode, setSeason, setTime, camera };
 </script>
 </body>
