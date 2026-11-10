@@ -815,6 +815,25 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
   }
   // lilacs along the front of the building, clear of the lane, its verges and both entrances
   for (const x0_ of [-16.4, -14.2, -2.6, -0.4, 1.8, 4.0, 6.2]) lilacData.push({ p: new V3(x0_ + rnd(-0.25, 0.25), 1.1, BZ + 1.6 + rnd(0, 0.6)), s: rnd(1.1, 1.5) });
+  { // the gardens were overgrown: lilacs along the plot lines and the lane fence, wild bushes (elder, hazel, jasmine) in every corner, more old fruit trees.
+    // Own RNG, so the rest of the world stays where it was.
+    let os = 4242; const orng = () => { os = os + 0x6D2B79F5 | 0; let t = Math.imul(os ^ os >>> 15, 1 | os); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, orn = (a, b) => a + (b - a) * orng();
+    const free = (x, z) => !SHEDS.some(S_ => x > S_.x0 - 1 && x < S_.x1 + 1 && z > S_.z0 - 1 && z < S_.z1 + 1) && Math.hypot(x - TREE.x, z - TREE.z) > 7;
+    const wild = (x, z, s) => { if (free(x, z)) shrubData.push({ p: new V3(x, 0.55 + 0.45 * s, z), s, wild: true }); };
+    const lilac = (x, z) => { if (free(x, z)) lilacData.push({ p: new V3(x, 1.1, z), s: orn(1.0, 1.5) }); };
+    for (let z0 = -126; z0 < LANE_END - 1; z0 += PL){
+      for (let k = 0; k < 2; k++) lilac(GX0 + orn(1.2, 1.8), z0 + orn(2, PL - 2));                                   // by the lane fence, leaning over it
+      for (let k = 0; k < 3; k++) lilac(orn(GX0 + 2, 16.5), z0 + orn(-0.5, 0.7));        // on the line between two plots
+      for (let k = 0; k < 5; k++) wild(orn(GX0 + 2, 17), z0 + orn(-0.6, 0.9), orn(1.2, 2.0));
+      for (let k = 0; k < 6; k++) wild(orn(13.6, 17.2), z0 + orn(1, PL - 1), orn(1.1, 2.0));
+      for (let k = 0; k < 2; k++) wild(orn(GX0 + 4, 14), z0 + orn(15, 16.4), orn(0.9, 1.5));   // at the ends of the beds   // the back of the plot, gone wild against the wall
+      wild(GX0 + orn(1.4, 3.4), z0 + orn(11, PL - 1), orn(1.0, 1.6));
+      const ft = (x, z) => { if (free(x, z)) fruitSpots.push({ x, z, type: ['apple', 'apple', 'pear', 'plum', 'plum'][Math.floor(orng() * 5)] }); };
+      ft(orn(13.8, 16.4), z0 + orn(3, 12)); ft(GX0 + orn(1.8, 3.2), z0 + orn(8.5, 14)); ft(orn(1, 12), z0 + orn(-0.3, 0.6)); if (orng() < 0.6) ft(orn(13.5, 16.5), z0 + orn(12, 15));
+    }
+    for (let k = 0; k < 5; k++) wild(orn(GX0 + 1, 17.2), LANE_END - orn(0.6, 1.6), orn(1.2, 1.9));   // a thicket along the back of the wooden house
+    lilac(orn(GX0 + 3, 8), LANE_END - 1); lilac(orn(9, 15), LANE_END - 1.2);
+  }
   for (const L of lilacData) shrubData.push({ p: L.p, s: L.s * 1.2, lilac: true });
   veg = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: '#8fb86a', roughness: 0.7, flatShading: true }), vegData.length); veg.castShadow = true; scene.add(veg);
   flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.09, 1), new THREE.MeshStandardMaterial({ roughness: 0.6 }), flowerData.length); scene.add(flowers);
@@ -875,20 +894,20 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), sg.b.clone().sub(sg.a).normalize())); g.translate(sg.a.x, sg.a.y, sg.a.z); return g; });
   const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: barkTex, color: '#8a8078', roughness: 0.95 }), 1.3));
   wood.castShadow = wood.receiveShadow = true; scene.add(wood);
-  for (const sh of shrubData){ const n = sh.lilac ? 9 : 7, R = sh.lilac ? 0.7 : 0.45;
-    for (let k = 0; k < n; k++) SHL.push({ p: sh.p.clone().add(new V3(rnd(-1, 1) * R * sh.s, rnd(-0.4, 0.6) * R * sh.s, rnd(-1, 1) * R * sh.s)), q: rq(), s: (sh.lilac ? 1.1 : 0.75) * sh.s, r: rng(), v: rnd(0.85, 1.1) });
-    if (!sh.lilac) for (let k = 0; k < 30; k++){ const d = new V3(rnd(-1, 1), rnd(-0.5, 0.7), rnd(-1, 1)).normalize();
+  for (const sh of shrubData){ const n = sh.lilac ? 9 : sh.wild ? 11 : 7, R = sh.lilac ? 0.7 : sh.wild ? 0.65 : 0.45;
+    for (let k = 0; k < n; k++) SHL.push({ p: sh.p.clone().add(new V3(rnd(-1, 1) * R * sh.s, rnd(-0.4, 0.6) * R * sh.s, rnd(-1, 1) * R * sh.s)), q: rq(), s: (sh.lilac ? 1.1 : sh.wild ? 1.0 : 0.75) * sh.s, r: rng(), v: rnd(sh.wild ? 0.7 : 0.85, 1.1) });
+    if (!sh.lilac && !sh.wild) for (let k = 0; k < 30; k++){ const d = new V3(rnd(-1, 1), rnd(-0.5, 0.7), rnd(-1, 1)).normalize();
       const goose = sh.kind === 'goose';
       BER.push({ p: sh.p.clone().addScaledVector(d, (0.5 + rnd(0, 0.15)) * sh.s), s: goose ? rnd(0.026, 0.034) : rnd(0.014, 0.019), c0: C('#86a850'), c1: goose ? C(rng() < 0.7 ? '#b8c870' : '#a05a4a') : C('#d0142c'), r: rng() }); } }
   { // bare twigs under every bush, so the lilac hedge and the currants stay there in winter (own RNG: the rest of the world doesn't move)
     let ls = 7781; const lr = () => { ls = ls + 0x6D2B79F5 | 0; let t = Math.imul(ls ^ ls >>> 15, 1 | ls); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, lrn = (a, b) => a + (b - a) * lr();
     const tw = [], seg = (a, b, r0, r1) => { const len = a.distanceTo(b), g = new THREE.CylinderGeometry(r1, r0, len, 5, 1, true); g.translate(0, len / 2, 0);
       g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), b.clone().sub(a).normalize())); g.translate(a.x, a.y, a.z); tw.push(g); };
-    for (const sh of shrubData){ const R = (sh.lilac ? 0.7 : 0.45) * sh.s, top = sh.p.y + 0.55 * R, n = sh.lilac ? 11 : 8;
+    for (const sh of shrubData){ const big = sh.lilac || sh.wild, R = (big ? 0.7 : 0.45) * sh.s, top = sh.p.y + 0.55 * R, n = big ? 11 : 8;
       for (let k = 0; k < n; k++){ const az = lr() * TAU, sp = lrn(0.15, 0.85), base = new V3(sh.p.x + lrn(-0.15, 0.15) * R, 0, sh.p.z + lrn(-0.15, 0.15) * R);
         const mid = base.clone().add(new V3(Math.cos(az) * sp * R * 0.6, top * lrn(0.45, 0.6), Math.sin(az) * sp * R * 0.6));
         const end = mid.clone().add(new V3(Math.cos(az) * sp * R * 0.5, top * lrn(0.35, 0.5), Math.sin(az) * sp * R * 0.5));
-        const rb = sh.lilac ? 0.03 : 0.018; seg(base, mid, rb, rb * 0.6); seg(mid, end, rb * 0.6, rb * 0.25);
+        const rb = big ? 0.03 : 0.018; seg(base, mid, rb, rb * 0.6); seg(mid, end, rb * 0.6, rb * 0.25);
         for (let j = 0; j < 3; j++){ const o = mid.clone().lerp(end, lrn(0.1, 0.8)), a2 = az + lrn(-1.3, 1.3);
           seg(o, o.clone().add(new V3(Math.cos(a2) * R * lrn(0.25, 0.45), R * lrn(0.2, 0.5), Math.sin(a2) * R * lrn(0.25, 0.45))), rb * 0.35, rb * 0.12); } } }
     const twigs = new THREE.Mesh(mergeGeometries(tw), snowify(new THREE.MeshStandardMaterial({ map: barkTex, roughness: 0.95 }), 1.6));
