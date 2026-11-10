@@ -234,6 +234,7 @@ const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right win
 const GAR_X = -15.0, ROAD_X = -7.9, ROAD_W = 4.2, GX0 = -3.65;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
 // from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
 const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = ROAD_X - 3.2, GATE_X1 = ROAD_X + 3.2, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
+const WOOD = { x0: GATE_X1, x1: 20.6, zb: -55.5, zf: -46.5 };   // the old wooden house on Stabu, right behind the gardens
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -972,7 +973,7 @@ function surf(x, z){
   for (const I of INDS){ if (Math.abs(x - I.cx) < I.hw && z > I.z0 - 0.35 && z < I.z1 + 0.35){ const y = I.H + I.peak * (1 - Math.abs(x - I.cx) / I.hw); if (y > h){ h = y; surfKind = 'tin'; } } }
   for (const s of SHEDS){ if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1){ const y = 2.25 - (z - s.zc) * 0.12; if (y > h){ h = y; surfKind = 'tar'; } } }
   if (Math.hypot(x + 27, z + 98) < 1.35){ h = 24; surfKind = 'tin'; }
-  if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3)){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
+  if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3) && !(x > WOOD.x0 - 0.3 && x < WOOD.x1 + 0.3 && (z < WOOD.zb - 0.3 || z > WOOD.zf + 0.3))){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
   return h;
 }
 const LADDERS = [];
@@ -1122,7 +1123,43 @@ var blockMats = [];
   // our side of Stabu iela: the street-front houses whose backs close the yard, with the gateway the lane runs out through
   { const zz = (LANE_END + STABU_FRONT) / 2;
     for (let x = GATE_X0; x - (-44) >= 3.6;){ const bays = Math.min(Math.floor((x + 44) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x - w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x -= w; }
-    for (let x = GATE_X1; 52 - x >= 3.6;){ const bays = Math.min(Math.floor((52 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x += w; } }
+    for (let x = WOOD.x1 + 0.4; 52 - x >= 3.6;){ const bays = Math.min(Math.floor((52 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x += w; } }
+  // and, right behind the gardens, the old two-storey wooden house, its clapboards painted a dark, weathered red
+  { const x0 = WOOD.x0, x1 = WOOD.x1, w = x1 - x0, zb = WOOD.zb, zf = WOOD.zf, d = zf - zb, H = 7.2, rise = 2.7, cx = (x0 + x1) / 2, cz = (zb + zf) / 2, ppm = 40;
+    const boards = (g, W, Hh, y0 = 0) => { g.fillStyle = '#6e2c22'; g.fillRect(0, y0, W, Hh);
+      for (let y = y0; y < y0 + Hh; y += 8){ g.fillStyle = `hsl(${6 + rng() * 6},${38 + rng() * 14}%,${21 + rng() * 7}%)`; g.fillRect(0, y, W, 7); g.fillStyle = 'rgba(20,8,6,.55)'; g.fillRect(0, y + 7, W, 1); }
+      for (let i = 0; i < W * Hh / 900; i++) blot(g, rng() * W, y0 + rng() * Hh, rnd(3, 22), rng() < 0.6 ? 'rgba(150,120,100,.16)' : 'rgba(30,14,10,.22)');   // flaking paint, damp
+      for (let i = 0; i < W / 30; i++){ const x = rng() * W, gr = g.createLinearGradient(0, y0, 0, y0 + Hh); gr.addColorStop(0, 'rgba(25,14,10,.0)'); gr.addColorStop(1, 'rgba(25,14,10,.25)'); g.fillStyle = gr; g.fillRect(x, y0, rnd(4, 18), Hh); } };
+    const win = (g, x, sill, ww, wh) => { const X = x * ppm, Y = (H - sill - wh) * ppm, W_ = ww * ppm, Hh = wh * ppm;
+      g.fillStyle = '#ddd6c8'; g.fillRect(X - 7, Y - 14, W_ + 14, Hh + 20); g.fillRect(X - 11, Y - 20, W_ + 22, 7);   // casing with a little cornice
+      g.fillStyle = '#c9c0b0'; g.fillRect(X - 9, Y + Hh + 4, W_ + 18, 5);
+      g.fillStyle = '#1c262c'; g.fillRect(X, Y, W_, Hh); g.fillStyle = 'rgba(160,180,190,.18)'; g.fillRect(X + 3, Y + 3, W_ * 0.45, Hh * 0.5);
+      g.fillStyle = '#ece6da'; g.fillRect(X + W_ / 2 - 2, Y + Hh * 0.27, 4, Hh * 0.73); g.fillRect(X, Y + Hh * 0.27 - 2, W_, 4); g.fillRect(X, Y + Hh * 0.62, W_, 3);
+      if (rng() < 0.5){ g.fillStyle = 'rgba(240,236,226,.55)'; g.fillRect(X + 3, Y + Hh * 0.29, W_ - 6, Hh * 0.35); } };
+    const wallTex = (street) => tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { boards(g, W, Hh);
+      g.fillStyle = '#7c776e'; g.fillRect(0, Hh - 0.75 * ppm, W, 0.75 * ppm); speckle(g, W, 0.75 * ppm, 400, ['rgba(0,0,0,.18)', 'rgba(255,255,255,.1)']);   // plaster plinth
+      g.save(); g.translate(0, Hh - 0.75 * ppm); speckle(g, W, 0.75 * ppm, 300, ['rgba(40,40,36,.25)']); g.restore();
+      g.fillStyle = '#4e1e18'; g.fillRect(0, 0, W, 10); g.fillRect(0, 3.55 * ppm, W, 6);   // eaves board, belt between the storeys
+      for (const x of [0, W - 12]){ g.fillStyle = '#5a2219'; g.fillRect(x, 0, 12, Hh - 0.75 * ppm); }
+      const n = Math.floor((w - 1.6) / 2.45), step = (w - 1.6) / n; let door = street ? Math.floor(n * 0.4) : 1;
+      for (let i = 0; i < n; i++){ const x = 0.8 + step * (i + 0.5) - 0.48;
+        if (i === door){ const X = x * ppm, Y = Hh - 0.75 * ppm - 2.25 * ppm; g.fillStyle = '#3a1a12'; g.fillRect(X - 6, Y - 10, 1.05 * ppm + 12, 2.25 * ppm + 10); g.fillStyle = '#5a2a1c'; g.fillRect(X, Y, 1.05 * ppm, 2.25 * ppm);
+          g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 2; g.strokeRect(X + 5, Y + 6, 1.05 * ppm / 2 - 8, 2.25 * ppm - 12); g.strokeRect(X + 1.05 * ppm / 2 + 3, Y + 6, 1.05 * ppm / 2 - 8, 2.25 * ppm - 12); }
+        else win(g, x, 1.25, 0.96, 1.6);
+        win(g, x, 4.35, 0.96, 1.6); }
+      for (const x of [0.25, w - 0.35]){ g.fillStyle = '#6a6c6c'; g.fillRect(x * ppm, 0, 5, Hh - 0.2 * ppm); } });   // drainpipes
+    const plank = tex(64, 64, (g, W, Hh) => boards(g, W, Hh));   // one metre of clapboard, tiled on the gable ends
+    const wm = (t) => snowify(new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }), 0.4);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(false))); back.rotation.y = Math.PI; back.position.set(cx, H / 2, zb);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(true))); front.position.set(cx, H / 2, zf);
+    const end = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(d / 2, H), new THREE.Vector2(0, H + rise), new THREE.Vector2(-d / 2, H)]);
+    const endMat = wm(plank), g = new THREE.Group(); g.add(back, front);
+    for (const s of [-1, 1]){ const e = new THREE.Mesh(new THREE.ShapeGeometry(end), endMat); e.rotation.y = s * Math.PI / 2; e.position.set(s < 0 ? x0 : x1, 0, cz); g.add(e);
+      const aw = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9), new THREE.MeshStandardMaterial({ color: '#1c262c', roughness: 0.3 })); aw.rotation.y = s * Math.PI / 2; aw.position.set((s < 0 ? x0 : x1) + s * 0.02, H + 0.9, cz); g.add(aw); }
+    const tin = snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4), a = Math.atan2(rise, d / 2), sl = Math.hypot(rise, d / 2) + 0.45;
+    for (const s of [-1, 1]){ const r = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.07, sl), tin); r.rotation.x = s * a; r.position.set(cx, H + rise / 2 + 0.02, cz + s * (d / 4 + 0.1)); g.add(r); }
+    for (const fx of [0.3, 0.72]){ const ch = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.6), snowify(new THREE.MeshStandardMaterial({ map: brickTex, color: '#a0503a', roughness: 1 }), 0.6)); ch.position.set(x0 + w * fx, H + rise - 0.1, cz + 0.6); g.add(ch); }
+    g.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } }); scene.add(g); }
   const cityMat = snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6);
   scene.add(new THREE.Mesh(mergeGeometries(bodies), cityMat));
   scene.add(new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)));
