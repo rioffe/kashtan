@@ -2,6 +2,8 @@
 
 A meditation on a chestnut tree — 78 Engelsa iela (now Stabu iela), Rīga, 1984.
 
+*For my childhood friends — Ivars, Normunds, Zhanis, Laila and Ivonne.*
+
 **Play:** https://rioffe.github.io/kashtan/
 
 Come in from Stabu iela through the gateway and walk the gravel lane between the rusting garages and the old ladies' gardens to the

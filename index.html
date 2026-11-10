@@ -31,6 +31,7 @@
   #langs{margin-top:22px;display:flex;gap:6px;justify-content:center}
   #langs button{font:500 12.5px var(--sans);color:var(--ink-dim);background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 13px;cursor:pointer;letter-spacing:.04em}
   #langs button.on{color:#141210;background:rgba(255,248,235,.9);border-color:transparent}
+  .ded{font-family:var(--serif);font-style:italic;font-size:17px;color:var(--accent);opacity:.85;margin:-14px 0 26px;letter-spacing:.02em;line-height:1.35;text-shadow:0 1px 10px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.7)}
   .small{margin-top:16px;font-size:12px;color:var(--ink-dim);letter-spacing:.06em}
   #hudtop{position:fixed;left:16px;top:14px;z-index:10;pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
   #hudtop .t{font-family:var(--serif);font-size:24px;letter-spacing:.04em}
@@ -64,6 +65,7 @@
   <h1 id="i-h1">Kashtan</h1>
   <div class="sub" id="i-sub">Engelsa iela 78 · Rīga · 1984</div>
   <p id="i-p">A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.</p>
+  <div class="ded" id="i-ded">For my childhood friends —<br>Ivars, Normunds, Zhanis, Laila and Ivonne.</div>
   <button id="begin">Begin</button>
   <div class="small" id="i-small">Sound on · headphones recommended</div>
   <div id="langs"><button data-l="en">English</button><button data-l="ru">Русский</button><button data-l="lv">Latviešu</button></div>
@@ -1809,6 +1811,7 @@ const I18N = {   // English → [Russian, Latvian]
   "A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.":
     ['Длинная гравийная дорога, гаражи, огородики старушек —<br>а в самом конце, справа, — дерево.', 'Garš grants ceļš, garāžas, vecenīšu dārziņi —<br>un pašā galā, pa labi, — koks.'],
   'Rīga 1984': ['Рига 1984', 'Rīga 1984'],
+  'For my childhood friends —<br>Ivars, Normunds, Zhanis, Laila and Ivonne.': ['Друзьям моего детства —<br>Ивару, Нормунду, Жанису, Лайле и Ивонне.', 'Maniem bērnības draugiem —<br>Ivaram, Normundam, Žanim, Lailai un Ivonnai.'],
   'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)':
     ['WASD / стрелки — идти · тянуть мышью — смотреть · Shift — бегом · Пробел — прыжок или залезть на крышу · E у ствола — на дерево · F — потрясти дерево · B — снеговик (зимой)',
      'WASD / bultiņas — iet · velc ar peli — skatīties · Shift — skriet · Atstarpe — lēkt vai uzrāpties uz jumta · E pie stumbra — kāpt kokā · F — sapurināt koku · B — sniegavīrs (ziemā)'],
@@ -1908,7 +1911,7 @@ function setLang(l){ LANG = l; try { localStorage.setItem('kashtan-lang', l); } 
   document.documentElement.lang = l;
   document.querySelectorAll('button.p').forEach(b => { if (b.dataset.en && b.id !== 'blang') b.textContent = tr(b.dataset.en); if (b.dataset.title) b.title = tr(b.dataset.title); });
   $('blang').textContent = l.toUpperCase();
-  for (const id of ['i-sub', 'i-p', 'begin', 'i-small']){ const el = $(id); el.dataset.en ??= el.innerHTML; el.innerHTML = tr(el.dataset.en); }
+  for (const id of ['i-sub', 'i-p', 'i-ded', 'begin', 'i-small']){ const el = $(id); el.dataset.en ??= el.innerHTML; el.innerHTML = tr(el.dataset.en); }
   $('i-ru').textContent = l === 'ru' ? 'Kashtan' : l === 'lv' ? 'Kastaņa · Каштан' : 'Каштан'; $('i-h1').textContent = l === 'ru' ? 'Каштан' : 'Kashtan';
   document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.l === l));
   lastMonth = -1; ctxState = '?'; syncButtons(); }
