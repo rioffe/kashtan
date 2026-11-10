@@ -232,6 +232,8 @@ const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
 const GAR_X = -15.0, ROAD_X = -7.9, ROAD_W = 4.2, GX0 = -3.65;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
+// from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
+const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = ROAD_X - 3.2, GATE_X1 = ROAD_X + 3.2, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -279,8 +281,13 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
   var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, 300).rotateX(-Math.PI / 2), roadMat);
-  road.position.set(ROAD_X, 0.01, 0); road.receiveShadow = true; scene.add(road);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, STABU_FRONT - BZ).rotateX(-Math.PI / 2), roadMat);
+  road.position.set(ROAD_X, 0.01, (BZ + STABU_FRONT) / 2);
+  const st = dirtTex.clone(); st.repeat.set(160, 2.2); st.needsUpdate = true;   // Stabu iela: cobbles and old asphalt
+  const street = new THREE.Mesh(new THREE.PlaneGeometry(900, STABU_FAR - STABU_FRONT).rotateX(-Math.PI / 2), flatMat(st, '#6c6862', 0.8, -1));
+  street.position.set(0, 0.011, (STABU_FRONT + STABU_FAR) / 2); street.receiveShadow = true; scene.add(street);
+  for (const z of [STABU_FRONT + 1.1, STABU_FAR - 1.1]){ const kerb = new THREE.Mesh(new THREE.BoxGeometry(900, 0.14, 2.2), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 })));
+    kerb.position.set(0, 0.07, z); kerb.receiveShadow = true; scene.add(kerb); } road.receiveShadow = true; scene.add(road);
   const yt = dirtTex.clone(); yt.repeat.set(5, 2); yt.needsUpdate = true;
   const yard = new THREE.Mesh(new THREE.PlaneGeometry(46, 14).rotateX(-Math.PI / 2), flatMat(yt, '#e8e0d4', 0.9, -2));
   yard.position.set(2, 0.012, BZ + 6.5); yard.receiveShadow = true; scene.add(yard);
@@ -755,7 +762,7 @@ const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughn
   const doorMats = doorCols.map((c, i) => snowify(new THREE.MeshStandardMaterial({ map: doorTex(c, String(3 + i * 11)), roughness: 0.75, metalness: 0.2 })));
   const corr = snowify(new THREE.MeshStandardMaterial({ map: corrTex, roughness: 0.8, metalness: 0.25 }));
   const brick = snowify(new THREE.MeshStandardMaterial({ map: brickTex, roughness: 1 }));
-  for (let z = -128, i = 0; z < 130; z += 3.4, i++){
+  for (let z = -128, i = 0; z < LANE_END - 2.2; z += 3.4, i++){
     const h = rnd(2.3, 2.65), wall = rng() < 0.3 ? brick : corr;
     const gm = new THREE.Mesh(new THREE.BoxGeometry(6, h, 3.25), [doorMats[i % doorMats.length], wall, tarMat, wall, wall, wall]);
     GARAGES.push({ z, h }); gm.position.set(GAR_X, h / 2, z); gm.castShadow = gm.receiveShadow = true; scene.add(gm);
@@ -779,28 +786,28 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
   const woodMat = snowify(new THREE.MeshStandardMaterial({ color: '#8a7a62', roughness: 1 }), 1.2);
   const soilMat = snowify(new THREE.MeshStandardMaterial({ color: '#4a3a2a', roughness: 1 }));
   // picket fence along the road
-  const pick_ = []; for (let z = -126; z < 110; z += 0.16){ if (((z + 126) % 18) > 16.2) continue; pick_.push(z); }
+  const pick_ = []; for (let z = -126; z < LANE_END; z += 0.16){ if (((z + 126) % PL) > PL - 1.8) continue; pick_.push(z); }
   const pk = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 1.0, 0.09).translate(0, 0.5, 0), woodMat, pick_.length);
   const m = new THREE.Matrix4(); pick_.forEach((z, i) => { m.makeRotationZ(rnd(-0.04, 0.04)); m.setPosition(GX0 - 0.15, 0, z); m.scale(new V3(1, rnd(0.85, 1.1), 1)); pk.setMatrixAt(i, m); });
   pk.castShadow = true; scene.add(pk);
-  for (const y of [0.3, 0.8]){ const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 236), woodMat); rail.position.set(GX0 - 0.19, y, -8); scene.add(rail); }
+  for (const y of [0.3, 0.8]){ const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, LANE_END + 126), woodMat); rail.position.set(GX0 - 0.19, y, (LANE_END - 126) / 2); scene.add(rail); }
   // plots
   const shrubGeo = new THREE.IcosahedronGeometry(0.55, 1), sm = new THREE.Matrix4();
-  for (let z0 = -126; z0 < 108; z0 += 18){
+  for (let z0 = -126; z0 < LANE_END - 1; z0 += PL){
     for (let x = GX0; x < 17; x += 1.2){ const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 0.06), woodMat); post.position.set(x, 0.45, z0); scene.add(post); }
     const beds = 4 + Math.floor(rng() * 3);
     for (let b = 0; b < beds; b++){ const bx = GX0 + 5.2 + b * 2.15, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; scene.add(bed);
       for (let k = 0; k < 14; k++) vegData.push({ p: new V3(bx + rnd(-0.35, 0.35), 0.2, z0 + 4 + k * 0.75), s: rnd(0.8, 1.2), kind: rng() });
     }
     for (let k = 0; k < 5; k++) shrubData.push({ p: new V3(rnd(13.8, 16.6), 0.45, z0 + rnd(2, 16)), s: rnd(0.8, 1.15), kind: rng() < 0.55 ? 'currant' : 'goose' });
-    fruitSpots.push({ x: rnd(GX0 + 3.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + 16.3, type: pick(['apple', 'pear', 'plum', 'plum']) });
+    fruitSpots.push({ x: rnd(GX0 + 3.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + PL - 0.9, type: pick(['apple', 'pear', 'plum', 'plum']) });
     const flower = (x, z, kind = pick(FLOWER_KINDS)) => flowerData.push({ p: new V3(x, rnd(kind.h[0], kind.h[1]), z), c: C(pick(kind.cols)), s: rnd(kind.s[0], kind.s[1]), win: kind.win, yaw: rng() * TAU });
-    for (let k = 0; k < 70; k++) flower(rnd(GX0 + 0.15, GX0 + 1.1), z0 + rnd(0.6, 17.4));                                  // border along the fence
+    for (let k = 0; k < 70; k++) flower(rnd(GX0 + 0.15, GX0 + 1.1), z0 + rnd(0.6, PL - 0.6));                                  // border along the fence
     const fbz = z0 + rnd(6, 12), fb = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.25, 0.12, 28), soilMat); fb.position.set(GX0 + 2.8, 0.06, fbz); fb.receiveShadow = true; scene.add(fb);
     for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(GX0 + 2.8 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
-    for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, 17), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
+    for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, PL - 1), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
     if (rng() < 0.6) for (let k = 0; k < 3; k++) sunData.push({ p: new V3(16.4 + rnd(-0.3, 0.3), 0, z0 + 6 + k * 1.1), h: rnd(1.6, 2.3) });
-    if (rng() < 0.45 || ((z0 + 126) / 18) % 3 === 1){ SHEDS.push({ x0: 14.3, x1: 16.9, z0: z0 + 14.3, z1: z0 + 16.7, zc: z0 + 15.5 }); const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
+    if (rng() < 0.45 || Math.round((z0 + 126) / PL) % 2 === 1){ SHEDS.push({ x0: 14.3, x1: 16.9, z0: z0 + 14.3, z1: z0 + 16.7, zc: z0 + 15.5 }); const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
       const sr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 2.4), tarMat); sr.position.set(15.6, 2.2, z0 + 15.5); sr.rotation.x = 0.12; sr.castShadow = true; scene.add(sr); }
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
@@ -948,29 +955,30 @@ const brickBayTex = tex(1024, 352, (g, w, h) => {
     const peak = rnd(1.2, 1.8); INDS.push({ x0, x1, z0, z1, H, peak, cx: (x0 + x1) / 2, hw: w / 2 + 0.35 });
     const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, peak)]), { depth: d + 0.7, bevelEnabled: false });
     r.translate((x0 + x1) / 2, H, z0 - 0.35); roofs.push(r); };
-  for (let z = -150; z < 150;){ const len = rnd(20, 42); industrial(-34, -18, z, Math.min(z + len, 152), rnd(5.2, 6.2)); z += len; }
-  for (let z = -150; z < 140;){ const len = rnd(18, 38); industrial(18, 34, z, Math.min(z + len, 142), rnd(5.2, 6.2)); z += len; }
+  for (let z = -150; z < LANE_END - 4;){ const len = rnd(20, 42); industrial(-34, -18, z, Math.min(z + len, LANE_END), rnd(5.2, 6.2)); z += len; }
+  for (let z = -150; z < LANE_END - 4;){ const len = rnd(18, 38); industrial(18, 34, z, Math.min(z + len, LANE_END), rnd(5.2, 6.2)); z += len; }
   const wm = new THREE.Mesh(mergeGeometries(walls), snowify(new THREE.MeshStandardMaterial({ map: brickBayTex, roughness: 0.95 })));
   const rm = new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2));
   wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 24, 16), snowify(new THREE.MeshStandardMaterial({ color: '#6a3426', roughness: 1 }), 0.5));
-  stack.position.set(-27, 12, 34); stack.castShadow = true; scene.add(stack);
+  stack.position.set(-27, 12, -98); stack.castShadow = true; scene.add(stack);
 }
 
 /* ---------- what you can stand on: garage roofs, workshop roofs, garden sheds (and ladders up) ---------- */
 let surfKind = 'ground';
 function surf(x, z){
   let h = 0; surfKind = 'ground';
-  if (x > -18.15 && x < -11.65 && z > -129.7 && z < 128.7){ h = roofY(z, x); surfKind = 'tar'; }
+  if (x > -18.15 && x < -11.65 && z > -129.7 && z < GARAGES[GARAGES.length - 1].z + 1.7){ h = roofY(z, x); surfKind = 'tar'; }
   for (const I of INDS){ if (Math.abs(x - I.cx) < I.hw && z > I.z0 - 0.35 && z < I.z1 + 0.35){ const y = I.H + I.peak * (1 - Math.abs(x - I.cx) / I.hw); if (y > h){ h = y; surfKind = 'tin'; } } }
   for (const s of SHEDS){ if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1){ const y = 2.25 - (z - s.zc) * 0.12; if (y > h){ h = y; surfKind = 'tar'; } } }
-  if (Math.hypot(x + 27, z - 34) < 1.35){ h = 24; surfKind = 'tin'; }
+  if (Math.hypot(x + 27, z + 98) < 1.35){ h = 24; surfKind = 'tin'; }
+  if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3)){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
   return h;
 }
 const LADDERS = [];
 {
   const wood = snowify(new THREE.MeshStandardMaterial({ color: '#7a6248', roughness: 1 }), 1.2);
-  for (const [wallX, dir, z] of [[18, 1, -133], [-18, -1, -141], [18, 1, 40]]){
+  for (const [wallX, dir, z] of [[18, 1, -133], [-18, -1, -141], [18, 1, -104]]){
     const I = INDS.find(I => z > I.z0 + 1 && z < I.z1 - 1 && Math.sign(I.cx) === dir); if (!I) continue;
     const top = I.H + 0.45, foot = wallX - dir * 1.25, len = Math.hypot(top, 1.25), lean = Math.atan2(1.25, top);
     const g = new THREE.Group(); g.position.set(foot, 0, z); g.rotation.z = -dir * lean; scene.add(g);
@@ -1100,7 +1108,7 @@ var blockMats = [];
   const CELL = 58, BLOCK = 46, D = 13;
   for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++){
     const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK;
-    if (x1 > -44 && x0 < 52 && z1 > -194 && z0 < 178) continue;
+    if (x1 > -44 && x0 < 52 && z1 > -194 && z0 < LANE_END) continue;
     if (Math.hypot((x0 + x1) / 2 - 5, (z0 + z1) / 2 + 10) > 440) continue;
     for (const [zz, ry] of [[z0 + D / 2, Math.PI], [z1 - D / 2, 0]]){ let x = x0;
       while (x1 - x >= 3.6){ const bays = Math.min(Math.floor((x1 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, ry, pick(PAL), pick(ROOF)); x += w; } }
@@ -1111,6 +1119,10 @@ var blockMats = [];
       colorize(t, col); t.translate(cx, 10.5, cz); bodies.push(t);
       const dome = colorize(new THREE.ConeGeometry(3.0, 5.5, 14).toNonIndexed(), pick(ROOF)); dome.translate(cx, 23.75, cz); roofs.push(dome); }
   }
+  // our side of Stabu iela: the street-front houses whose backs close the yard, with the gateway the lane runs out through
+  { const zz = (LANE_END + STABU_FRONT) / 2;
+    for (let x = GATE_X0; x - (-44) >= 3.6;){ const bays = Math.min(Math.floor((x + 44) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x - w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x -= w; }
+    for (let x = GATE_X1; 52 - x >= 3.6;){ const bays = Math.min(Math.floor((52 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x += w; } }
   const cityMat = snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6);
   scene.add(new THREE.Mesh(mergeGeometries(bodies), cityMat));
   scene.add(new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)));
@@ -1137,7 +1149,7 @@ const inBuilding = (x, y, z) => x > -18.6 && x < 18.6 && z < BZ + 0.6 && z > BZ 
 const puddleMat = new THREE.MeshStandardMaterial({ color: '#2a3036', roughness: 0.06, metalness: 0.5, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
 const puddles = new THREE.Group(); scene.add(puddles);
 for (let i = 0; i < 46; i++){ const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), puddleMat);
-  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.5, 1.5) : rnd(-12, 16), 0.02, onRoad ? rnd(-140, 140) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
+  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.5, 1.5) : rnd(-12, 16), 0.02, onRoad ? rnd(BZ + 14, STABU_FRONT - 3) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
 function updateWeather(dt, t, sp){
   const T = WEATHERS[weather], k = Math.min(1, dt * 0.35);
   W.cloud += (T.cloud - W.cloud) * k; W.rain += (T.rain - W.rain) * k;
@@ -1313,16 +1325,16 @@ function catEpisode(){
     catGo(V(TREE.x, 4.75, TREE.z + 0.25), 0.9); catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.0, { climb: true }); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.5, { climb: true });
     catGo(V(17.5, 0, TREE.z + rnd(4, 18)), 1.8);
   } else if (r < 0.7){                            // along the garage roofs
-    cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-100, 100); let z = z0;
+    cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-120, LANE_END - 10); let z = z0;
     R.set(GAR_X - 2.9, roofY(z0, GAR_X - 2.9), z0); catGo(V(GAR_X - 0.9, roofY(z0, GAR_X - 0.9), z0 + dir * 1.5), 0.8);
     const segs = 6 + Math.floor(rng() * 10);
-    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, 126); const x = GAR_X - 0.1 + rnd(-0.6, 0.6); catGo(V(x, roofY(z, x), z), 0.9);
+    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, LANE_END - 6); const x = GAR_X - 0.1 + rnd(-0.6, 0.6); catGo(V(x, roofY(z, x), z), 0.9);
       if (rng() < 0.18) catPose(pick(['sit', 'lie', 'sit']), rnd(5, 14)); }
     catPose('sit', rnd(4, 10)); catGo(V(GAR_X - 2.9, roofY(z, GAR_X - 2.9), z + dir * 1.2), 1.0);
   } else {                                        // through the old ladies' gardens
-    cat.where = 'garden'; const z0 = rnd(-120, 100); let z = z0; R.set(17.5, 0, z0);
+    cat.where = 'garden'; const z0 = rnd(-120, LANE_END - 8); let z = z0; R.set(17.5, 0, z0);
     const n = 3 + Math.floor(rng() * 3);
-    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, 106); catGo(V(rnd(GX0 + 1, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
+    for (let i = 0; i < n; i++){ z = clamp(z + rnd(-9, 9), -124, LANE_END - 3); catGo(V(rnd(GX0 + 1, 16), 0, z), rnd(0.7, 1.1)); if (rng() < 0.5) catPose(pick(['sit', 'sit', 'lie']), rnd(3, 10)); }
     catGo(V(17.5, 0, z + rnd(-4, 4)), 1.2);
   }
   cat.state = 'on'; cat.root.visible = true; cat.root.rotation.set(0, 0, 0);
@@ -1874,7 +1886,7 @@ function updateSeasonHUD(){
 /* ============================== begin ============================== */
 $('begin').onclick = () => {
   started = true; sfx.start(); $('intro').classList.add('gone'); $('ui').classList.remove('hidden');
-  fadeThen(() => { mode = 'walk'; place(new V3(ROAD_X, 1.6, -28), 0, 0.02); syncButtons(); });
+  fadeThen(() => { mode = 'walk'; place(new V3(ROAD_X, 1.6, STABU_FAR - 4), 0, 0.02); syncButtons(); });
   setTimeout(() => caption('Engelsa iela 78, Rīga. Summer of 1984 — no, every season of it.'), 1600);
   setTimeout(() => caption('At the end of the road, to the right: the chestnut tree.'), 9500);
   setTimeout(() => { $('hint').style.opacity = 0.35; }, 30000);
@@ -1899,7 +1911,7 @@ function walkStep(dt, mx, mz, sp_){
       walked = true; bob += dt * sp_ * 2.2;
       if (blockTop && mz > 0 && body.vy === 0 && (blockTop - body.feet < 2.95 || nearLadder())){ body.push += dt; if (body.push > 0.45) jumpOrClimb(); } else body.push = 0;
     } else body.push = 0;
-    p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, 150);
+    p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, STABU_FAR - 1.4);
     const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4 && body.feet < 1){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
     const gnd = surf(p.x, p.z);
     if (body.vy !== 0 || body.feet > gnd + 0.02){ if (body.vy === 0) body.fallFrom = body.feet; body.vy -= 17 * dt; body.feet += body.vy * dt; body.fallFrom = Math.max(body.fallFrom, body.feet);

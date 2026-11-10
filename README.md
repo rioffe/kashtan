@@ -4,7 +4,7 @@ A meditation on a chestnut tree — 78 Engelsa iela (now Stabu iela), Rīga, 198
 
 **Play:** https://rioffe.github.io/kashtan/
 
-Walk the long gravel road between the rusting garages and the old ladies' gardens to the
+Come in from Stabu iela through the gateway and walk the gravel lane between the rusting garages and the old ladies' gardens to the
 chestnut tree at the end. Watch it through four seasons and any time of day; climb it,
 lie under it and look at the stars, sit at the third-floor window, kick the trunk, gather
 chestnuts in autumn and roast them over a fire. Generative meditative music throughout.
