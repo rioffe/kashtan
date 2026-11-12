@@ -1319,7 +1319,7 @@ class Fall {
 }
 const petals = new Fall(700, '#fff6f4', 0.09, 0.45, 0.7);
 const snowPuff = new Fall(1500, '#ffffff', 0.11, 1.2, 0.3);
-const sparks = new Fall(120, '#ffb050', 0.07, -1.4, 0.4, true);
+const sparks = new Fall(160, '#ff9a3a', 0.05, -1.4, 0.4, true);
 /* ambient snowfall around the camera */
 const SNOW_N = 4500, snowP = new Float32Array(SNOW_N * 3);
 for (let i = 0; i < SNOW_N; i++){ snowP[i * 3] = rnd(-40, 40); snowP[i * 3 + 1] = rnd(0, 30); snowP[i * 3 + 2] = rnd(-40, 40); }
@@ -1361,18 +1361,142 @@ function birdTarget(b, flee = false){
   if (rng() < 0.65){ const t = pick(tree.tips); b.tgt.copy(t.p).add(TREE).add(new V3(0, 0.05, 0)); b.perch = true; }
   else { const a = rng() * TAU, r = rnd(5, 15); b.tgt.set(TREE.x + Math.cos(a) * r, rnd(6, 18), TREE.z + Math.sin(a) * r + 3); b.perch = false; }
 }
-/* campfire */
-const fire = { on: false, t: 0, roastT: 0, g: new THREE.Group(), flames: [] };
+/* campfire: a ring of stones, an ash bed, a teepee of logs, glowing coals, shader flames, smoke and sparks */
+const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl: 1, g: new THREE.Group(), tongues: [], smoke: [] };
 {
-  const stone = snowify(new THREE.MeshStandardMaterial({ color: '#7a7670', roughness: 1, flatShading: true }));
-  for (let i = 0; i < 9; i++){ const a = i / 9 * TAU, s = new THREE.Mesh(new THREE.DodecahedronGeometry(rnd(0.14, 0.2)), stone); s.position.set(Math.cos(a) * 0.55, 0.08, Math.sin(a) * 0.55); fire.g.add(s); }
-  const logM = new THREE.MeshStandardMaterial({ color: '#3a2a1e', roughness: 1, emissive: '#ff4010', emissiveIntensity: 0 });
+  const stone = snowify(new THREE.MeshStandardMaterial({ color: '#5e5a54', roughness: 1, flatShading: true }));
+  for (let i = 0; i < 9; i++){ const a = i / 9 * TAU, s = new THREE.Mesh(new THREE.DodecahedronGeometry(rnd(0.14, 0.2), 1), stone); s.position.set(Math.cos(a) * 0.55, 0.08, Math.sin(a) * 0.55); fire.g.add(s); }
+  for (let i = 0; i < 8; i++) rng(); // keep the world's random sequence as it was
+  let fs = 3313; const fr = () => { fs = fs + 0x6D2B79F5 | 0; let t = Math.imul(fs ^ fs >>> 15, 1 | fs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, frn = (a, b) => a + (b - a) * fr();
+  // the stones are scorched on the inside
+  fire.g.children.forEach(s => { s.rotation.set(frn(0, 3), frn(0, 3), 0); s.scale.set(frn(0.8, 1.3), frn(0.55, 0.85), frn(0.8, 1.2)); s.position.y = 0.05;
+    const pa = s.geometry.attributes.position; const sd = frn(0, 99); for (let k = 0; k < pa.count; k++){ const x = pa.getX(k), y = pa.getY(k), z = pa.getZ(k), j = 1 + 0.12 * Math.sin(x * 41 + y * 57 + z * 73 + sd) * Math.cos(x * 29 - z * 37 + sd); pa.setXYZ(k, x * j, y * j, z * j); } s.geometry.computeVertexNormals(); });
+  // ash and burnt earth inside the ring
+  const ashTex = tex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+    gr.addColorStop(0, '#2a2522'); gr.addColorStop(0.45, '#4a4440'); gr.addColorStop(0.7, '#2c2622'); gr.addColorStop(1, 'rgba(40,32,26,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++){ const a = fr() * TAU, r = Math.sqrt(fr()) * 46; g.fillStyle = fr() < 0.5 ? `rgba(150,145,140,${frn(0.15, 0.45)})` : `rgba(10,8,6,${frn(0.2, 0.6)})`;
+      g.beginPath(); g.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, frn(0.6, 2.4), 0, TAU); g.fill(); } });
+  const ash = new THREE.Mesh(new THREE.CircleGeometry(0.62, 28), snowify(new THREE.MeshStandardMaterial({ map: ashTex, transparent: true, roughness: 1, depthWrite: false })));
+  ash.rotation.x = -Math.PI / 2; ash.position.y = 0.015; fire.g.add(ash);
+  // coals: charcoal with glowing cracks
+  const coalTex = tex(128, 64, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); g.lineCap = 'round';
+    for (let i = 0; i < 38; i++){ let x = fr() * w, y = fr() * h; g.strokeStyle = `rgba(255,${(frn(70, 190)) | 0},${(frn(10, 50)) | 0},${frn(0.4, 1)})`; g.lineWidth = frn(0.5, 1.6); g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 4; k++){ x += frn(-9, 9); y += frn(-6, 6); g.lineTo(x, y); } g.stroke(); }
+    for (let i = 0; i < 18; i++){ const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); const x = fr() * w, y = fr() * h, r = frn(2, 6);
+      g.save(); g.translate(x, y); g.scale(r, r); gr.addColorStop(0, 'rgba(255,170,60,.9)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(-1, -1, 2, 2); g.restore(); } });
+  const charTex = tex(64, 64, (g, w, h) => { g.fillStyle = '#1a1612'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i++){ g.fillStyle = fr() < 0.6 ? `rgba(0,0,0,${frn(0.3, 0.8)})` : `rgba(90,84,78,${frn(0.2, 0.5)})`; g.fillRect(fr() * w, fr() * h, frn(1, 5), frn(1, 3)); } });
+  const coalM = new THREE.MeshStandardMaterial({ map: charTex, color: '#ffffff', roughness: 1, flatShading: true, emissive: '#ff6c22', emissiveMap: coalTex, emissiveIntensity: 0 });
+  fire.coalM = coalM;
+  const bed = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 6, 0, TAU, 0, Math.PI / 2), coalM); bed.scale.y = 0.28; bed.position.y = 0.01; fire.g.add(bed);
+  const chunkG = new THREE.DodecahedronGeometry(0.05), chunks = new THREE.InstancedMesh(chunkG, coalM, 26), cm = new THREE.Matrix4(), cq = new THREE.Quaternion();
+  for (let i = 0; i < 26; i++){ const a = fr() * TAU, r = Math.sqrt(fr()) * 0.4; cq.setFromEuler(new THREE.Euler(frn(0, 3), frn(0, 3), 0));
+    cm.compose(new V3(Math.cos(a) * r, 0.04 + (0.4 - r) * 0.12, Math.sin(a) * r), cq, new V3(frn(0.6, 1.5), frn(0.5, 1), frn(0.6, 1.4))); chunks.setMatrixAt(i, cm); }
+  fire.g.add(chunks);
+  // the logs, leaning into a teepee: bark at the top, charred and glowing where they burn
+  const logTex = tex(32, 128, (g, w, h) => { const gr = g.createLinearGradient(0, h, 0, 0); gr.addColorStop(0, '#120e0b'); gr.addColorStop(0.45, '#1e1712'); gr.addColorStop(0.62, '#4a3828'); gr.addColorStop(1, '#5a4430'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 50; i++){ g.fillStyle = `rgba(0,0,0,${frn(0.2, 0.5)})`; g.fillRect(fr() * w, fr() * h, 1, frn(4, 14)); } });
+  const logGlow = tex(32, 128, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++){ const y = h - Math.pow(fr(), 1.8) * h * 0.55; g.fillStyle = `rgba(255,${(frn(70, 170)) | 0},20,${frn(0.4, 1) * (y / h)})`; g.fillRect(fr() * w, y, frn(1, 4), frn(1, 3)); }
+    const gr = g.createLinearGradient(0, h, 0, h * 0.6); gr.addColorStop(0, 'rgba(255,120,30,.5)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, h * 0.6, w, h * 0.4); });
+  const logM = new THREE.MeshStandardMaterial({ map: logTex, roughness: 1, emissive: '#ff6a20', emissiveMap: logGlow, emissiveIntensity: 0 });
   fire.logM = logM;
-  for (let i = 0; i < 3; i++){ const l = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.8, 6), logM); l.rotation.set(Math.PI / 2 - 0.4, i * 2.1, 0); l.position.y = 0.15; fire.g.add(l); }
-  for (let i = 0; i < 4; i++){ const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
-    f.position.set(rnd(-0.12, 0.12), 0.45, rnd(-0.12, 0.12)); fire.g.add(f); fire.flames.push(f); }
+  const up = new V3(0, 1, 0);
+  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + frn(-0.2, 0.2), rb = frn(0.3, 0.38), B = new V3(Math.cos(a) * rb, 0.04, Math.sin(a) * rb), T = new V3(Math.cos(a + 2) * 0.05, frn(0.5, 0.62), Math.sin(a + 2) * 0.05);
+    const L = B.distanceTo(T), l = new THREE.Mesh(new THREE.CylinderGeometry(frn(0.03, 0.045), frn(0.045, 0.06), L, 7), logM);
+    l.position.copy(B).add(T).multiplyScalar(0.5); l.quaternion.setFromUnitVectors(up, T.clone().sub(B).normalize()); fire.g.add(l); }
+  // a couple of spare logs by the ring, not burning
+  const spareM = new THREE.MeshStandardMaterial({ color: '#5c4632', roughness: 1 });
+  for (const [x, z, ry] of [[0.95, 0.25, 0.3], [0.9, 0.42, 0.5]]){ const l = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.7, 7), spareM); l.rotation.set(0, ry, Math.PI / 2); l.position.set(x, 0.06, z); fire.g.add(l); }
+
+  // flames: camera-facing tongues, each a noise field rising through a teardrop
+  const flameVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
+  const flameFS = `varying vec2 vUv; uniform float uT, uK, uSeed, uLean;
+    float h1(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+      return mix(mix(h1(i), h1(i + vec2(1., 0.)), f.x), mix(h1(i + vec2(0., 1.)), h1(i + vec2(1., 1.)), f.x), f.y); }
+    float fbm(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 4; i++){ s += a * n2(p); p = p * 2.03 + vec2(1.7, 9.2); a *= .5; } return s; }
+    void main(){
+      float y = vUv.y / max(.3 + .7 * uK, .05);
+      float x = vUv.x - .5 + (n2(vec2(y * 2.5 - uT * 1.7, uSeed)) - .5) * .32 * y - uLean * y * y;
+      float N = fbm(vec2(x * 3.2 + uSeed * 3.1, y * 2.4 - uT * 2.6));
+      float width = .44 * pow(max(1. - y, 0.), .55) + .02;
+      float f = (1. - abs(x) / width) - y * .95 + (N - .48) * 1.25;
+      f *= smoothstep(0., .1, vUv.y);
+      float c = clamp(f * 1.7, 0., 1.);
+      vec3 col = mix(vec3(.5, .05, .0), vec3(1., .38, .04), smoothstep(.0, .4, c));
+      col = mix(col, vec3(1., .78, .32), smoothstep(.4, .75, c));
+      col = mix(col, vec3(1., .96, .8), smoothstep(.78, 1., c) * smoothstep(.04, .3, vUv.y));
+      col = mix(col, vec3(.35, .45, 1.), smoothstep(.12, .0, vUv.y) * .45 * smoothstep(.2, .6, c));
+      float a = smoothstep(0., .22, f) * uK;
+      if (a < .004) discard;
+      gl_FragColor = vec4(col * 1.12, a);
+    }`;
+  const tongueDefs = [[0, 0, 0.8, 1.45, 0], [0.13, 0.05, 0.5, 0.95, 1], [-0.12, 0.08, 0.5, 0.85, 2], [0.02, -0.13, 0.45, 0.9, 3], [-0.06, -0.06, 0.38, 1.15, 4], [0.09, -0.09, 0.32, 0.7, 5]];
+  for (const [x, z, w, h, s] of tongueDefs){ const geo = new THREE.PlaneGeometry(w, h); geo.translate(0, h / 2, 0);
+    const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ vertexShader: flameVS, fragmentShader: flameFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      uniforms: { uT: { value: 0 }, uK: { value: 0 }, uSeed: { value: s * 1.37 + 0.5 }, uLean: { value: 0 } } }));
+    m.position.set(x, 0.06, z); m.renderOrder = 3; m.visible = false; m.userData.h = h; fire.g.add(m); fire.tongues.push(m); }
+
+  // a warm pool of light on the ground around the fire
+  const poolTex = tex(64, 64, (g, w, h) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,150,70,1)'); gr.addColorStop(0.4, 'rgba(255,110,40,.35)'); gr.addColorStop(1, 'rgba(255,80,20,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  fire.pool = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+  fire.pool.rotation.x = -Math.PI / 2; fire.pool.position.y = 0.03; fire.pool.visible = false; fire.g.add(fire.pool);
+
+  // smoke: soft rolling puffs that rise, widen and drift with the wind
+  const smokeTex = tex(128, 128, (g, w, h) => { for (let i = 0; i < 14; i++){ const x = frn(34, 94), y = frn(34, 94), r = frn(14, 34), gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,.22)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } });
+  for (let i = 0; i < 26; i++){ const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0, color: '#888888', rotation: frn(0, TAU) }));
+    sp.visible = false; sp.renderOrder = 2; sp.userData = { life: 0, max: 1, vy: 0, vx: 0, vz: 0, s0: 0.4, spin: frn(-0.3, 0.3) }; fire.g.add(sp); fire.smoke.push(sp); }
+  fire.smokeT = 0;
+
   fire.light = new THREE.PointLight(0xff8a3a, 0, 18, 1.6); fire.light.position.y = 0.8; fire.g.add(fire.light);
   fire.g.position.copy(FIRE); scene.add(fire.g);
+}
+const fireSmokeCol = new THREE.Color(), fireWarm = new THREE.Color('#ff8a40');
+function updateFire(dt, t, wind){
+  if (!fire.on) return;
+  fire.t += dt;
+  // flames build up from kindling and die back slowly; coals build while it burns and glow long after
+  fire.flameK = fire.lit ? Math.min(1, fire.flameK + dt / 2.2) : Math.max(0, fire.flameK - dt / 6);
+  fire.emberK = fire.flameK > 0.3 ? Math.min(1, fire.emberK + dt / 8) : fire.lit ? fire.emberK : Math.max(0, fire.emberK - dt / 28);
+  // the flicker: smoothed noise, not white noise
+  fire.fl += (0.78 + Math.sin(t * 9.1) * 0.08 + Math.sin(t * 23.7 + 1) * 0.06 + (rng() - 0.5) * 0.35 - fire.fl) * Math.min(1, dt * 14);
+  const fk = fire.flameK * fire.flameK * (3 - 2 * fire.flameK), ek = fire.emberK, fl = fire.fl;
+  const glow = Math.max(fk * fl, ek * 0.22 * (0.85 + 0.15 * Math.sin(t * 1.3)));
+  fire.light.intensity = 7 * glow; fire.light.position.set(Math.sin(t * 7.3) * 0.07, 0.85 + fk * 0.4, Math.cos(t * 5.9) * 0.07);
+  fire.light.color.setRGB(1, 0.5 + 0.12 * fk, 0.2 + 0.05 * fk);
+  const breathe = 0.7 + 0.3 * Math.sin(t * 1.7) * Math.sin(t * 0.63 + 1);
+  fire.logM.emissiveIntensity = fk * (0.5 + 1.3 * fl) + ek * 0.35 * breathe;
+  fire.coalM.emissiveIntensity = ek * 0.9 * breathe + fk * 0.5 * fl;
+  fire.pool.visible = glow > 0.01; fire.pool.material.opacity = 0.32 * glow * (0.3 + 0.7 * env.night);
+  // face the camera around the vertical, lean with the wind
+  const cx = camera.position.x - FIRE.x, cz = camera.position.z - FIRE.z, ry = Math.atan2(cx, cz);
+  fire.tongues.forEach((m, i) => { const u = m.material.uniforms, life = clamp(fk * 1.25 - i * 0.04);
+    m.visible = life > 0.01; m.rotation.y = ry; u.uT.value = t + i * 3.1; u.uK.value = life * (0.82 + 0.25 * fl); u.uLean.value = wind * 0.6;
+    m.scale.y = 0.75 + 0.35 * life; });
+  // smoke: thick and white while kindling, thinner as it burns, a grey wisp from the coals
+  const smokeRate = fire.lit ? (fire.t < 6 ? 5 : 2.4) : 1.6 * (fk + ek * 0.6);
+  fire.smokeT += dt * smokeRate;
+  while (fire.smokeT > 1){ fire.smokeT -= 1; const sp = fire.smoke.find(s => s.userData.life <= 0); if (!sp) break; const d = sp.userData;
+    d.max = d.life = rnd(4.5, 8); d.vy = rnd(0.45, 0.75); d.vx = rnd(-0.08, 0.08); d.vz = rnd(-0.08, 0.08); d.s0 = rnd(0.35, 0.55); d.dense = fire.lit && fire.t < 6 ? 1.6 : 1;
+    sp.position.set(rnd(-0.12, 0.12), 0.55 + fk * 0.6, rnd(-0.12, 0.12)); sp.visible = true; }
+  const dayL = 0.12 + 0.7 * env.day;
+  for (const sp of fire.smoke){ const d = sp.userData; if (d.life <= 0) continue; d.life -= dt; if (d.life <= 0){ sp.visible = false; continue; }
+    const a = 1 - d.life / d.max; d.vy *= 1 - dt * 0.12;
+    sp.position.x += (d.vx + wind * (0.6 + a * 1.8) + Math.sin(t * 0.7 + d.s0 * 20) * 0.05) * dt; sp.position.y += d.vy * dt; sp.position.z += (d.vz + Math.cos(t * 0.6 + d.s0 * 17) * 0.05) * dt;
+    const s = d.s0 + a * 2.6; sp.scale.set(s, s, 1); sp.material.rotation += d.spin * dt;
+    sp.material.opacity = 0.5 * d.dense * smooth(a / 0.12) * Math.pow(1 - a, 1.6);
+    fireSmokeCol.setRGB(dayL * 0.86, dayL * 0.85, dayL * 0.84).lerp(fireWarm, clamp(glow * (1 - a * 3)) * (0.25 + 0.5 * env.night)); sp.material.color.copy(fireSmokeCol); }
+  // sparks: a steady trickle, and a burst when a chestnut pops
+  if (rng() < dt * 14 * fk) sparks.spawn(FIRE.x + rnd(-0.18, 0.18), 0.45, FIRE.z + rnd(-0.18, 0.18), rnd(-0.3, 0.3), rnd(1.2, 2.6), rnd(-0.3, 0.3), rnd(0.6, 2.2));
+  if (rng() < dt * 1.5 * ek * (1 - fk)) sparks.spawn(FIRE.x + rnd(-0.15, 0.15), 0.15, FIRE.z + rnd(-0.15, 0.15), 0, rnd(0.6, 1.2), 0, rnd(0.4, 1));
+  sparks.mat.opacity = 0.75 + 0.25 * Math.sin(t * 31);
+  if (fire.lit && nutsHeld > 0){ fire.roastT -= dt; if (fire.roastT < 0){ fire.roastT = rnd(1.6, 3); nutsHeld--; roasted++; sfx.pop(); updateNutHUD();
+      for (let i = 0; i < 10; i++) sparks.spawn(FIRE.x + rnd(-0.1, 0.1), 0.25, FIRE.z + rnd(-0.1, 0.1), rnd(-1, 1), rnd(1.5, 3.5), rnd(-1, 1), rnd(0.3, 1.1));
+      if (nutsHeld === 0) fire.endT = fire.t + 8; } }
+  else if (fire.lit && fire.endT !== undefined && fire.t > fire.endT){ fire.lit = false; fire.endT = undefined; ctxState = '?'; }
+  if (!fire.lit && fk < 0.005 && ek < 0.005 && fire.smoke.every(s => s.userData.life <= 0)){ fire.on = false; fire.light.intensity = 0; fire.logM.emissiveIntensity = 0; fire.coalM.emissiveIntensity = 0; fire.pool.visible = false; fire.tongues.forEach(m => m.visible = false); }
 }
 
 /* ============================== the neighbourhood cat ============================== */
@@ -1718,8 +1842,8 @@ function shake(){
   else if (sp.leaf > 0.5 && sp.birds <= 0.4) caption('The old tree barely noticed.', 3);
 }
 function roast(){
-  if (!(nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie')) || fire.on) return;
-  fire.on = true; fire.t = 0; fire.roastT = 2.5;
+  if (!(nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie')) || fire.lit) return;
+  if (!fire.on) fire.t = 0; fire.on = fire.lit = true; fire.endT = undefined; fire.roastT = 2.5;
   caption(pick(['We made a small fire and roasted chestnuts in the coals. They popped like little cannons.', 'Smoke in our hair, black fingers, the best thing we ever ate.']), 6);
   syncCtx();
 }
@@ -1800,8 +1924,8 @@ const sfx = (() => {
       windU.value = 0.4 + g * 0.6 + (mode === 'climb' ? 0.4 : 0); }
     rainG.gain.setTargetAtTime(W.rain * (SP(S).snow > 0.3 ? 0.02 : 0.11) * (mode === 'window' ? 0.25 + 0.75 * winOpen.v : 1), now, 0.8);
     if (W.rain > 0.5 && SP(S).snow < 0.3 && Math.random() < 0.15) noiseHit(now, 'bandpass', 2500 + Math.random() * 2500, 0.03 * W.rain, 0.02);
-    fireG.gain.setTargetAtTime(fire.on ? 0.06 * clamp(1 - Math.hypot(camera.position.x - FIRE.x, camera.position.z - FIRE.z) / 30) : 0, now, 0.4);
-    if (fire.on && now > nextCrackle){ nextCrackle = now + 0.05 + Math.random() * 0.35; noiseHit(now, 'highpass', 2000 + Math.random() * 3000, 0.08 * Math.random(), 0.03); }
+    fireG.gain.setTargetAtTime(fire.on ? 0.06 * Math.max(fire.flameK, fire.emberK * 0.3) * clamp(1 - Math.hypot(camera.position.x - FIRE.x, camera.position.z - FIRE.z) / 30) : 0, now, 0.4);
+    if (fire.on && now > nextCrackle){ nextCrackle = now + (0.05 + Math.random() * 0.35) / Math.max(0.15, fire.flameK); noiseHit(now, 'highpass', 2000 + Math.random() * 3000, 0.08 * Math.random(), 0.03); }
   }
   const this_ = {};
   return {
@@ -1978,7 +2102,7 @@ function syncButtons(){
 let ctxState = '';
 function syncCtx(){
   const canShake = (mode === 'walk' && distTree() < 6) || mode === 'climb';
-  const canRoast = nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie') && !fire.on;
+  const canRoast = nutsHeld > 0 && distTree() < 16 && (mode === 'walk' || mode === 'lie') && !fire.lit;
   const canSnow = mode === 'walk' && body.feet < 0.3 && SP(S).snow > 0.6 && !SNOWMEN.some(s => s.build < 1);
   const st = (canShake ? 's' : '') + (canRoast ? 'r' : '') + (canSnow ? 'm' : '') + (mode === 'climb' ? 'c' + perch : '');
   if (st === ctxState) return; ctxState = st; const c = $('ctx'); c.innerHTML = '';
@@ -2164,14 +2288,7 @@ function frame(){
   for (const sh of winOpen.sashes) sh.g.rotation.y = -sh.dir * smooth(winOpen.v) * 1.45;
 
   // fire
-  if (fire.on){ fire.t += dt; const flick = 0.75 + Math.sin(t * 13) * 0.12 + Math.sin(t * 29) * 0.08 + rng() * 0.08;
-    const k = clamp(fire.t / 1.5) * (nutsHeld > 0 ? 1 : clamp(1 - (fire.t - fire.endT) / 4));
-    fire.light.intensity = 9 * k * flick; fire.logM.emissiveIntensity = 1.2 * k * flick;
-    fire.flames.forEach((f, i) => { const s = (0.55 + 0.35 * Math.sin(t * (7 + i * 2) + i)) * k; f.scale.set(s * 0.6, s * 1.15, 1); f.position.y = 0.2 + s * 0.5; f.material.opacity = 0.9 * k; });
-    if (rng() < dt * 12 * k) sparks.spawn(FIRE.x + rnd(-0.2, 0.2), 0.5, FIRE.z + rnd(-0.2, 0.2), rnd(-0.2, 0.2), 1.5, rnd(-0.2, 0.2), rnd(1, 2.5));
-    if (nutsHeld > 0){ fire.roastT -= dt; if (fire.roastT < 0){ fire.roastT = rnd(1.6, 3); nutsHeld--; roasted++; sfx.pop(); updateNutHUD(); if (nutsHeld === 0){ fire.endT = fire.t + 8; } } }
-    else if (fire.endT !== undefined && fire.t > fire.endT + 4){ fire.on = false; fire.endT = undefined; ctxState = '?'; fire.light.intensity = 0; fire.logM.emissiveIntensity = 0; fire.flames.forEach(f => f.material.opacity = 0); }
-  }
+  updateFire(dt, t, wind);
   sparks.update(dt, t, wind * 0.2);
 
   if (started) syncCtx();
@@ -2185,6 +2302,7 @@ function frame(){
     if (q.get('sm')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('smd') || 3)); P.y = 0;
       const sm = makeSnowman(P, Math.atan2(camera.position.x - P.x, camera.position.z - P.z)); sm.build = +q.get('sm'); if (q.get('smm')) sm.melt = +q.get('smm'); }
     if (q.get('sim')){ const n = +q.get('sim'); for (let i = 0; i < n; i++){ if (i % 30 === 0) console.log('SIM', i, camera.position.x.toFixed(2), camera.position.z.toFixed(2), body.feet.toFixed(2), surfKind, !!body.mantle); if (i === +q.get('simj')) jumpOrClimb(); if (i === +q.get('simt')) cam.yaw += Math.PI; walkStep(1 / 30, 0, i < +(q.get('simw') || n) ? 1 : 0, +(q.get('simv') || 3.6)); } }
+    if (q.get('fire')){ const f = +q.get('fire'); nutsHeld = Math.max(nutsHeld, 12); fire.on = fire.lit = f >= 1; fire.on = true; fire.t = 20; fire.flameK = Math.min(1, f); fire.emberK = 1; fire.roastT = 999; if (f >= 1) for (let i = 0; i < 200; i++) updateFire(1 / 30, i / 30, +(q.get('fw') || 0)); }
     if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('ct')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); renderer.render(scene, camera); window.open = (u) => console.log('OPEN', u); window.__dbgClick = 1; const tests = [['book', BOOKS[1]], ['lamp', deskLamp.parts[deskLamp.parts.length - 1]]];
       for (const [n, o] of tests){ const wp = o.getWorldPosition(new V3()); cam.yaw = yawTo(camera.position, wp); cam.pitch = Math.atan2(wp.y - camera.position.y, Math.hypot(wp.x - camera.position.x, wp.z - camera.position.z)); camera.rotation.set(cam.pitch, cam.yaw, 0); camera.updateMatrixWorld();
         const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
