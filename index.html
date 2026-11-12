@@ -1779,13 +1779,13 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
   add(cat.body, paint(E(0.06, 0.068, 0.08), () => 0), fur, 0, 0.012, 0.0);                     // haunches
   add(cat.body, paint(E(0.066, 0.078, 0.2), () => 0), fur, 0, 0.006, 0.105);       // ribs and belly, a white belly line
   cat.chest.position.set(0, 0.012, 0.145); cat.body.add(cat.chest);
-  add(cat.chest, paint(E(0.064, 0.082, 0.085), (n) => sm(n.z * 0.92 - n.y * 0.3, 0.8, 0.9) * sm(0.42 - Math.abs(n.x), 0, 0.18)), fur, 0, -0.008, 0.095);   // chest and the white bib
-  add(cat.chest, paint(E(0.05, 0.06, 0.07), (n) => sm(n.z * 0.7 - n.y * 0.7, 0.2, 0.5) * sm(0.7 - Math.abs(n.x), 0, 0.25)), fur, 0, 0.05, 0.158, -0.6);   // neck, white throat
+  add(cat.chest, paint(E(0.064, 0.082, 0.085), (n) => sm(n.z * 0.92 - n.y * 0.3, 0.68, 0.84) * sm(0.5 - Math.abs(n.x), 0, 0.18)), fur, 0, -0.008, 0.095);   // chest and the white bib
+  cat.neck = add(cat.chest, paint(E(0.05, 0.06, 0.07), (n) => sm(n.z * 0.7 - n.y * 0.7, 0.0, 0.3) * sm(0.75 - Math.abs(n.x), 0, 0.25)), fur, 0, 0.05, 0.158, -0.6);   // neck, white throat
   cat.head.position.set(0, 0.105, 0.21); cat.head.scale.setScalar(1.12); cat.chest.add(cat.head);
   // head: skull with the white blaze, cheeks with a white lower face, whisker pads, chin, nose, eyes, ears, whiskers
   add(cat.head, paint(E(0.047, 0.042, 0.05), (n) => sm(n.z, 0.78, 0.9) * sm(0.14 - Math.abs(n.x), 0, 0.06) * sm(0.4 - n.y, 0, 0.15)), fur);
   add(cat.head, paint(E(0.051, 0.034, 0.04), (n) => sm(n.z, 0.45, 0.7) * sm(-n.y, -0.05, 0.25) * sm(0.6 - Math.abs(n.x), 0, 0.25)), fur, 0, -0.013, 0.012);
-  for (const sd of [-1, 1]) add(cat.head, paint(E(0.0135, 0.0115, 0.013), () => 1), fur, sd * 0.0105, -0.021, 0.041);
+  for (const sd of [-1, 1]) add(cat.head, paint(E(0.0122, 0.0105, 0.012), () => 1), fur, sd * 0.0102, -0.021, 0.041);
   add(cat.head, paint(E(0.012, 0.009, 0.012), () => 1), fur, 0, -0.033, 0.033);
   add(cat.head, E(0.0072, 0.005, 0.005, 10, 8), new THREE.MeshStandardMaterial({ color: '#2b2023', roughness: 0.35 }), 0, -0.0085, 0.054);
   const eyeTex = tex(256, 128, (g, w, h) => { g.fillStyle = '#4a5a1a'; g.fillRect(0, 0, w, h); const cx = w * 0.25, cy = h / 2;
@@ -1800,7 +1800,7 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
   const earIn = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.015, 0.002), new THREE.Vector2(0.015, 0.002), new THREE.Vector2(0.002, 0.038), new THREE.Vector2(-0.002, 0.038)]));
   for (const sd of [-1, 1]){ const eg = new THREE.Group(); eg.position.set(sd * 0.026, 0.032, -0.004); eg.rotation.set(-0.12, sd * 0.25, -sd * 0.32); cat.head.add(eg); cat.ears.push(eg);
     add(eg, paint(earOut, () => 0), fur); add(eg, earIn, new THREE.MeshStandardMaterial({ color: '#4a3436', roughness: 0.9, side: THREE.DoubleSide }), 0, 0, 0.0075); }
-  { const P = []; for (const sd of [-1, 1]) for (let i = 0; i < 9; i++){ const a0 = (i / 8 - 0.5) * 0.5, L = 0.07 + cr() * 0.03, ox = sd * (0.008 + cr() * 0.008), oy = -0.018 - cr() * 0.008;
+  { const P = []; for (const sd of [-1, 1]) for (let i = 0; i < 9; i++){ const a0 = (i / 8 - 0.5) * 0.5, L = 0.052 + cr() * 0.02, ox = sd * (0.008 + cr() * 0.008), oy = -0.018 - cr() * 0.008;
       let px = sd * 0.012 + ox, py = oy, pz = 0.046; for (let k = 0; k < 4; k++){ const t = (k + 1) / 4, nx = sd * 0.012 + ox + sd * L * t, ny = oy + Math.sin(a0) * L * t - 0.012 * t * t, nz = 0.046 + 0.02 * t - 0.035 * t * t;
         P.push(px, py, pz, nx, ny, nz); px = nx; py = ny; pz = nz; } }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
@@ -1908,6 +1908,9 @@ function updateCat(dt, t){
   const walkK = pose === 'walk' ? 1 : 0, amp = moving > 2.5 ? 1.35 : 1;
   const leg = (off) => { const u = ((cat.phase + off) % 1 + 1) % 1; if (u < 0.6) return [-1 + 2 * u / 0.6, 0]; const v = (u - 0.6) / 0.4; return [1 - 2 * smooth(v), Math.sin(Math.PI * v)]; };
   const bodyPitch = c.rx + c.ga * (1 - c.fix);
+  // sitting upright: bring the head forward over the chest and stand the neck up under it, so the neck never hides the face
+  const sk = clamp(-(c.rx + c.cb) / 1.45);
+  cat.head.position.set(0, lerp(0.105, -0.005, sk), lerp(0.21, 0.2, sk)); cat.neck.position.set(0, lerp(0.05, 0.0, sk), lerp(0.158, 0.15, sk)); cat.neck.rotation.x = lerp(-0.6, 0.2, sk);
   cat.F.forEach((L, i) => { const [sw, lift] = walkK ? leg(i ? 0.75 : 0.25) : [0, 0];
     L.s.rotation.x = c.F[0] + sw * 0.32 * amp - lift * 0.25; L.e.rotation.x = c.F[1] + lift * 0.9; L.w.rotation.x = c.F[2] + lift * 0.9;
     L.paw.rotation.x = -(bodyPitch + c.cb + L.s.rotation.x + L.e.rotation.x + L.w.rotation.x) * (1 - 0.6 * c.fix); });
