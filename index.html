@@ -604,11 +604,95 @@ var roomLight;
   }
   WIN_PARTS.forEach(m => m.userData.win = true);
 
-  rbox(wx0 - 0.1, wx1 + 0.1, wy0 - 0.04, wy0, BZ - 0.62, BZ - 0.2, paint);
+  rbox(wx0 - 0.1, wx1 + 0.1, wy0 - 0.04, wy0 + 0.015, BZ - 0.62, BZ - 0.2, paint);   // the sill stands 1.5 cm proud of the wall top, so the two never z-fight
   rbox(HOME.x - 0.55, HOME.x + 0.55, 7.45, 7.95, BZ - 0.55, BZ - 0.45, new THREE.MeshStandardMaterial({ color: '#d8d3c6', roughness: 0.5 }));
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.15, 12), new THREE.MeshStandardMaterial({ color: '#b5603a' })); pot.position.set(wx1 - 0.25, 8.17, BZ - 0.42); room.add(pot);
-  const lv = new THREE.MeshStandardMaterial({ color: '#3d6b2e' }), fl2 = new THREE.MeshStandardMaterial({ color: '#d0303a' });
-  for (let i = 0; i < 9; i++){ const sp = new THREE.Mesh(new THREE.SphereGeometry(i < 6 ? 0.06 : 0.035, 8, 6), i < 6 ? lv : fl2); sp.position.set(wx1 - 0.25 + rnd(-0.1, 0.1), 8.3 + rnd(0, i < 6 ? 0.08 : 0.2), BZ - 0.42 + rnd(-0.08, 0.08)); room.add(sp); }
+  for (let i = 0; i < 27; i++) rng();   // (the old plant's draws, so the rest of the world stays where it was)
+  /* a small Easter cactus (Rhipsalidopsis) in bloom, in a plain unglazed clay pot */
+  {
+    const r = mkRng(4242), rn = (a, b) => a + r() * (b - a), SILL = wy0 + 0.015;
+    const plant = new THREE.Group(); plant.position.set(wx1 - 0.27, SILL, BZ - 0.43); plant.rotation.y = 0.4; room.add(plant);
+    // the pot: lathe profile with a rolled rim, pale clay with a little speckle and a darker watermark at the foot
+    const prof = [[0.001, 0], [0.042, 0], [0.046, 0.004], [0.06, 0.082], [0.066, 0.084], [0.069, 0.088], [0.069, 0.104], [0.066, 0.107], [0.06, 0.106], [0.058, 0.1], [0.05, 0.03]].map(([x, y]) => new THREE.Vector2(x, y));
+    const clay = tex(256, 128, (g, w, h) => { g.fillStyle = '#d6b08a'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 900; i++){ g.fillStyle = r() < 0.5 ? `rgba(255,236,210,${rn(0.05, 0.2)})` : `rgba(120,80,50,${rn(0.05, 0.2)})`; g.fillRect(r() * w, r() * h, rn(0.5, 2), rn(0.5, 2)); }
+      const wm = g.createLinearGradient(0, h, 0, h * 0.55); wm.addColorStop(0, 'rgba(130,95,70,.35)'); wm.addColorStop(1, 'rgba(130,95,70,0)'); g.fillStyle = wm; g.fillRect(0, 0, w, h); });
+    const pot = new THREE.Mesh(new THREE.LatheGeometry(prof, 40), new THREE.MeshStandardMaterial({ map: clay, roughness: 0.92, side: THREE.DoubleSide })); pot.castShadow = pot.receiveShadow = true; plant.add(pot);
+    const soilTex = tex(128, 128, (g, w, h) => { g.fillStyle = '#3a2a1c'; g.fillRect(0, 0, w, h); g.lineWidth = 1;
+      for (let i = 0; i < 500; i++){ const x = r() * w, y = r() * h, a = r() * TAU, l = rn(2, 7); g.strokeStyle = r() < 0.6 ? `rgba(${70 + r() * 40 | 0},${90 + r() * 40 | 0},40,.8)` : 'rgba(30,20,12,.8)'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); } });
+    const soil = new THREE.Mesh(new THREE.CircleGeometry(0.059, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: soilTex, roughness: 1 })); soil.position.y = 0.094; plant.add(soil);
+
+    // one stem segment (phylloclade): flat, oblong, narrow at the joint, with shallow crenate margins and a truncate top; 2.5 mm thick
+    const L = 0.03, HW = 0.0115, sh = new THREE.Shape(), N = 14;
+    const hw = t => HW * (0.22 + 0.78 * Math.pow(Math.sin(Math.min(1, t * 1.25) * Math.PI / 2), 0.8)) - 0.0012 * Math.abs(Math.sin(t * Math.PI * 3));
+    sh.moveTo(0, 0); for (let i = 0; i <= N; i++){ const t = i / N; sh.lineTo(-hw(t), t * L); }
+    sh.lineTo(-HW * 0.55, L + 0.0012); sh.lineTo(0, L - 0.0018); sh.lineTo(HW * 0.55, L + 0.0012);
+    for (let i = N; i >= 0; i--){ const t = i / N; sh.lineTo(hw(t), t * L); }
+    const segGeo = new THREE.ExtrudeGeometry(sh, { depth: 0.0025, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0006, bevelSegments: 1 }); segGeo.translate(0, 0, -0.00125);
+    const segs = [], flowers = [], buds = [], col = new THREE.Color(), dark = new THREE.Color('#3c7a2a'), light = new THREE.Color('#8fc25a'), rim = new THREE.Color('#6a3a3a');
+    const UP = new V3(0, 1, 0), ZMAX = 0.13;   // keep clear of the window glass (local +z, roughly)
+    const addSeg = (p, d, n, depth) => {
+      const y = d.clone(), x = new V3().crossVectors(y, n).normalize(), z = new V3().crossVectors(x, y);
+      const k = rn(0.85, 1.12), m = new THREE.Matrix4().makeBasis(x.multiplyScalar(k), y.clone().multiplyScalar(k), z).setPosition(p);
+      const gg = segGeo.clone().applyMatrix4(m), pa = segGeo.attributes.position, c = new Float32Array(pa.count * 3), young = depth >= 3 ? 0.6 : 0.1 + depth * 0.12, red = r() < 0.4 ? rn(0.1, 0.35) : 0;
+      for (let i = 0; i < pa.count; i++){ const ty = pa.getY(i) / L, edge = Math.min(1, Math.abs(pa.getX(i)) / (hw(Math.max(0, ty)) + 1e-4));
+        col.copy(dark).lerp(light, Math.min(1, young + ty * 0.25 + rn(-0.04, 0.04))); if (edge > 0.85) col.lerp(rim, red); col.toArray(c, i * 3); }
+      gg.setAttribute('color', new THREE.BufferAttribute(c, 3)); segs.push(gg);
+      return p.clone().addScaledVector(d, L * k * 0.96);
+    };
+    const grow = (p, d, n, depth) => {
+      const end = addSeg(p, d, n, depth);
+      const out = new V3(end.x, 0, end.z); if (out.lengthSq() < 1e-6) out.set(r() - 0.5, 0, r() - 0.5); out.normalize();
+      const kids = depth >= 4 || (depth >= 2 && r() < 0.3) ? 0 : depth === 0 ? 2 : r() < 0.45 ? 2 : 1;
+      if (!kids){                                                                    // a tip: flower, bud, or just a fresh segment end
+        const a = d.clone().lerp(UP, 0.55).add(out.clone().multiplyScalar(0.3)).normalize(), k = r();
+        if (k < 0.42) flowers.push([end, a]); else if (k < 0.72) buds.push([end, d.clone().lerp(UP, 0.3).normalize()]);
+        return; }
+      for (let i = 0; i < kids; i++){
+        const side = kids === 2 ? (i ? 1 : -1) * rn(0.35, 0.6) : rn(-0.25, 0.25);
+        const x = new V3().crossVectors(d, n).normalize();
+        const nd = d.clone().applyAxisAngle(n, side).addScaledVector(out, 0.2).add(new V3(0, -0.12 - depth * 0.1, 0)).normalize();
+        if (end.z > ZMAX * 0.6 && nd.z > 0) nd.z *= -0.5;                         // turn away from the window
+        if (nd.y < -0.55) nd.y = -0.55;
+        nd.normalize();
+        const nn = n.clone().applyAxisAngle(nd, rn(-0.7, 0.7)); nn.addScaledVector(nd, -nn.dot(nd)).normalize();
+        grow(end, nd, nn, depth + 1); }
+    };
+    const NS = 9;
+    for (let i = 0; i < NS; i++){ const a = i / NS * TAU + rn(-0.25, 0.25), rr = rn(0.005, 0.03), p = new V3(Math.cos(a) * rr, 0.09, Math.sin(a) * rr * 0.8);
+      const out = new V3(Math.cos(a), 0, Math.sin(a)), tilt = rn(0.2, 0.75), d = out.clone().multiplyScalar(Math.sin(tilt)).addScaledVector(UP, Math.cos(tilt)).normalize();
+      if (d.z > 0) d.z *= 0.6;
+      const n = new V3().crossVectors(d, UP).normalize(); if (n.lengthSq() < 0.1) n.set(1, 0, 0); n.applyAxisAngle(d, rn(-0.6, 0.6));
+      grow(p, d.normalize(), n.addScaledVector(d, -n.dot(d)).normalize(), 0); }
+    const stems = new THREE.Mesh(mergeGeometries(segs), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 })); stems.castShadow = stems.receiveShadow = true; plant.add(stems);
+
+    // the flower: two whorls of narrow pointed magenta petals, a short orange-red throat, white stamens
+    const petal = (len, wid, cup) => { const g = new THREE.PlaneGeometry(wid, len, 2, 6), pa = g.attributes.position, c = new Float32Array(pa.count * 3);
+      for (let i = 0; i < pa.count; i++){ const t = (pa.getY(i) + len / 2) / len, x = pa.getX(i) * Math.sin(Math.PI * Math.min(1, 0.15 + t * 1.05)) ** 0.7 * (t > 0.97 ? 0.2 : 1);
+        pa.setXYZ(i, x, t * len, cup * t * t * len - Math.abs(x) * 0.25);
+        col.set('#f2a6d8').lerp(new THREE.Color('#d6299a'), Math.min(1, t * 2.2)).lerp(new THREE.Color('#c41d8a'), Math.max(0, t - 0.7)); col.toArray(c, i * 3); }
+      g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g; };
+    const flowerGeo = (() => { const parts = [], m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+      for (const [n, len, wid, tilt, off] of [[9, 0.024, 0.0062, 1.25, 0], [8, 0.021, 0.0055, 0.95, 0.5]])
+        for (let i = 0; i < n; i++){ e.set(tilt, (i + off) / n * TAU, 0, 'YXZ'); q.setFromEuler(e); m.compose(new V3(0, 0.006, 0), q, new V3(1, 1, 1)); parts.push(petal(len * rn(0.9, 1.08), wid, -0.25).applyMatrix4(m)); }
+      const tube = new THREE.CylinderGeometry(0.0045, 0.0028, 0.008, 10).translate(0, 0.003, 0), tc = new Float32Array(tube.attributes.position.count * 3);
+      for (let i = 0; i < tube.attributes.position.count; i++) col.set('#e0507a').toArray(tc, i * 3); tube.setAttribute('color', new THREE.BufferAttribute(tc, 3)); parts.push(tube);
+      const throat = new THREE.CircleGeometry(0.0042, 12).rotateX(-Math.PI / 2).translate(0, 0.0072, 0), thc = new Float32Array(throat.attributes.position.count * 3);
+      for (let i = 0; i < throat.attributes.position.count; i++) col.set(i === 0 ? '#ff7a2a' : '#f0602a').toArray(thc, i * 3); throat.setAttribute('color', new THREE.BufferAttribute(thc, 3)); parts.push(throat);
+      for (let i = 0; i < 9; i++){ const a = i / 9 * TAU, s = new THREE.CylinderGeometry(0.0003, 0.0003, 0.007, 3).translate(0, 0.0035, 0); s.rotateX(0.35); s.rotateY(a); s.translate(0, 0.007, 0);
+        const an = new THREE.SphereGeometry(0.0008, 5, 4).translate(Math.sin(a) * 0.0024, 0.0137, Math.cos(a) * 0.0024);
+        for (const gg of [s, an]){ const cc = new Float32Array(gg.attributes.position.count * 3); for (let k = 0; k < gg.attributes.position.count; k++) col.set(gg === an ? '#fff6dc' : '#ffffff').toArray(cc, k * 3); gg.setAttribute('color', new THREE.BufferAttribute(cc, 3)); parts.push(gg.index ? gg.toNonIndexed() : gg); } }
+      return mergeGeometries(parts.map(g => g.index ? g.toNonIndexed() : g)); })();
+    const budGeo = (() => { const pts = []; for (let i = 0; i <= 10; i++){ const t = i / 10; pts.push(new THREE.Vector2(0.0052 * Math.sin(Math.PI * Math.min(1, t * 1.1)) ** 0.8 * (1 - t * 0.35), t * 0.026)); }
+      const g = new THREE.LatheGeometry(pts, 12), pa = g.attributes.position, c = new Float32Array(pa.count * 3);
+      for (let i = 0; i < pa.count; i++){ const t = pa.getY(i) / 0.026, a = Math.atan2(pa.getZ(i), pa.getX(i)); pa.setX(i, pa.getX(i) * (1 + 0.12 * Math.sin(a * 5) * t)); pa.setZ(i, pa.getZ(i) * (1 + 0.12 * Math.sin(a * 5) * t));
+        col.set('#7a9a40').lerp(new THREE.Color('#e04aa8'), Math.min(1, t * 3)).lerp(new THREE.Color('#c0207e'), t * 0.5); col.toArray(c, i * 3); }
+      g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g; })();
+    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide }), place = (geo, list, s0, s1) => {
+      const gs = list.map(([p, a]) => { const q = new THREE.Quaternion().setFromUnitVectors(UP, a), q2 = new THREE.Quaternion().setFromAxisAngle(UP, r() * TAU); q.multiply(q2);
+        return geo.clone().applyMatrix4(new THREE.Matrix4().compose(p.clone().addScaledVector(a, -0.002), q, new V3().setScalar(rn(s0, s1)))); });
+      if (gs.length){ const me = new THREE.Mesh(mergeGeometries(gs), fm); me.castShadow = true; plant.add(me); } };
+    place(flowerGeo, flowers, 1.2, 1.45); place(budGeo, buds, 0.8, 1.2);
+  }
   // (the three conkers on the sill are added with the other conkers, further down)
 
   /* the table, on the right as you look out */
@@ -1594,7 +1678,7 @@ const nutGeo = new THREE.SphereGeometry(0.05, 24, 16);
 const nutsMesh = new THREE.InstancedMesh(nutGeo, new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), NUT_N);
 nutsMesh.castShadow = true; nutsMesh.frustumCulled = false; scene.add(nutsMesh);
 { // three conkers on my window sill (the sill top is at 8.1): one on its flat side, two rolled over on their backs, the scars to the side
-  const m = new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), x0 = HOME.x - 0.7, top = 8.1;
+  const m = new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), x0 = HOME.x - 0.7, top = 8.115;
   for (const [dx, dz, k, ry, rx, rz, y] of [[0.2, -0.45, 0.6, -1.1, 0, -Math.PI / 2, 0.027], [0.31, -0.37, 0.56, 0.5, 1.25, 0, 0.047], [0.29, -0.53, 0.63, -0.6, 1.35, 0.3, 0.047]]){
     const c = new THREE.Mesh(nutGeo, m); c.scale.setScalar(k); c.rotation.set(rx, ry, rz, 'YXZ'); c.position.set(x0 + dx, top + y * k - 0.001, BZ + dz);
     c.castShadow = c.receiveShadow = true; room.add(c); } }
