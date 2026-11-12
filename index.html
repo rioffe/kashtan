@@ -75,7 +75,7 @@
 </head>
 <body>
 <div id="intro"><div class="card">
-  <div class="ru" id="i-ru">Каштан</div>
+  <div class="ru" id="i-ru">Каштан · Kastaņa</div>
   <h1 id="i-h1">Kashtan</h1>
   <div class="sub" id="i-sub">Engelsa iela 78 · Rīga · 1984</div>
   <p id="i-p">A long gravel road, the garages, the old ladies' gardens —<br>and at the end of it, to the right, the tree.</p>
@@ -2448,7 +2448,8 @@ function setLang(l){ LANG = l; try { localStorage.setItem('kashtan-lang', l); } 
   document.querySelectorAll('button.p').forEach(b => { if (b.dataset.en && b.id !== 'blang') b.textContent = tr(b.dataset.en); if (b.dataset.title) b.title = tr(b.dataset.title); });
   $('blang').textContent = l.toUpperCase();
   for (const id of ['i-sub', 'i-p', 'i-ded', 'begin', 'i-small']){ const el = $(id); el.dataset.en ??= el.innerHTML; el.innerHTML = tr(el.dataset.en); }
-  $('i-ru').textContent = l === 'ru' ? 'Kashtan' : l === 'lv' ? 'Kastaņa · Каштан' : 'Каштан'; $('i-h1').textContent = l === 'ru' ? 'Каштан' : 'Kashtan';
+  { const NAME = { en: 'Kashtan', ru: 'Каштан', lv: 'Kastaņa' };   // the big title in the chosen language, the other two above it
+    $('i-h1').textContent = NAME[l] || NAME.en; $('i-ru').textContent = ['en', 'ru', 'lv'].filter(x => x !== l).map(x => NAME[x]).join(' · '); }
   document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.l === l));
   lastMonth = -1; ctxState = '?'; syncButtons(); }
 function setSeason(i){ drift = false; sTarget = SEASON_MID[i]; syncButtons(); }
