@@ -357,7 +357,7 @@ function drawFacade(g, W, H, lit){
       if (w.plant){ for (let k = 0; k < 4; k++) blot(g, x0 + pw * (0.3 + k * 0.13), y0 + ph - 8, 5, k % 2 ? '#c03030' : '#3d6b2e'); }
       const st = g.createLinearGradient(0, y0 + ph + 10, 0, y0 + ph + 10 + S(rnd(0.6, 1.5)));
       st.addColorStop(0, 'rgba(60,52,40,.35)'); st.addColorStop(1, 'rgba(60,52,40,0)'); g.fillStyle = st; g.fillRect(x0 - 4, y0 + ph + 10, pw + 8, S(1.5));
-    } else if (w.lit){
+    } else if (w.lit && !w.home){
       const c = w.stair ? '#c9b98a' : w.litCol;
       const gr = g.createRadialGradient(x0 + pw / 2, y0 + ph * 0.45, 4, x0 + pw / 2, y0 + ph / 2, pw * 0.8);
       gr.addColorStop(0, c); gr.addColorStop(1, new THREE.Color(c).multiplyScalar(0.45).getStyle());
@@ -414,7 +414,7 @@ lampGlow.position.copy(bulb.position); lampGlow.scale.set(1.6, 1.6, 1); scene.ad
 const room = new THREE.Group(); scene.add(room);
 const BOOKS = [], POST_URL = 'https://rioffe.github.io/post-machine/';
 const deskLamp = { on: true, parts: [] };
-const WIN_PARTS = [], winOpen = { v: 0, target: 0, sashes: [] };
+const WIN_PARTS = [], winOpen = { v: 0, target: 0, sashes: [], outSashes: [] };
 function toggleWindow(){ winOpen.target = winOpen.target ? 0 : 1; sfx.creak(); if (winOpen.target) caption(pick(['The window swung out over the yard, and the tree came in with the air.', 'Open window: the smell of rain and chestnut leaves.', 'Cold air, and every sound of the yard at once.']), 4); }
 function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
 var roomLight;
@@ -886,9 +886,32 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     blot(g, 64, 64, 30, '#4a2e14'); speckle(g, 128, 128, 0, []); for (let i = 0; i < 200; i++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 28; blot(g, 64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 1.4, '#2a1a0a'); } });
   sunHeads = new THREE.InstancedMesh(new THREE.CircleGeometry(0.32, 20), new THREE.MeshStandardMaterial({ map: sunTex, alphaTest: 0.3, side: THREE.DoubleSide }), sunData.length); sunHeads.castShadow = true; scene.add(sunHeads);
   sunStems = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.025, 0.035, 1, 5).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: '#4f7a2a' }), sunData.length); scene.add(sunStems);
-  lilacBloom = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 1), new THREE.MeshStandardMaterial({ color: '#a77fd0', roughness: 0.8, flatShading: true }), lilacData.length * 10);
-  { let j = 0; for (const L of lilacData) for (let k = 0; k < 10; k++){ L['b' + k] = L.p.clone().add(new V3(rnd(-0.6, 0.6), rnd(0.1, 0.7), rnd(-0.6, 0.6))); j++; } }
-  scene.add(lilacBloom);
+  { let j = 0; for (const L of lilacData) for (let k = 0; k < 10; k++){ L['b' + k] = L.p.clone().add(new V3(rnd(-0.6, 0.6), rnd(0.1, 0.7), rnd(-0.6, 0.6))); j++; } } // (keeps the world's random sequence)
+  { // lilac blossom: upright cones (panicles) of tiny four-petalled florets, darker buds at the tip; purple, pale lilac or white bushes
+    let ps = 5309; const pr = () => { ps = ps + 0x6D2B79F5 | 0; let t = Math.imul(ps ^ ps >>> 15, 1 | ps); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, prn = (a, b) => a + (b - a) * pr();
+    const floretTex = tex(64, 64, (g) => { g.translate(32, 32);
+      for (let k = 0; k < 4; k++){ g.rotate(Math.PI / 2); const gr = g.createRadialGradient(0, -4, 1, 0, -14, 16); gr.addColorStop(0, '#d8c8e0'); gr.addColorStop(1, '#ffffff');
+        g.fillStyle = gr; g.beginPath(); g.ellipse(0, -14, 9, 14, 0, 0, TAU); g.fill(); }
+      g.fillStyle = '#6a4a78'; g.beginPath(); g.arc(0, 0, 3.2, 0, TAU); g.fill(); });
+    const P = [], N = [], U = [], C = [], NF = 150, up = new V3(0, 1, 0);
+    for (let i = 0; i < NF; i++){ const h = Math.pow(pr(), 0.85), a = pr() * TAU, rad = (0.11 * Math.pow(1 - h, 0.7) + 0.012) * prn(0.6, 1.05);
+      const c = new V3(Math.cos(a) * rad, h * 0.3, Math.sin(a) * rad), n = new V3(Math.cos(a), 0.55 + h * 0.6, Math.sin(a)).add(new V3(prn(-0.5, 0.5), prn(-0.3, 0.3), prn(-0.5, 0.5))).normalize();
+      const t1 = new V3().crossVectors(n, Math.abs(n.y) > 0.9 ? new V3(1, 0, 0) : up).normalize(), t2 = new V3().crossVectors(n, t1), sz = 0.027 * (1 - 0.35 * h) * prn(0.8, 1.2);
+      const bud = h > 0.85, b = (bud ? 0.7 : 0.85 + 0.2 * h) * prn(0.88, 1.1), col = [b * prn(0.96, 1.04), b * prn(0.9, 1), b];
+      const corner = (u, v) => { P.push(c.x + (t1.x * (u - 0.5) + t2.x * (v - 0.5)) * 2 * sz, c.y + (t1.y * (u - 0.5) + t2.y * (v - 0.5)) * 2 * sz, c.z + (t1.z * (u - 0.5) + t2.z * (v - 0.5)) * 2 * sz); N.push(n.x, n.y, n.z); U.push(u, v); C.push(...col); };
+      for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) corner(u, v); }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); pg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+    pg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); pg.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    const LILP = [], hues = [['#a77ad8', '#b48ae0', '#9a6ad0', '#bb93e4'], ['#c4a2e6', '#b892df', '#cfb0ec'], ['#f3eef6', '#ece4f2']];
+    for (const L of lilacData){ const R = 0.7 * L.s * 1.2, pal = hues[pr() < 0.68 ? 0 : pr() < 0.7 ? 1 : 2], n = Math.round(26 * L.s + prn(0, 8));
+      for (let k = 0; k < n; k++){ const a = pr() * TAU, el = prn(-0.15, 1.05), d = new V3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el));
+        const pos = L.p.clone().addScaledVector(d, R * prn(0.85, 1.15)); pos.y += 0.1;
+        const ax = new V3(0, 1, 0).addScaledVector(d, 0.65).add(new V3(prn(-0.25, 0.25), 0, prn(-0.25, 0.25))).normalize();
+        const q = new THREE.Quaternion().setFromUnitVectors(up, ax).multiply(new THREE.Quaternion().setFromAxisAngle(up, pr() * TAU));
+        LILP.push({ p: pos, q, s: prn(0.8, 1.35) * (0.85 + 0.15 * L.s), c: new THREE.Color(pal[Math.floor(pr() * pal.length)]).multiplyScalar(prn(0.9, 1.08)) }); } }
+    lilacBloom = new THREE.InstancedMesh(pg, new THREE.MeshStandardMaterial({ map: floretTex, vertexColors: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.75 }), LILP.length);
+    LILP.forEach((l, i) => lilacBloom.setColorAt(i, l.c)); lilacBloom.userData.L = LILP; lilacBloom.castShadow = true; scene.add(lilacBloom);
+  }
   // benches: one by the entry, one under the tree
   const bench = (x, z, ry) => { const g = new THREE.Group();
     for (let i = 0; i < 3; i++){ const s = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 0.12), woodMat); s.position.set(0, 0.45, -0.15 + i * 0.15); s.castShadow = true; g.add(s); }
@@ -1590,6 +1613,45 @@ function updateFire(dt, t, wind){
   if (!fire.lit && fk < 0.005 && ek < 0.005 && fire.smoke.every(s => s.userData.life <= 0)){ fire.on = false; fire.light.intensity = 0; fire.logM.emissiveIntensity = 0; fire.coalM.emissiveIntensity = 0; fire.pool.visible = false; fire.tongues.forEach(m => m.visible = false); }
 }
 
+/* my window, as seen from the yard: the room behind the glass (lamp-lit or dark) and the casements, open or shut */
+const homeWin = new THREE.Group(); scene.add(homeWin);
+{
+  const wx0 = HOME.x - 0.7, wx1 = HOME.x + 0.7, wy0 = 8.1, wy1 = 9.8, z = BZ + 0.004;
+  // the room in perspective, from outside: table and lamp on the left, bookshelf on the right, the far wall with the door
+  const drawRoom = (g, w, h, glow) => {
+    const L = w * 0.24, R = w * 0.76, T = h * 0.22, B = h * 0.7;
+    if (glow){ g.fillStyle = '#000'; g.fillRect(0, 0, w, h); const gr = g.createRadialGradient(w * 0.3, h * 0.62, 4, w * 0.35, h * 0.55, w * 0.9);
+      gr.addColorStop(0, 'rgba(255,214,150,1)'); gr.addColorStop(0.3, 'rgba(230,170,100,.6)'); gr.addColorStop(1, 'rgba(120,80,50,.18)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.globalCompositeOperation = 'multiply'; drawRoom(g, w, h, false); g.globalCompositeOperation = 'source-over'; return; }
+    g.fillStyle = '#9fb6c8'; g.fillRect(0, 0, w, h);                                              // wallpaper
+    for (let y = 6; y < h; y += 14) for (let x = (y / 14 % 2) * 7; x < w; x += 14){ g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill(); }
+    g.fillStyle = '#e8e4da'; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(R, T); g.lineTo(L, T); g.fill();          // ceiling
+    g.fillStyle = '#6a2a20'; g.beginPath(); g.moveTo(0, h); g.lineTo(w, h); g.lineTo(R, B); g.lineTo(L, B); g.fill();          // red-painted floor
+    g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1.5; g.strokeRect(L, T, R - L, B - T);
+    g.fillStyle = '#8a6040'; g.fillRect(R - w * 0.16, T + (B - T) * 0.2, w * 0.1, (B - T) * 0.8);                                 // the door at the back
+    g.fillStyle = '#5a3c26'; g.fillRect(w * 0.82, h * 0.25, w * 0.18, h * 0.6);                                                  // bookshelf
+    for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++){ g.fillStyle = ['#8a3030', '#2f4a6a', '#c9a96b', '#3d5b3d', '#6a3f6a', '#d8d0c0'][(r * 3 + k) % 6]; g.fillRect(w * 0.83 + k * w * 0.026, h * (0.28 + r * 0.14), w * 0.02, h * 0.1); }
+    g.fillStyle = '#9a6a3e'; g.fillRect(0, h * 0.62, w * 0.3, h * 0.05); g.fillStyle = '#6a4a2c'; g.fillRect(w * 0.02, h * 0.67, w * 0.03, h * 0.33);   // table
+    g.fillStyle = '#2e4a3a'; g.beginPath(); g.moveTo(w * 0.1, h * 0.62); g.lineTo(w * 0.13, h * 0.45); g.lineTo(w * 0.2, h * 0.47); g.stroke(); g.fill();  // the lamp
+    g.beginPath(); g.ellipse(w * 0.2, h * 0.5, w * 0.05, h * 0.03, 0.3, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(240,240,232,.5)'; g.fillRect(0, 0, w * 0.1, h); g.fillRect(w * 0.9, 0, w * 0.1, h);                      // tulle pushed aside
+  };
+  const roomTex = tex(140, 170, (g, w, h) => drawRoom(g, w, h, false)), roomGlow = tex(140, 170, (g, w, h) => drawRoom(g, w, h, true));
+  homeWin.userData.room = new THREE.MeshStandardMaterial({ map: roomTex, emissive: '#ffffff', emissiveMap: roomGlow, emissiveIntensity: 0, roughness: 1 });
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(wx1 - wx0, wy1 - wy0), homeWin.userData.room); pane.position.set(HOME.x, (wy0 + wy1) / 2, z); homeWin.add(pane);
+  const white = new THREE.MeshStandardMaterial({ color: '#ddd8cb', roughness: 0.7 });
+  homeWin.userData.glass = new THREE.MeshStandardMaterial({ color: '#b8ccd8', transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.6, depthWrite: false, side: THREE.DoubleSide });
+  const box = (w, h, d, x, y, zz, parent, m = white) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, zz); parent.add(me); return me; };
+  box(wx1 - wx0, 0.05, 0.05, HOME.x, wy0 + 0.025, z + 0.02, homeWin); box(wx1 - wx0, 0.05, 0.05, HOME.x, wy1 - 0.025, z + 0.02, homeWin);
+  box(0.05, wy1 - wy0, 0.05, wx0 + 0.025, (wy0 + wy1) / 2, z + 0.02, homeWin); box(0.05, wy1 - wy0, 0.05, wx1 - 0.025, (wy0 + wy1) / 2, z + 0.02, homeWin);
+  const SW = (wx1 - wx0 - 0.1) / 2, ya = wy0 + 0.05, yb = wy1 - 0.05;
+  for (const [hx, dir] of [[wx0 + 0.05, 1], [wx1 - 0.05, -1]]){ const g = new THREE.Group(); g.position.set(hx, 0, z + 0.02); homeWin.add(g); winOpen.outSashes.push({ g, dir });
+    const bar = (ta, tb, y_a, y_b) => box(tb - ta, y_b - y_a, 0.045, dir * (ta + tb) / 2, (y_a + y_b) / 2, 0.025, g);
+    bar(0, 0.045, ya, yb); bar(SW - 0.045, SW, ya, yb); bar(0, SW, ya, ya + 0.045); bar(0, SW, yb - 0.045, yb);
+    bar(0, SW, ya + (yb - ya) / 3 - 0.014, ya + (yb - ya) / 3 + 0.014); bar(0, SW, ya + 2 * (yb - ya) / 3 - 0.014, ya + 2 * (yb - ya) / 3 + 0.014);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(SW - 0.08, yb - ya - 0.08), homeWin.userData.glass); gl.position.set(dir * SW / 2, (ya + yb) / 2, 0.025); g.add(gl); }
+}
+
 /* ============================== the neighbourhood cat ============================== */
 function roofY(z, x = GAR_X - 0.1){ let best = null, bd = 1e9; for (const g of GARAGES){ const d = Math.abs(g.z - z); if (d < bd){ bd = d; best = g; } } return (best ? best.h + 0.1 : 2.6) + (GAR_X + 0.1 - x) * 0.03; }
 const cat = { root: new THREE.Group(), body: new THREE.Group(), head: new THREE.Group(), legs: [], tail: [], q: [], state: 'hidden', timer: 7, phase: 0,
@@ -1821,8 +1883,9 @@ function updateSeasonal(sp){
   sunData.forEach((s, i) => { const k = sp.sunfl, h = s.h * k; Q.setFromEuler(new THREE.Euler(-0.3, 0, 0)); SC.setScalar(k); P3.set(s.p.x, h, s.p.z + 0.08); M4.compose(P3, Q, SC); sunHeads.setMatrixAt(i, M4);
     Q.identity(); SC.set(1, Math.max(h, 0.001), 1); P3.set(s.p.x, 0, s.p.z); M4.compose(P3, Q, SC); sunStems.setMatrixAt(i, M4); });
   sunHeads.instanceMatrix.needsUpdate = sunStems.instanceMatrix.needsUpdate = true; sunHeads.visible = sunStems.visible = sp.sunfl > 0.001;
-  { let j = 0; for (const L of lilacData) for (let k = 0; k < 10; k++){ SC.setScalar(sp.lilac); Q.identity(); M4.compose(L['b' + k], Q, SC); lilacBloom.setMatrixAt(j++, M4); } }
-  lilacBloom.instanceMatrix.needsUpdate = true; lilacBloom.visible = sp.lilac > 0.001;
+  if (Math.abs(sp.lilac - (lilacBloom.userData.k ?? -1)) > 0.002 || (sp.lilac === 0) !== (lilacBloom.userData.k === 0)){ lilacBloom.userData.k = sp.lilac;
+    lilacBloom.userData.L.forEach((l, i) => { SC.setScalar(l.s * smooth(sp.lilac * 1.15)); M4.compose(l.p, l.q, SC); lilacBloom.setMatrixAt(i, M4); }); lilacBloom.instanceMatrix.needsUpdate = true; }
+  lilacBloom.visible = sp.lilac > 0.001;
   if (sp.snow > 0.5) NUTs.forEach(n => { n.on = false; n.h = 0; });
 }
 
@@ -2370,6 +2433,12 @@ function frame(){
   updateCat(dt, t); updateSnowmen(dt, t);
   winOpen.v += (winOpen.target - winOpen.v) * Math.min(1, dt * 2.2);
   for (const sh of winOpen.sashes) sh.g.rotation.y = -sh.dir * smooth(winOpen.v) * 1.45;
+  homeWin.visible = !room.visible;
+  if (homeWin.visible){ for (const sh of winOpen.outSashes) sh.g.rotation.y = -sh.dir * smooth(winOpen.v) * 1.45;
+    const lt = 1 - env.day, rm = homeWin.userData.room;
+    rm.emissiveIntensity = deskLamp.on ? 0.08 + lt * 0.85 : 0;                       // lamp on: a warm window; off: dark
+    rm.color.setScalar(deskLamp.on ? 0.55 : 0.32 + 0.1 * env.day);
+    homeWin.userData.glass.opacity = deskLamp.on && lt > 0.5 ? 0.18 : 0.38; }
 
   // fire
   updateFire(dt, t, wind);
@@ -2395,7 +2464,7 @@ function frame(){
         const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
-        console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1;
+        console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
