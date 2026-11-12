@@ -730,6 +730,7 @@ var roomLight;
     m.position.set(x, y, z); room.add(m); return m; };
   const x0 = HOME.x - 1, x1 = HOME.x + 1, y0 = 7.2, y1 = 10.1, zf = BZ - 0.05, zb = BZ - 0.42, zr = BZ - 5.42;
   const wx0 = HOME.x - 0.7, wx1 = HOME.x + 0.7, wy0 = 8.1, wy1 = 9.8;
+  desk.box = [x0 + 0.05, x1 - 0.05, y0 + 0.05, y1 - 0.05, zr + 0.05, zb - 0.05];   // the close views never leave the room
   // walls with the window opening, side walls, back wall with a door
   const plaster = new THREE.MeshStandardMaterial({ color: '#e9e5db', roughness: 0.9 }), winWall = [plaster, plaster, plaster, plaster, plaster, wm]; // wallpaper only on the room side
   rbox(x0, wx0, y0, y1, zb, zf, winWall, 0.5); rbox(wx1, x1, y0, y1, zb, zf, winWall, 0.5); rbox(wx0, wx1, y0, wy0, zb, zf, winWall, 0.5); rbox(wx0, wx1, wy1, y1, zb, zf, winWall, 0.5);
@@ -3572,7 +3573,10 @@ function frame(){
       walkStep(dt, mx, mz, spd);
     } else if (mode === 'window' && desk.on){
       const v = desk.views[desk.f || 'seat'], cp = Math.cos(desk.pitch), k = desk.snap ? 1 : 1 - Math.exp(-dt * 4.5);
-      P3.set(Math.sin(desk.yaw) * cp, Math.sin(desk.pitch), Math.cos(desk.yaw) * cp).multiplyScalar(desk.d).add(v.t);
+      P3.set(Math.sin(desk.yaw) * cp, Math.sin(desk.pitch), Math.cos(desk.yaw) * cp);
+      { const b = desk.box, o = v.t, D = [P3.x, P3.y, P3.z], O = [o.x, o.y, o.z]; let tm = desk.d;   // pull in rather than pass through a wall
+        for (let a = 0; a < 3; a++){ if (D[a] > 1e-6) tm = Math.min(tm, (b[a * 2 + 1] - O[a]) / D[a]); else if (D[a] < -1e-6) tm = Math.min(tm, (b[a * 2] - O[a]) / D[a]); }
+        P3.multiplyScalar(Math.max(0.06, tm)).add(o); }
       desk.cp.lerp(P3, k); desk.ct.lerp(v.t, k); camera.position.copy(desk.cp); camera.lookAt(desk.ct);
     } else if (mode === 'window'){
       fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
