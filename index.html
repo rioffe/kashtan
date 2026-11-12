@@ -320,9 +320,9 @@ function drawStucco(g, w, h, ppm){
 const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
-const GAR_X = -15.0, ROAD_X = -7.9, ROAD_W = 4.2, GX0 = -3.65;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
+const GAR_X = -15.0, ROAD_X = -8.4, ROAD_W = 3.2, GX0 = -4.65, ROAD_Z0 = -126.4;   // the lane is 3.2 m wide and stops at the corner of the gardens (ROAD_Z0), where it splits into two paths;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
 // from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
-const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = ROAD_X - 3.2, GATE_X1 = ROAD_X + 3.2, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
+const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = -11.1, GATE_X1 = -4.7, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
 const WOOD = { x0: GATE_X1, x1: 20.6, zb: -55.5, zf: -46.5 };   // the old wooden house on Stabu, right behind the gardens
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
@@ -371,8 +371,8 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
   var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, STABU_FRONT - BZ).rotateX(-Math.PI / 2), roadMat);
-  road.position.set(ROAD_X, 0.01, (BZ + STABU_FRONT) / 2);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, STABU_FRONT - ROAD_Z0).rotateX(-Math.PI / 2), roadMat);
+  road.position.set(ROAD_X, 0.01, (ROAD_Z0 + STABU_FRONT) / 2);
   const st = dirtTex.clone(); st.repeat.set(160, 2.2); st.needsUpdate = true;   // Stabu iela: cobbles and old asphalt
   const street = new THREE.Mesh(new THREE.PlaneGeometry(900, STABU_FAR - STABU_FRONT).rotateX(-Math.PI / 2), flatMat(st, '#6c6862', 0.8, -1));
   street.position.set(0, 0.011, (STABU_FRONT + STABU_FAR) / 2); street.receiveShadow = true; scene.add(street);
@@ -555,23 +555,24 @@ const TUFTS = [];
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, pathMat(map)); m.receiveShadow = true; scene.add(m); return curve; };
   ribbon([[-17.8, BZ + 0.38], [0, BZ + 0.38], [17.8, BZ + 0.38]], 0.72, asphalt);                                          // the strip along the wall
-  ribbon([[9, BZ + 1.15], [8.75, BZ + 2.3], [5.2, BZ + 3.05], [0, BZ + 3.3], [-4.2, BZ + 3.15], [-6.3, BZ + 3.0]], 1.15, asphalt);   // entrance 2 to the lane
-  ribbon([[-9, BZ + 1.2], [-8.7, BZ + 2.4], [-8.2, BZ + 4]], 1.1, asphalt, 0.017);                                           // entrance 1, onto the lane
-  ribbon([[6.6, BZ + 3.25], [7.9, BZ + 4.6], [9.0, BZ + 6.3], [9.4, TREE.z - 5.6]], 0.6, earth, 0.015);                  // the trodden track to the tree
+  // where the lane ends at the gardens it splits in two: a path to each entrance, with a triangle of grass between them
+  ribbon([[ROAD_X - 0.7, ROAD_Z0 + 0.6], [-9.3, -131], [-9.35, -138], [-9.2, -144.5], [-9, BZ + 1.15]], 1.1, asphalt, 0.017);                 // to entrance 1
+  ribbon([[ROAD_X + 0.7, ROAD_Z0 + 0.6], [-4.6, -131.2], [0.2, -136.4], [5, -141.8], [8.4, -146.6], [9, BZ + 1.15]], 1.15, asphalt);        // to entrance 2
+  ribbon([[4.3, -141.0], [5.4, -140.5], [6.4, TREE.z - 2.6]], 0.6, earth, 0.015);                                                            // the trodden track to the tree
   // where the grass may grow, and how thickly
   const PATHPTS = edges.map(e => [e[0] - e[2] * 0.3, e[1] - e[3] * 0.3]);
   const blocked = (x, z) => {
     if (z < BZ + 0.8 || x > 17.85 || x < -17.85) return true;
     if (x < -11.9 && z > -129.9) return true;                                                     // the garages
     if (x > GX0 - 0.25 && z > -126.2) return true;                                                // the gardens have their own planting
-    if (Math.abs(x - ROAD_X) < ROAD_W / 2 - 0.15 && Math.abs(x - ROAD_X) > 0.35) return true;     // the lane's wheel ruts
+    if (z > ROAD_Z0 - 0.2 && Math.abs(x - ROAD_X) < ROAD_W / 2 - 0.15 && Math.abs(x - ROAD_X) > 0.3) return true;     // the lane's wheel ruts
     if (Math.hypot(x - TREE.x, z - TREE.z) < 5.7 || Math.hypot(x - FIRE.x, z - FIRE.z) < 1.7) return true;
     if (Math.hypot(x - 12.5, z - BZ - 2.2) < 1.0 || Math.hypot(x - TREE.x + 2.6, z - TREE.z - 2.4) < 1.0) return true;   // benches
     for (const [px, pz] of PATHPTS) if (Math.abs(x - px) < 0.55 && Math.abs(z - pz) < 0.55) return true;
     return false; };
   const tuft = (x, z, k) => { if (!blocked(x, z)) TUFTS.push({ x, z, s: k * rn(0.55, 1.25), yaw: rn(0, TAU), v: rn(0.8, 1.15), r: pr(), dry: pr() }); };
   for (const [x, z, nx, nz] of edges) for (let k = 0; k < 3; k++){ const o = rn(0.02, 0.6) ** 1.4; tuft(x + nx * o + rn(-0.12, 0.12), z + nz * o + rn(-0.12, 0.12), 1.15 - o * 0.4); }
-  for (let z = BZ + 1; z < STABU_FRONT - 1; z += 0.14){                                             // the lane: both verges, and the hump between the ruts
+  for (let z = ROAD_Z0 + 0.3; z < STABU_FRONT - 1; z += 0.14){                                             // the lane: both verges, and the hump between the ruts
     for (const ex of [ROAD_X - ROAD_W / 2, ROAD_X + ROAD_W / 2]){ const sd = Math.sign(ex - ROAD_X), o = rn(-0.25, 1.4) ** 1; tuft(ex + sd * o, z + rn(-0.07, 0.07), o < 0 ? 0.6 : 1.1); }
     if (pr() < 0.35) tuft(ROAD_X + rn(-0.3, 0.3), z, 0.55); }
   for (let i = 0; i < 9000; i++){ const x = rn(-17.8, 17.8), z = rn(BZ + 0.8, -128.5), clump = fbm(x * 0.35 + 3, z * 0.35 - 7);   // the yard, in clumps
@@ -2093,7 +2094,7 @@ const inBuilding = (x, y, z) => x > -18.6 && x < 18.6 && z < BZ + 0.6 && z > BZ 
 const puddleMat = new THREE.MeshStandardMaterial({ color: '#2a3036', roughness: 0.06, metalness: 0.5, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
 const puddles = new THREE.Group(); scene.add(puddles);
 for (let i = 0; i < 46; i++){ const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), puddleMat);
-  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.5, 1.5) : rnd(-12, 16), 0.02, onRoad ? rnd(BZ + 14, STABU_FRONT - 3) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
+  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.1, 1.1) : rnd(-12, 16), 0.02, onRoad ? rnd(ROAD_Z0 + 2, STABU_FRONT - 3) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
 function updateWeather(dt, t, sp){
   const T = WEATHERS[weather], k = Math.min(1, dt * 0.35);
   W.cloud += (T.cloud - W.cloud) * k; W.rain += (T.rain - W.rain) * k;
