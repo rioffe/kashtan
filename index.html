@@ -813,7 +813,29 @@ var roomLight;
   });
   rbox(x0 + 0.23, x0 + 0.53, ty, ty + 0.008, TB - 1.33, TB - 0.91, new THREE.MeshStandardMaterial({ color: '#2a4a6a' }));
   label(0.42, 0.3, noteTex, x0 + 0.38, ty + 0.0095, TB - 1.12);
-  const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.17, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#c8402a' })); pencil.position.set(x0 + 0.56, ty + 0.012, TB - 1.12); pencil.rotation.y = 0.2; room.add(pencil);
+  // a «Конструктор» 2М: hexagonal, natural lacquered wood, the name stamped in black on one face, sharpened with a knife
+  const pr = mkRng(2002);
+  {
+    const R = 0.004, LB = 0.152, LC = 0.019, LG = 0.004, ap = R * Math.cos(Math.PI / 6);
+    const body = tex(384, 2048, (g, w, h) => {   // 6 faces of 64 px around; along the length 13.5 px per mm; the canvas top is the back end
+      for (let f = 0; f < 6; f++){ g.fillStyle = ['#c98a3e', '#cf9045', '#c4843a', '#c7873c', '#cd8e43', '#c6863b'][f]; g.fillRect(f * 64, 0, 64, h); }
+      for (let i = 0; i < 260; i++){ const x = pr() * w; g.fillStyle = pr() < 0.5 ? 'rgba(150,90,35,.18)' : 'rgba(255,225,170,.14)'; g.fillRect(x, 0, 0.6 + pr() * 1.6, h); }
+      for (let f = 0; f <= 6; f++){ g.fillStyle = 'rgba(255,235,200,.35)'; g.fillRect(f * 64 - 1, 0, 2, h); }   // the arrises catch the light
+      g.save(); g.translate(64 + 32, 120); g.rotate(Math.PI / 2); g.fillStyle = '#1c1612'; g.textBaseline = 'middle';
+      g.lineWidth = 3; g.strokeStyle = '#1c1612'; g.beginPath(); for (let k = 0; k < 6; k++){ const a = k / 6 * TAU; g.lineTo(18 + Math.cos(a) * 14, Math.sin(a) * 9); } g.closePath(); g.stroke();   // the little pencil-end mark
+      g.font = 'bold 34px Georgia, serif'; g.fillText('※ КОНСТРУКТОР ※   2М', 52, 2); g.restore(); });
+    body.anisotropy = 16;
+    const lacq = new THREE.MeshStandardMaterial({ map: body, roughness: 0.32, flatShading: true }), wood = new THREE.MeshStandardMaterial({ color: '#e9cfa2', roughness: 0.85 }),
+          lead = new THREE.MeshStandardMaterial({ color: '#2b2b2e', roughness: 0.35, metalness: 0.35 });
+    const P = new THREE.Group(); P.position.set(x0 + 0.56, ty + 0.0043 + ap, TB - 1.12); P.rotation.set(0, 0.2, -0.05); room.add(P);   // lying on a flat: the back end on the notebook, the point on the table
+    const hexBody = new THREE.Mesh(new THREE.CylinderGeometry(R, R, LB, 6, 1), [lacq, wood, wood]); hexBody.rotation.z = Math.PI / 2; P.add(hexBody);   // tip towards +x
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.0011, ap * 0.98, LC, 18, 1, true), wood); cone.rotation.z = -Math.PI / 2; cone.position.x = LB / 2 + LC / 2; P.add(cone);
+    // where the knife bit into the lacquer: a short six-sided collar shading from the hexagon into the round cone
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(ap * 0.98, R, 0.0025, 6, 1, true), lacq); col.rotation.z = -Math.PI / 2; col.position.x = LB / 2 + 0.00125; P.add(col);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.0011, LG, 12), lead); tip.rotation.z = -Math.PI / 2; tip.position.x = LB / 2 + LC + LG / 2; P.add(tip);
+    const core = new THREE.Mesh(new THREE.CircleGeometry(0.001, 12), lead); core.rotation.y = -Math.PI / 2; core.position.x = -LB / 2 - 0.0002; P.add(core);   // the lead showing at the back end
+    for (const m of [hexBody, cone, col, tip]) m.castShadow = true;
+  }
   // the Soviet calculator
   const calcTex = tex(160, 280, (g, w, h) => {
     g.fillStyle = '#262624'; g.fillRect(0, 0, w, h); g.fillStyle = '#3a3a38'; g.fillRect(8, 8, w - 16, h - 16);
@@ -834,8 +856,13 @@ var roomLight;
     g.beginPath(); g.moveTo(15 + 3 * 30 + 15, 306); g.lineTo(15 + 3 * 30 + 7, 322); g.lineTo(15 + 3 * 30 + 23, 322); g.closePath(); g.fill();
     g.font = '13px Georgia'; g.fillText('ИЗДАТЕЛЬСТВО «НАУКА»', 70, 385); g.fillText('1979', 132, 404);
   });
-  const usp = rbox(x0 + 0.37, x0 + 0.52, ty, ty + 0.022, TB - 0.83, TB - 0.62, new THREE.MeshStandardMaterial({ color: '#d8ccb0' }));
-  const cover = label(0.21, 0.15, coverTex, x0 + 0.445, ty + 0.0225, TB - 0.725);
+  // a slim paperback in the «Популярные лекции по математике» format: 13 x 20 cm, 5 mm thick, spine to the left
+  const pages = tex(16, 256, (g, w, h) => { g.fillStyle = '#efe7d2'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2){ g.fillStyle = `rgba(120,100,70,${0.08 + pr() * 0.1})`; g.fillRect(0, y, w, 1); } });
+  const coverM = new THREE.MeshStandardMaterial({ color: '#e6dcc0', roughness: 0.8 }), pageM = new THREE.MeshStandardMaterial({ map: pages, roughness: 0.95 });
+  const usp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.0052, 0.13), [pageM, pageM, coverM, coverM, pageM, pageM]); usp.position.set(x0 + 0.445, ty + 0.0026, TB - 0.725); usp.castShadow = usp.receiveShadow = true; room.add(usp);
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.2, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#2a5a8a', roughness: 0.8 }));
+  spine.position.set(x0 + 0.445, ty + 0.0026, TB - 0.725 + 0.065); spine.scale.set(1, 0.95, 0.5); room.add(spine);
+  const cover = label(0.13, 0.2, coverTex, x0 + 0.445, ty + 0.0054, TB - 0.725);
   usp.userData.title = cover.userData.title = 'В. А. Успенский — «Машина Поста»';
   BOOKS.push(usp, cover);
 
