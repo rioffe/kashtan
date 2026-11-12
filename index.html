@@ -1140,6 +1140,15 @@ var roomLight;
         return smin(d, cap(x, y, z, T0, T1, 0.0009, 0.0007), 0.0006); }; };
     const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
     const Y = v => B + v;
+    // the torso as one lofted form: an elliptical section whose width and depth flow smoothly from the hips, in at the waist,
+    // out over the ribs and in again under the shoulders (Catmull-Rom through a few measured sections), so nothing bulges
+    const TP = [[0.06, 0.0104, 0.0078, -0.0006], [0.07, 0.0136, 0.0092, -0.0006], [0.08, 0.0126, 0.0086, -0.0002], [0.091, 0.0098, 0.0073, 0.0004], [0.1, 0.0109, 0.0078, 0.0006], [0.108, 0.0118, 0.008, 0.0004], [0.117, 0.0112, 0.0068, -0.0006]];
+    const tprof = v => { const n = TP.length; let i = 0; while (i < n - 2 && v > TP[i + 1][0]) i++;
+      const t = Math.min(1, Math.max(0, (v - TP[i][0]) / (TP[i + 1][0] - TP[i][0]))), P0 = TP[Math.max(0, i - 1)], P1 = TP[i], P2 = TP[i + 1], P3 = TP[Math.min(n - 1, i + 2)], o = [];
+      for (let k = 1; k < 4; k++) o.push(0.5 * ((2 * P1[k]) + (-P0[k] + P2[k]) * t + (2 * P0[k] - 5 * P1[k] + 4 * P2[k] - P3[k]) * t * t + (-P0[k] + 3 * P1[k] - 3 * P2[k] + P3[k]) * t * t * t)); return o; };
+    const TORSO = (x, y, z) => { const v = y - B, vc = Math.min(TP[TP.length - 1][0], Math.max(TP[0][0], v)), [rx, rz, zc] = tprof(vc);
+      const q = Math.hypot(x / rx, (z - zc) / rz), dr = (q - 1) * Math.min(rx, rz) * (0.6 + 0.4 * Math.min(rx, rz) / Math.max(rx, rz)), dy = v - vc;
+      return dy === 0 ? dr : Math.hypot(Math.max(dr, 0), dy) + Math.min(dr, 0); };
     // landmarks (metres, y up from the base top, the figure faces +z, her left is +x)
     const HC = [0.001, Y(0.1398), 0.0012];
     const LS = [0.0138, Y(0.1155), -0.001], LE = [0.0262, Y(0.1425), -0.0035], LW = [0.0128, Y(0.1488), -0.0048], LH = [0.0092, Y(0.1468), -0.0036];
@@ -1161,23 +1170,21 @@ var roomLight;
         d = smin(d, ell(x, y, z, [0.001, Y(0.1335), 0.0042], [0.0057, 0.0048, 0.0054]), 0.003);
         d = smin(d, ell(x, y, z, [0.001, Y(0.1386), 0.0106], [0.0011, 0.0017, 0.0012]), 0.0012);
         return smin(d, ell(x, y, z, [0.003, Y(0.142), -0.0012], [0.0088, 0.0102, 0.009]), 0.0015); },
-      (x, y, z) => { let d = ell(x, y, z, [0, Y(0.077), -0.0005], [0.013, 0.011, 0.0088]);                                       // 4 the torso
-        d = smin(d, ell(x, y, z, [0, Y(0.0905), 0.0008], [0.0108, 0.0105, 0.0078]), 0.004);
-        d = smin(d, ell(x, y, z, [0, Y(0.1055), 0.0004], [0.0128, 0.0115, 0.0083]), 0.004);
-        d = smin(d, cap(x, y, z, [-0.0105, Y(0.1152), -0.0008], [0.0105, Y(0.1152), -0.0008], 0.0048, 0.0048), 0.005);
-        for (const sx of [-1, 1]){ d = smin(d, ell(x, y, z, [sx * 0.0058, Y(0.0735), -0.0055], [0.0068, 0.0072, 0.006]), 0.003); d = smin(d, ell(x, y, z, [sx * 0.0047, Y(0.1062), 0.0066], [0.0037, 0.0033, 0.003]), 0.003); }
+      (x, y, z) => { let d = TORSO(x, y, z);                                                                                       // 4 the torso
+        d = smin(d, cap(x, y, z, [-0.0102, Y(0.1148), -0.0008], [0.0102, Y(0.1148), -0.0008], 0.0046, 0.0046), 0.006);
+        for (const sx of [-1, 1]){ d = smin(d, ell(x, y, z, [sx * 0.0056, Y(0.0728), -0.0048], [0.0064, 0.007, 0.0056]), 0.004); d = smin(d, ell(x, y, z, [sx * 0.0046, Y(0.1048), 0.0058], [0.0034, 0.0031, 0.0027]), 0.004); }
         return d; },
       (x, y, z) => { let d = 1;                                                                                                     // 5 the legs
         for (const [H, K, A, T, He, sx] of [[LHp, LK, LA, LT, LHe, 1], [RHp, RK, RA, RT, RHe, -1]]){
-          let l = cap(x, y, z, H, K, 0.0082, 0.005); l = smin(l, cap(x, y, z, K, A, 0.0049, 0.0027), 0.002);
+          let l = cap(x, y, z, H, K, 0.0088, 0.0052); l = smin(l, cap(x, y, z, K, A, 0.0049, 0.0027), 0.002);
           l = smin(l, ell(x, y, z, [K[0] * 0.6 + A[0] * 0.4, K[1] * 0.62 + A[1] * 0.38, K[2] * 0.6 + A[2] * 0.4 - 0.0016], [0.0046, 0.0092, 0.0046]), 0.003);
           l = smin(l, cap(x, y, z, He, T, 0.0026, 0.0021), 0.002); l = smin(l, ell(x, y, z, [K[0], K[1], K[2] + 0.0028], [0.0034, 0.0036, 0.0022]), 0.0015);
           d = Math.min(d, l); }
         return d; },
       (x, y, z) => { let d = cap(x, y, z, [0, Y(0.115), -0.0008], [0.0006, Y(0.1272), 0.0006], 0.0047, 0.0043);                    // 6 neck and arms
         d = smin(d, ell(x, y, z, [0.0138, Y(0.1155), -0.001], [0.0052, 0.0048, 0.0048]), 0.003); d = smin(d, ell(x, y, z, [-0.0138, Y(0.1155), -0.0006], [0.0052, 0.0048, 0.0048]), 0.003);
-        d = smin(d, cap(x, y, z, LS, LE, 0.005, 0.0037), 0.0022); d = smin(d, cap(x, y, z, LE, LW, 0.0036, 0.0021), 0.0016); d = smin(d, HAND_L(x, y, z), 0.0011);
-        d = smin(d, cap(x, y, z, RS, RE, 0.005, 0.0037), 0.0022); d = smin(d, cap(x, y, z, RE, RW, 0.0036, 0.0021), 0.0016); d = smin(d, HAND_R(x, y, z), 0.0011);
+        d = smin(d, cap(x, y, z, LS, LE, 0.0056, 0.0042), 0.0024); d = smin(d, cap(x, y, z, LE, LW, 0.0041, 0.0023), 0.0018); d = smin(d, HAND_L(x, y, z), 0.0011);
+        d = smin(d, cap(x, y, z, RS, RE, 0.0056, 0.0042), 0.0024); d = smin(d, cap(x, y, z, RE, RW, 0.0041, 0.0023), 0.0018); d = smin(d, HAND_R(x, y, z), 0.0011);
         return d; }];
     const KS = [0, 0.0006, 0.0008, 0.0016, 0.0022, 0.0022, 0.0018];   // how softly each part flows into the others
     let REG = 0;
