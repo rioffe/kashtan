@@ -531,10 +531,11 @@ lampGlow.position.copy(bulb.position); lampGlow.scale.set(1.6, 1.6, 1); scene.ad
 /* ---------- my room (for the window view): 2 m wide, 5 m deep ---------- */
 const room = new THREE.Group(); scene.add(room);
 const BOOKS = [], POST_URL = 'https://rioffe.github.io/post-machine/';
-const deskLamp = { on: true, parts: [] };
+const deskLamp = { on: true, parts: [] }, calc = { on: true, parts: [] };
 const WIN_PARTS = [], winOpen = { v: 0, target: 0, sashes: [], outSashes: [] };
 function toggleWindow(){ winOpen.target = winOpen.target ? 0 : 1; sfx.creak(); if (winOpen.target) caption(pick(['The window swung out over the yard, and the tree came in with the air.', 'Open window: the smell of rain and chestnut leaves.', 'Cold air, and every sound of the yard at once.']), 4); }
 function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
+function toggleCalc(){ calc.on = !calc.on; sfx.click(); calc.update && calc.update(); }
 var roomLight;
 {
   const wallpaper = tex(128, 128, (g, w, h) => {
@@ -836,16 +837,92 @@ var roomLight;
     const core = new THREE.Mesh(new THREE.CircleGeometry(0.001, 12), lead); core.rotation.y = -Math.PI / 2; core.position.x = -LB / 2 - 0.0002; P.add(core);   // the lead showing at the back end
     for (const m of [hexBody, cone, col, tip]) m.castShadow = true;
   }
-  // the Soviet calculator
-  const calcTex = tex(160, 280, (g, w, h) => {
-    g.fillStyle = '#262624'; g.fillRect(0, 0, w, h); g.fillStyle = '#3a3a38'; g.fillRect(8, 8, w - 16, h - 16);
-    g.fillStyle = '#10160f'; g.fillRect(16, 18, w - 32, 38); g.fillStyle = '#5affb0'; g.font = 'bold 20px monospace'; g.fillText('3.1415926', 22, 45);
-    g.fillStyle = '#c8b890'; g.font = 'bold 10px sans-serif'; g.fillText('ЭЛЕКТРОНИКА  Б3-34', 22, 72);
-    for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++){ g.fillStyle = r === 0 ? '#c86a2a' : c === 4 ? '#5a5a58' : '#d8d4c8'; g.fillRect(18 + c * 26, 86 + r * 30, 20, 20);
-      g.fillStyle = '#1a1a1a'; g.font = '10px sans-serif'; g.fillText(r > 1 && c < 3 ? String((7 - (r - 2) * 3 + c) > 0 ? 7 - (r - 2) * 3 + c : 0) : '', 25, 100 + r * 30); }
-  });
-  rbox(x0 + 0.34, x0 + 0.5, ty, ty + 0.02, TB - 1.56, TB - 1.47, new THREE.MeshStandardMaterial({ color: '#262624', roughness: 0.5 }));
-  label(0.09, 0.16, calcTex, x0 + 0.42, ty + 0.0205, TB - 1.515);
+  // the Elektronika B3-34 programmable calculator, 184 x 100 mm: a dark wedge of a body, the beige deck with 30 keys,
+  // the green vacuum-fluorescent display behind smoked glass; click it to switch it on and off
+  {
+    const HW = 0.047, HL = 0.089, cr = mkRng(3434);
+    const W = 768, Hc = Math.round(W * HL / HW), PX = v => v / (2 * HW) * W;   // panel texture, ~8 px per mm
+    const U = x => (x + HW) / (2 * HW) * W, V = z => (z + HL) / (2 * HL) * Hc;   // deck coords -> canvas px (canvas top = the display end, -z)
+    const ROWS = [-0.0168, 0.0004, 0.0176, 0.0348, 0.052, 0.0692], COLS = [-0.032, -0.016, 0, 0.016, 0.032], KW = 0.0122, KL = 0.0088;
+    const BLK = '#262523', BEI = '#c9bd9c', BLU = '#3f82d6', RED = '#d8453a';
+    const KEYS = [
+      [['F', BLK], ['ШГ→', BEI], ['ШГ←', BEI], ['В/О', BEI], ['С/П', BEI]],
+      [['K', BEI], ['ИП', BEI], ['П', BEI], ['БП', BEI], ['ПП', BEI]],
+      [['7', BLK], ['8', BLK], ['9', BLK], ['×', BLU], ['+', BLU]],
+      [['4', BLK], ['5', BLK], ['6', BLK], ['÷', BLU], ['−', BLU]],
+      [['1', BLK], ['2', BLK], ['3', BLK], ['x↔y', BLU], ['↑', BLU]],
+      [['0', BLK], [',', BLK], ['/-/', BLU], ['ВП', BLU], ['Cx', RED]]];
+    const ABOVE = [['', 'x<0', 'x=0', 'x≥0', 'x≠0'], ['', 'L0', 'L1', 'L2', 'L3'], ['sin', 'cos', 'tg', 'x²', 'π'], ['arcsin', 'arccos', 'arctg', '1/x', '√'], ['eˣ', 'lg', 'ln', 'xʸ', 'ВХ'], ['10ˣ', '○', 'АВТ', 'ПРГ', 'CF']];
+    const BELOW = ['НОП', 'А', 'В', 'С', 'Д'];
+    const deckTex = tex(W, Hc, (g, w, h) => {
+      g.fillStyle = '#d6d0bc'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 4000; i++){ g.fillStyle = cr() < 0.5 ? 'rgba(90,80,60,.07)' : 'rgba(255,255,245,.08)'; g.fillRect(cr() * w, cr() * h, 1.5, 1.5); }   // textured plastic
+      for (let i = 0; i < 14; i++) blot(g, cr() * w, cr() * h, 10 + cr() * 40, 'rgba(120,105,80,.05)');                                             // decades of fingers
+      // the raised display section: bezel, window, the two slide-switch recesses and the name
+      g.fillStyle = '#c9c3ae'; g.fillRect(0, 0, w, V(-0.034)); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, V(-0.034) - 3, w, 3);
+      g.fillStyle = '#3c3b37'; g.fillRect(U(-0.041), V(-0.085), PX(0.082), PX(0.027));
+      g.fillStyle = '#0d1a14'; g.fillRect(U(-0.036), V(-0.081), PX(0.072), PX(0.019));
+      for (const sx of [-1, 1]){ g.fillStyle = '#8e887a'; g.fillRect(U(sx * 0.031 - 0.009), V(-0.052), PX(0.018), PX(0.011)); g.fillStyle = '#2a2826'; g.fillRect(U(sx * 0.031 - 0.007), V(-0.0495), PX(0.014), PX(0.006)); }
+      g.fillStyle = '#6a6458'; g.textAlign = 'center'; g.font = `${PX(0.0034)}px "Arial Narrow", Arial, sans-serif`; g.fillText('ЭЛЕКТРОНИКА', U(0), V(-0.0475)); g.fillText('Б3-34', U(0), V(-0.042));
+      blot(g, U(0.031 + 0.003), V(-0.0465), PX(0.0012), '#d02020');                                                                                   // the red dot of the Р-Г switch
+      // the keys, their legends, the red shifted functions above and the addresses below
+      for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++){ const [lab, col] = KEYS[r][c], x = U(COLS[c]), y = V(ROWS[r]), kw = PX(KW), kl = PX(KL);
+        g.fillStyle = 'rgba(40,35,25,.35)'; g.fillRect(x - kw / 2 - 3, y - kl / 2 - 2, kw + 6, kl + 6);
+        g.fillStyle = col; g.fillRect(x - kw / 2 - 2, y - kl / 2 - 2, kw + 4, kl + 4);
+        const gr = g.createLinearGradient(0, y - kl / 2, 0, y + kl / 2); gr.addColorStop(0, 'rgba(255,255,255,.16)'); gr.addColorStop(1, 'rgba(0,0,0,.14)'); g.fillStyle = gr; g.fillRect(x - kw / 2, y - kl / 2, kw, kl);
+        g.fillStyle = col === BEI ? '#2a241c' : '#f4f2ec'; g.font = `bold ${PX(lab.length > 2 ? 0.0032 : 0.0046)}px Arial, sans-serif`; g.textBaseline = 'middle'; g.fillText(lab, x, y + 1);
+        g.fillStyle = '#c4362a'; g.font = `${PX(0.0031)}px Arial, sans-serif`; g.fillText(ABOVE[r][c], x, y - kl / 2 - PX(0.0028)); }
+      g.fillStyle = '#3a352c'; g.font = `${PX(0.0032)}px Arial, sans-serif`; for (let c = 0; c < 5; c++) g.fillText(BELOW[c], U(COLS[c]), V(ROWS[5]) + PX(KL) / 2 + PX(0.0034));
+      g.textAlign = 'left'; g.textBaseline = 'alphabetic'; });
+    deckTex.anisotropy = 16;
+    const project = (geo, lift = 0) => { const pa = geo.attributes.position, uv = new Float32Array(pa.count * 2);   // planar-map the deck texture from above
+      for (let i = 0; i < pa.count; i++){ uv[i * 2] = (pa.getX(i) + HW) / (2 * HW); uv[i * 2 + 1] = 1 - (pa.getZ(i) + HL) / (2 * HL); } geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); return geo; };
+    const C = new THREE.Group(); room.add(C);
+    // the body: a wedge, 20 mm at the keyboard end, 36 at the display end, softly bevelled
+    const prof = new THREE.Shape([new THREE.Vector2(0.092, 0.002), new THREE.Vector2(0.092, 0.019), new THREE.Vector2(-0.092, 0.035), new THREE.Vector2(-0.092, 0.002)]);
+    const bodyG = new THREE.ExtrudeGeometry(prof, { depth: 0.096, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 3 }); bodyG.rotateY(-Math.PI / 2); bodyG.translate(0.048, 0, 0);
+    const bodyM = new THREE.MeshStandardMaterial({ color: '#2f2e2b', roughness: 0.55 });
+    const body = new THREE.Mesh(bodyG, bodyM); body.castShadow = body.receiveShadow = true; C.add(body);
+    const slope = Math.atan2(0.016, 0.184), deck = new THREE.Group(); deck.position.set(0, 0.029, 0); deck.rotation.x = slope; C.add(deck);
+    const deckM = new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.6 });
+    const plate = new THREE.Mesh(project(new THREE.BoxGeometry(HW * 2, 0.0016, HL * 2).translate(0, 0.0008, 0)), deckM); plate.receiveShadow = true; deck.add(plate);
+    const raised = new THREE.Mesh(project(new THREE.BoxGeometry(HW * 2, 0.0022, 0.055).translate(0, 0.0027, -HL + 0.0275)), deckM); raised.castShadow = true; deck.add(raised);
+    // keycaps: rounded little blocks; their tops carry the legends painted on the deck texture
+    const capGeo = (() => { const g = new THREE.BoxGeometry(KW, 0.004, KL, 4, 1, 4), pa = g.attributes.position;
+      for (let i = 0; i < pa.count; i++){ const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i); const t = y > 0 ? 1 : 0;
+        pa.setXYZ(i, x * (1 - 0.08 * t), y - t * 0.0004 * (1 - (2 * x / KW) ** 2), z * (1 - 0.1 * t)); } g.computeVertexNormals(); return g; })();
+    const caps = []; for (const z of ROWS) for (const x of COLS) caps.push(capGeo.clone().translate(x, 0.0016 + 0.002, z));
+    const keys = new THREE.Mesh(project(mergeGeometries(caps)), new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.42 })); keys.castShadow = true; deck.add(keys);
+    // the slide switches: power on the left (slid right when on), Р-Г on the right
+    const knobM = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.5 });
+    const pow = new THREE.Mesh(new THREE.BoxGeometry(0.0045, 0.0022, 0.004), knobM); deck.add(pow);
+    const rg = new THREE.Mesh(new THREE.BoxGeometry(0.0045, 0.0022, 0.004), knobM); rg.position.set(0.031 - 0.0035, 0.0045, -0.0465); deck.add(rg);
+    // the display: eight digits plus sign and exponent on a vacuum-fluorescent tube, green, with the dark segments faintly visible
+    const segs = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '' };
+    const vfd = (lit) => tex(512, 136, (g, w, h) => {
+      g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+      const text = ' 3.1415926', N = 12, cw = w / (N + 0.5);
+      for (let i = 0; i < N; i++){ const ch = i < text.length ? text[i] : ' ', dot = text[i + 1] === '.';
+        if (ch === '.') continue; const k = [...text.slice(0, i)].filter(c => c !== '.').length;
+        const x = 18 + k * cw * 1.04, y = 30, sw = cw * 0.52, sh = 34, t = 6;
+        const S = { a: [x + 3, y, sw - 6, t], b: [x + sw - t, y + 3, t, sh - 6], c: [x + sw - t, y + sh + 3, t, sh - 6], d: [x + 3, y + 2 * sh - t, sw - 6, t], e: [x, y + sh + 3, t, sh - 6], f: [x, y + 3, t, sh - 6], g: [x + 3, y + sh - t / 2, sw - 6, t] };
+        for (const [n, r] of Object.entries(S)){ const on = lit && (segs[ch] || '').includes(n); g.save(); g.transform(1, 0, -0.12, 1, 8, 0);
+          if (on){ g.shadowColor = '#3cff9a'; g.shadowBlur = 14; g.fillStyle = '#8dffc4'; } else g.fillStyle = 'rgba(40,90,70,.18)';
+          g.fillRect(...r); if (on){ g.shadowBlur = 0; g.fillStyle = '#d8ffe8'; g.fillRect(r[0] + 1.5, r[1] + 1.5, r[2] - 3, r[3] - 3); } g.restore(); }
+        if (dot){ g.fillStyle = lit ? '#8dffc4' : 'rgba(40,90,70,.18)'; g.shadowColor = '#3cff9a'; g.shadowBlur = lit ? 12 : 0; g.fillRect(x + sw + 3, y + 2 * sh - t, t, t); g.shadowBlur = 0; } }
+      if (lit){ g.globalCompositeOperation = 'lighter'; const gl = g.createLinearGradient(0, 0, 0, h); gl.addColorStop(0, 'rgba(20,80,50,0)'); gl.addColorStop(0.5, 'rgba(20,80,50,.25)'); gl.addColorStop(1, 'rgba(20,80,50,0)'); g.fillStyle = gl; g.fillRect(0, 0, w, h); } });
+    const vfdOn = vfd(true), vfdOff = vfd(false);
+    const dispM = new THREE.MeshStandardMaterial({ color: '#000000', map: vfdOff, emissive: '#ffffff', emissiveMap: vfdOn, emissiveIntensity: 1.4, roughness: 1 });
+    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.0186).rotateX(-Math.PI / 2), dispM); disp.position.set(0, 0.0041, -0.0715); deck.add(disp);
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.072, 0.019).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: '#1f4a3a', transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, clearcoat: 1, depthWrite: false }));
+    glass.position.set(0, 0.0047, -0.0715); deck.add(glass);
+    const glow = new THREE.PointLight(0x4dff9a, 0, 0.25, 2); glow.position.set(0, 0.03, -0.065); deck.add(glow);
+    calc.update = () => { dispM.emissiveIntensity = calc.on ? 1.4 : 0; glow.intensity = calc.on ? 0.004 : 0; pow.position.set(-0.031 + (calc.on ? 0.0035 : -0.0035), 0.0045, -0.0465); };
+    calc.update();
+    for (const m of [body, plate, raised, keys, disp, glass, pow]){ m.userData.calc = true; calc.parts.push(m); }
+    // lying with the display away from me, turned a little towards the notebook
+    C.position.set(x0 + 0.42, ty, TB - 1.52); C.rotation.y = Math.PI / 2 - 0.26;
+  }
   // the book by Uspensky — "Машина Поста"
   const coverTex = tex(300, 420, (g, w, h) => {
     g.fillStyle = '#e6dcc0'; g.fillRect(0, 0, w, h); g.fillStyle = '#2a5a8a'; g.fillRect(0, 0, w, 54);
@@ -859,10 +936,11 @@ var roomLight;
   // a slim paperback in the «Популярные лекции по математике» format: 13 x 20 cm, 5 mm thick, spine to the left
   const pages = tex(16, 256, (g, w, h) => { g.fillStyle = '#efe7d2'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2){ g.fillStyle = `rgba(120,100,70,${0.08 + pr() * 0.1})`; g.fillRect(0, y, w, 1); } });
   const coverM = new THREE.MeshStandardMaterial({ color: '#e6dcc0', roughness: 0.8 }), pageM = new THREE.MeshStandardMaterial({ map: pages, roughness: 0.95 });
-  const usp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.0052, 0.13), [pageM, pageM, coverM, coverM, pageM, pageM]); usp.position.set(x0 + 0.445, ty + 0.0026, TB - 0.725); usp.castShadow = usp.receiveShadow = true; room.add(usp);
+  const bookG = new THREE.Group(); bookG.position.set(x0 + 0.445, 0, TB - 0.725); bookG.rotation.y = 0.24; room.add(bookG);   // turned a little towards the notebook
+  const usp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.0052, 0.13), [pageM, pageM, coverM, coverM, pageM, pageM]); usp.position.set(0, ty + 0.0026, 0); usp.castShadow = usp.receiveShadow = true; bookG.add(usp);
   const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.2, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#2a5a8a', roughness: 0.8 }));
-  spine.position.set(x0 + 0.445, ty + 0.0026, TB - 0.725 + 0.065); spine.scale.set(1, 0.95, 0.5); room.add(spine);
-  const cover = label(0.13, 0.2, coverTex, x0 + 0.445, ty + 0.0054, TB - 0.725);
+  spine.position.set(0, ty + 0.0026, 0.065); spine.scale.set(1, 0.95, 0.5); bookG.add(spine);
+  const cover = label(0.13, 0.2, coverTex, 0, ty + 0.0054, 0); bookG.add(cover);
   usp.userData.title = cover.userData.title = 'В. А. Успенский — «Машина Поста»';
   BOOKS.push(usp, cover);
 
@@ -1109,16 +1187,16 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
 {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, down = null;
   const pickBook = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts, ...WIN_PARTS], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
+    const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts, ...WIN_PARTS, ...calc.parts], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
   const setHover = (b) => { if (b === hovered) return;
-    if (hovered && !hovered.userData.lamp && !hovered.userData.win) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
+    if (hovered && !hovered.userData.lamp && !hovered.userData.win && !hovered.userData.calc) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
-    if (b && (b.userData.lamp || b.userData.win)){ hovered = b; return; }
+    if (b && (b.userData.lamp || b.userData.win || b.userData.calc)){ hovered = b; return; }
     if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + tr(' — click to open'), 3); } };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
-    const b = pickBook(e); if (b){ if (b.userData.lamp) toggleLamp(); else if (b.userData.win) toggleWindow(); else window.open(POST_URL, '_blank', 'noopener'); } });
+    const b = pickBook(e); if (b){ if (b.userData.lamp) toggleLamp(); else if (b.userData.calc) toggleCalc(); else if (b.userData.win) toggleWindow(); else window.open(POST_URL, '_blank', 'noopener'); } });
 }
 
 /* ============================== the chestnut tree ============================== */
