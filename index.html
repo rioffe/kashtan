@@ -750,11 +750,14 @@ var roomLight;
   rbox(x0, x0 + 0.7, ty - 0.035, ty, tz1, tz0, veneer);
   for (const [dx, dz] of [[0.05, -0.05], [0.65, -0.05], [0.05, -1.15], [0.65, -1.15]]) rbox(x0 + dx - 0.025, x0 + dx + 0.025, y0, ty - 0.035, tz0 + dz - 0.025, tz0 + dz + 0.025, wood);
   rbox(x0 + 0.02, x0 + 0.66, ty - 0.2, ty - 0.035, tz0 - 0.75, tz0 - 0.05, wood); // drawer box
-  { const cx = x0 + 0.95, cz = TB - 1.12, sy = y0 + 0.45, chairM = new THREE.MeshStandardMaterial({ color: '#8a5a32', roughness: 0.6 });
+  { const cx = x0 + 0.95, cz = TB - 1.12, sy = y0 + 0.45, chairM = new THREE.MeshStandardMaterial({ color: '#8a5a32', roughness: 0.6 }), n0 = room.children.length;
     rbox(cx - 0.2, cx + 0.2, sy - 0.03, sy, cz - 0.2, cz + 0.2, chairM);
     for (const [dx, dz] of [[-0.17, -0.17], [-0.17, 0.17], [0.17, -0.17], [0.17, 0.17]]) rbox(cx + dx - 0.018, cx + dx + 0.018, y0, sy - 0.03, cz + dz - 0.018, cz + dz + 0.018, chairM);
     for (const dz of [-0.17, 0.17]) rbox(cx + 0.17 - 0.018, cx + 0.17 + 0.018, sy, sy + 0.45, cz + dz - 0.018, cz + dz + 0.018, chairM);
-    rbox(cx + 0.155, cx + 0.19, sy + 0.28, sy + 0.44, cz - 0.19, cz + 0.19, chairM); rbox(cx + 0.16, cx + 0.18, sy + 0.12, sy + 0.16, cz - 0.17, cz + 0.17, chairM); }
+    rbox(cx + 0.155, cx + 0.19, sy + 0.28, sy + 0.44, cz - 0.19, cz + 0.19, chairM); rbox(cx + 0.16, cx + 0.18, sy + 0.12, sy + 0.16, cz - 0.17, cz + 0.17, chairM);
+    // turned a little towards the window, as if I had just been looking out
+    const pivot = new THREE.Group(); pivot.position.set(cx, 0, cz); pivot.rotation.y = 0.38;
+    for (const m of room.children.slice(n0)){ m.position.x -= cx; m.position.z -= cz; pivot.add(m); } room.add(pivot); }
   // the desk lamp: weighted base, jointed chrome arm, green enamel dome shade
   {
     const enamel = new THREE.MeshStandardMaterial({ color: '#3f8a68', roughness: 0.3, metalness: 0.1 });
