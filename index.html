@@ -377,9 +377,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
   street.position.set(0, 0.011, (STABU_FRONT + STABU_FAR) / 2); street.receiveShadow = true; scene.add(street);
   for (const z of [STABU_FRONT + 1.1, STABU_FAR - 1.1]){ const kerb = new THREE.Mesh(new THREE.BoxGeometry(900, 0.14, 2.2), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 })));
     kerb.position.set(0, 0.07, z); kerb.receiveShadow = true; scene.add(kerb); } road.receiveShadow = true; scene.add(road);
-  const yt = dirtTex.clone(); yt.repeat.set(5, 2); yt.needsUpdate = true;
-  const yard = new THREE.Mesh(new THREE.PlaneGeometry(46, 14).rotateX(-Math.PI / 2), flatMat(yt, '#e8e0d4', 0.9, -2));
-  yard.position.set(2, 0.012, BZ + 6.5); yard.receiveShadow = true; scene.add(yard);
+  // (no bare yard: in front of the house it is grass, with narrow asphalt paths — see 'paths and overgrowth' below)
   const ct = dirtTex.clone(); ct.repeat.set(3, 3); ct.needsUpdate = true;
   const worn = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40).rotateX(-Math.PI / 2), flatMat(ct, '#d8ccb8', 0.9, -3));
   worn.position.set(TREE.x, 0.014, TREE.z); worn.receiveShadow = true; scene.add(worn);
@@ -521,6 +519,81 @@ const roofTex = tex(512, 512, (g, w, h) => {
   for (const x of [-17.6, -0.2, 17.6]){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, BH, 8), pipe); p.position.set(x, BH / 2, BZ + 0.12); scene.add(p); }
   const gut = new THREE.Mesh(new THREE.BoxGeometry(BW + 0.8, 0.14, 0.18), pipe); gut.position.set(0, BH + 0.02, BZ + 0.5); scene.add(gut);
 }
+/* ---------- paths and overgrowth: narrow, cracked, mossy asphalt paths to the entrances, a trodden track to the tree,
+   and grass running wild along every edge, the lane's verges and between its ruts ---------- */
+const TUFTS = [];
+{
+  const pr = mkRng(5150), rn = (a, b) => a + pr() * (b - a);
+  const surfaceTex = (base, fn) => tex(256, 512, (g, w, h) => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h); fn(g, w, h);
+    g.globalCompositeOperation = 'destination-out';                                               // ragged edges where the grass has crept in
+    for (let y = 0; y < h; y += 3) for (const side of [0, 1]){ const d = (0.02 + 0.07 * pr() * pr()) * w; g.fillStyle = '#000'; g.fillRect(side ? w - d : 0, y, d, 4); }
+    g.globalCompositeOperation = 'source-over'; });
+  const asphalt = surfaceTex('#76736c', (g, w, h) => {
+    for (let i = 0; i < 60; i++) blot(g, pr() * w, pr() * h, rn(10, 50), pr() < 0.5 ? 'rgba(40,40,38,.10)' : 'rgba(200,196,186,.08)');   // patching, wear
+    for (let i = 0; i < 9000; i++){ const v = pr(); g.fillStyle = v < 0.4 ? 'rgba(40,38,36,.45)' : v < 0.8 ? 'rgba(170,166,158,.45)' : 'rgba(120,104,90,.5)'; g.fillRect(pr() * w, pr() * h, rn(0.6, 2.2), rn(0.6, 2.2)); }
+    g.strokeStyle = 'rgba(28,26,24,.85)'; g.lineCap = 'round';
+    for (let c = 0; c < 7; c++){ let x = pr() * w, y = pr() * h, a = pr() < 0.5 ? rn(-0.4, 0.4) : Math.PI / 2 + rn(-0.4, 0.4); g.lineWidth = rn(1, 2.6); g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 14; k++){ a += rn(-0.6, 0.6); x += Math.cos(a) * 12; y += Math.sin(a) * 12; g.lineTo(x, y); } g.stroke();
+      g.strokeStyle = 'rgba(70,95,40,.35)'; g.lineWidth = 3; g.stroke(); g.strokeStyle = 'rgba(28,26,24,.85)'; }   // moss in the cracks
+    for (const side of [0, 1]) for (let y = 0; y < h; y += 4){ const d = rn(0.08, 0.3) * w, gr = g.createLinearGradient(side ? w : 0, 0, side ? w - d : d, 0);   // moss along the edges
+      gr.addColorStop(0, 'rgba(78,104,40,.75)'); gr.addColorStop(1, 'rgba(78,104,40,0)'); g.fillStyle = gr; g.fillRect(side ? w - d : 0, y, d, 5); } });
+  const earth = surfaceTex('#6e5d48', (g, w, h) => {
+    for (let i = 0; i < 6000; i++){ const v = pr(); g.fillStyle = v < 0.5 ? 'rgba(50,40,30,.4)' : 'rgba(160,145,120,.35)'; g.fillRect(pr() * w, pr() * h, rn(0.8, 2.5), rn(0.8, 2.5)); }
+    for (const side of [0, 1]) for (let y = 0; y < h; y += 4){ const d = rn(0.15, 0.4) * w, gr = g.createLinearGradient(side ? w : 0, 0, side ? w - d : d, 0);
+      gr.addColorStop(0, 'rgba(90,120,50,.8)'); gr.addColorStop(1, 'rgba(90,120,50,0)'); g.fillStyle = gr; g.fillRect(side ? w - d : 0, y, d, 5); } });
+  const pathMat = map => { const m = flatMat(map, '#ffffff', 0.95, -2); m.alphaTest = 0.5; m.roughness = 0.95; return m; };
+  const edges = [];   // sampled edge points of every path, for the grass
+  const ribbon = (pts, w, map, y = 0.016) => {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new V3(x, 0, z))), L = curve.getLength(), N = Math.max(4, Math.ceil(L / 0.2)), A = 5, pos = [], uv = [], idx = [];
+    for (let i = 0; i <= N; i++){ const t = i / N, P = curve.getPointAt(t), T = curve.getTangentAt(t), nx = -T.z, nz = T.x;
+      for (let k = 0; k < A; k++){ const a = k / (A - 1), o = (a - 0.5) * w * (1 + (k === 0 || k === A - 1 ? 0.12 * Math.sin(i * 1.7 + k) + rn(-0.08, 0.08) : 0));
+        pos.push(P.x + nx * o, y, P.z + nz * o); uv.push(a, t * L / 2); }
+      if (i % 2 === 0) for (const sd of [-1, 1]) edges.push([P.x + nx * sd * w / 2, P.z + nz * sd * w / 2, nx * sd, nz * sd]); }
+    for (let i = 0; i < N; i++) for (let k = 0; k < A - 1; k++){ const a = i * A + k; idx.push(a, a + 1, a + A, a + 1, a + A + 1, a + A); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, pathMat(map)); m.receiveShadow = true; scene.add(m); return curve; };
+  ribbon([[-17.8, BZ + 0.38], [0, BZ + 0.38], [17.8, BZ + 0.38]], 0.72, asphalt);                                          // the strip along the wall
+  ribbon([[9, BZ + 1.15], [8.75, BZ + 2.3], [5.2, BZ + 3.05], [0, BZ + 3.3], [-4.2, BZ + 3.15], [-6.3, BZ + 3.0]], 1.15, asphalt);   // entrance 2 to the lane
+  ribbon([[-9, BZ + 1.2], [-8.7, BZ + 2.4], [-8.2, BZ + 4]], 1.1, asphalt, 0.017);                                           // entrance 1, onto the lane
+  ribbon([[6.6, BZ + 3.25], [7.9, BZ + 4.6], [9.0, BZ + 6.3], [9.4, TREE.z - 5.6]], 0.6, earth, 0.015);                  // the trodden track to the tree
+  // where the grass may grow, and how thickly
+  const PATHPTS = edges.map(e => [e[0] - e[2] * 0.3, e[1] - e[3] * 0.3]);
+  const blocked = (x, z) => {
+    if (z < BZ + 0.8 || x > 17.85 || x < -17.85) return true;
+    if (x < -11.9 && z > -129.9) return true;                                                     // the garages
+    if (x > GX0 - 0.25 && z > -126.2) return true;                                                // the gardens have their own planting
+    if (Math.abs(x - ROAD_X) < ROAD_W / 2 - 0.15 && Math.abs(x - ROAD_X) > 0.35) return true;     // the lane's wheel ruts
+    if (Math.hypot(x - TREE.x, z - TREE.z) < 5.7 || Math.hypot(x - FIRE.x, z - FIRE.z) < 1.7) return true;
+    if (Math.hypot(x - 12.5, z - BZ - 2.2) < 1.0 || Math.hypot(x - TREE.x + 2.6, z - TREE.z - 2.4) < 1.0) return true;   // benches
+    for (const [px, pz] of PATHPTS) if (Math.abs(x - px) < 0.55 && Math.abs(z - pz) < 0.55) return true;
+    return false; };
+  const tuft = (x, z, k) => { if (!blocked(x, z)) TUFTS.push({ x, z, s: k * rn(0.55, 1.25), yaw: rn(0, TAU), v: rn(0.8, 1.15), r: pr(), dry: pr() }); };
+  for (const [x, z, nx, nz] of edges) for (let k = 0; k < 3; k++){ const o = rn(0.02, 0.6) ** 1.4; tuft(x + nx * o + rn(-0.12, 0.12), z + nz * o + rn(-0.12, 0.12), 1.15 - o * 0.4); }
+  for (let z = BZ + 1; z < STABU_FRONT - 1; z += 0.14){                                             // the lane: both verges, and the hump between the ruts
+    for (const ex of [ROAD_X - ROAD_W / 2, ROAD_X + ROAD_W / 2]){ const sd = Math.sign(ex - ROAD_X), o = rn(-0.25, 1.4) ** 1; tuft(ex + sd * o, z + rn(-0.07, 0.07), o < 0 ? 0.6 : 1.1); }
+    if (pr() < 0.35) tuft(ROAD_X + rn(-0.3, 0.3), z, 0.55); }
+  for (let i = 0; i < 9000; i++){ const x = rn(-17.8, 17.8), z = rn(BZ + 0.8, -128.5), clump = fbm(x * 0.35 + 3, z * 0.35 - 7);   // the yard, in clumps
+    if (pr() < clump * 1.5 - 0.15) tuft(x, z, 0.55 + clump * 0.7); }
+  for (let a = 0; a < TAU; a += 0.05){ const r = rn(5.7, 6.8); tuft(TREE.x + Math.cos(a) * r, TREE.z + Math.sin(a) * r, 0.8); }   // the edge of the trampled ring under the tree
+  // a tuft: three crossed cards of blades, drawn pale so the season can colour them
+  const bladeTex = tex(128, 128, (g, w, h) => { for (let i = 0; i < 70; i++){ const x0 = w * (0.15 + 0.7 * pr()), lean = rn(-0.5, 0.5), L = h * rn(0.45, 0.95), wd = rn(1.5, 3.5);
+    g.fillStyle = `rgb(${200 + pr() * 40 | 0},${215 + pr() * 35 | 0},${170 + pr() * 40 | 0})`; g.beginPath(); g.moveTo(x0 - wd, h); g.quadraticCurveTo(x0 + lean * L * 0.3, h - L * 0.5, x0 + lean * L * 0.6, h - L); g.lineTo(x0 + wd, h); g.fill(); } });
+  const cards = []; for (let k = 0; k < 3; k++) cards.push(new THREE.PlaneGeometry(0.42, 0.3).translate(0, 0.15, 0).rotateY(k * Math.PI / 3));
+  const tm = swayify(new THREE.MeshStandardMaterial({ map: bladeTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }), 0.12);
+  TUFTS.mesh = new THREE.InstancedMesh(mergeGeometries(cards), tm, TUFTS.length); TUFTS.mesh.receiveShadow = true; TUFTS.mesh.frustumCulled = false; scene.add(TUFTS.mesh);
+  TUFTS.mesh.setColorAt(0, new THREE.Color());
+}
+const tuftKeys = [[0.6, C('#8a7e58')], [1.2, C('#6e7e40')], [1.7, C('#6a9a3c')], [2.5, C('#4a7a2a')], [3.1, C('#647a34')], [3.6, C('#8a8048')], [3.95, C('#857652')]];
+let tuftS = -1;
+function updateTufts(){
+  if (Math.abs(S - tuftS) < 0.002) return; tuftS = S;
+  const sn = SP(S).snow, grow = 0.35 + 0.65 * bump(S, 1.1, 1.9, 3.6, 4.2), col = cyc(S, tuftKeys, tmpC2).clone(), m = TUFTS.mesh, dryK = clamp((S - 3.0) / 0.6) + (S < 1.2 ? 1 : 0);
+  TUFTS.forEach((T, i) => { const h = T.s * grow * (1 - sn * (0.75 + 0.25 * T.r)); SC.set(T.s, Math.max(0.001, h), T.s); Q.setFromAxisAngle(P3.set(0, 1, 0), T.yaw); M4.compose(P3.set(T.x, 0, T.z), Q, SC); m.setMatrixAt(i, M4);
+    m.setColorAt(i, tmpC.copy(col).lerp(tmpC2.set('#b3a46a'), Math.min(1, dryK * T.dry * 0.6 + (T.dry > 0.9 ? 0.55 : 0))).multiplyScalar(T.v)); });   // a few always gone to seed, straw-coloured
+  m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.visible = sn < 0.97;
+}
+
 /* lamp over entry 2 */
 const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff0c8' }));
 bulb.position.set(9, 2.55, BZ + 0.9); scene.add(bulb);
@@ -2680,6 +2753,7 @@ function updateSeasonal(sp){
   // gardens
   updateOrchard();
   updateVines();
+  updateTufts();
   vegData.forEach((v, i) => { SC.setScalar(v.s * sp.veg * (v.kind < 0.5 ? 1 : 0.7)); Q.identity(); M4.compose(v.p, Q, SC); veg.setMatrixAt(i, M4); }); veg.instanceMatrix.needsUpdate = true; veg.visible = sp.veg > 0.001;
   let anyFl = false;
   flowerData.forEach((f, i) => { const k = bump(S, ...f.win); anyFl = anyFl || k > 0; Q.setFromAxisAngle(P3.set(0, 1, 0), f.yaw);
@@ -3258,7 +3332,7 @@ function frame(){
   sparks.update(dt, t, wind * 0.2);
 
   if (started) syncCtx();
-  if (window.__lookcam && mode === 'window'){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
+  if (window.__lookcam){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
   if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + 0.085, f.z); }   // debug: ?figcam=dist,angle,height
   renderer.render(scene, camera);
 }
