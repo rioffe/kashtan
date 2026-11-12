@@ -680,9 +680,21 @@ lampGlow.position.copy(bulb.position); lampGlow.scale.set(1.6, 1.6, 1); scene.ad
 const room = new THREE.Group(); scene.add(room);
 const BOOKS = [], POST_URL = 'https://rioffe.github.io/post-machine/';
 const deskLamp = { on: true, parts: [] }, calc = { on: true, parts: [] };
+// sitting at my table: a seated view over the desk, and close views of each thing on it that you can turn and zoom
+const desk = { on: false, f: null, views: {}, pick: [], yaw: 0, pitch: 0, d: 1, cp: new THREE.Vector3(), ct: new THREE.Vector3(), snap: true };
 const WIN_PARTS = [], winOpen = { v: 0, target: 0, sashes: [], outSashes: [] };
 function toggleWindow(){ winOpen.target = winOpen.target ? 0 : 1; sfx.creak(); if (winOpen.target) caption(pick(['The window swung out over the yard, and the tree came in with the air.', 'Open window: the smell of rain and chestnut leaves.', 'Cold air, and every sound of the yard at once.']), 4); }
 function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
+function deskView(k){ desk.f = k; const v = desk.views[k || 'seat']; desk.yaw = v.yaw; desk.pitch = v.pitch; desk.d = v.d; }
+function sitDesk(on){ if (on === desk.on || mode !== 'window') return; desk.on = on; desk.snap = false;
+  if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(null); camera.near = 0.03; camera.updateProjectionMatrix();
+    caption(pick(['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
+  else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat;
+    camera.position.set(HOME.x + 0.45, WIN_POS.y, v.t.z + 0.1); cam.yaw = Math.PI / 2 + 0.2; cam.pitch = -0.35; } }
+function deskClick(b){ const k = b && b.userData.desk;
+  if (k){ if (desk.f === k){ if (k === 'book') window.open(POST_URL, '_blank', 'noopener'); else if (k === 'calc') toggleCalc(); } else deskView(k); return; }
+  if (b && b.userData.lamp){ toggleLamp(); return; } if (b && b.userData.win){ toggleWindow(); return; }
+  if (desk.f) deskView(null); }
 function toggleCalc(){ calc.on = !calc.on; sfx.click(); calc.update && calc.update(); }
 var roomLight;
 {
@@ -906,7 +918,8 @@ var roomLight;
     rbox(cx + 0.155, cx + 0.19, sy + 0.28, sy + 0.44, cz - 0.19, cz + 0.19, chairM); rbox(cx + 0.16, cx + 0.18, sy + 0.12, sy + 0.16, cz - 0.17, cz + 0.17, chairM);
     // turned a little towards the window, as if I had just been looking out
     const pivot = new THREE.Group(); pivot.position.set(cx, 0, cz); pivot.rotation.y = 0.38;
-    for (const m of room.children.slice(n0)){ m.position.x -= cx; m.position.z -= cz; pivot.add(m); } room.add(pivot); }
+    for (const m of room.children.slice(n0)){ m.position.x -= cx; m.position.z -= cz; m.userData.chair = true; desk.pick.push(m); pivot.add(m); } room.add(pivot);
+    desk.views.seat = { t: new THREE.Vector3(x0 + 0.38, ty + 0.03, TB - 1.25), yaw: Math.PI / 2 - 0.1, pitch: 0.7, d: 1.0, yr: 0.9, p0: 0.25, p1: 1.2, d0: 0.6, d1: 1.0 }; }
   // the desk lamp: weighted base, jointed chrome arm, green enamel dome shade
   {
     const enamel = new THREE.MeshStandardMaterial({ color: '#3f8a68', roughness: 0.3, metalness: 0.1 });
@@ -961,7 +974,8 @@ var roomLight;
     g.strokeStyle = 'rgba(160,30,30,.7)'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(ox + 52, 296, 46, 13, 0.05, 0, TAU); g.stroke();
   });
   rbox(x0 + 0.23, x0 + 0.53, ty, ty + 0.008, TB - 1.33, TB - 0.91, new THREE.MeshStandardMaterial({ color: '#2a4a6a' }));
-  label(0.42, 0.3, noteTex, x0 + 0.38, ty + 0.0095, TB - 1.12);
+  { const nb = label(0.42, 0.3, noteTex, x0 + 0.38, ty + 0.0095, TB - 1.12); nb.userData.desk = 'note'; desk.pick.push(nb);
+    desk.views.note = { t: new THREE.Vector3(x0 + 0.38, ty + 0.01, TB - 1.12), yaw: Math.PI / 2, pitch: 1.2, d: 0.42, yr: 0.6, p0: 0.6, p1: 1.45, d0: 0.18, d1: 0.6 }; }
   // a «Конструктор» 2М: hexagonal, natural lacquered wood, the name stamped in black on one face, sharpened with a knife
   const pr = mkRng(2002);
   {
@@ -1070,6 +1084,8 @@ var roomLight;
     for (const m of [body, plate, raised, keys, disp, glass, pow]){ m.userData.calc = true; calc.parts.push(m); }
     // lying with the display away from me, turned a little towards the notebook
     C.position.set(x0 + 0.42, ty, TB - 1.52); C.rotation.y = Math.PI / 2 - 0.26;
+    for (const m of calc.parts) m.userData.desk = 'calc';
+    desk.views.calc = { t: new THREE.Vector3(x0 + 0.42, ty + 0.025, TB - 1.52), yaw: Math.PI / 2 - 0.26, pitch: 1.0, d: 0.3, yr: 0.7, p0: 0.35, p1: 1.4, d0: 0.13, d1: 0.45 };
   }
   // the book by Uspensky — "Машина Поста"
   const coverTex = tex(300, 420, (g, w, h) => {
@@ -1089,6 +1105,8 @@ var roomLight;
   const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.2, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#2a5a8a', roughness: 0.8 }));
   spine.position.set(0, ty + 0.0026, 0.065); spine.scale.set(1, 0.95, 0.5); bookG.add(spine);
   const cover = label(0.13, 0.2, coverTex, 0, ty + 0.0054, 0); bookG.add(cover);
+  usp.userData.desk = cover.userData.desk = 'book'; desk.pick.push(usp, cover);
+  desk.views.book = { t: new THREE.Vector3(x0 + 0.445, ty + 0.005, TB - 0.725), yaw: Math.PI / 2 + 0.24, pitch: 1.2, d: 0.34, yr: 0.6, p0: 0.5, p1: 1.45, d0: 0.16, d1: 0.5 };
   usp.userData.title = cover.userData.title = 'В. А. Успенский — «Машина Поста»';
   BOOKS.push(usp, cover);
 
@@ -1237,7 +1255,8 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
     const fig = new THREE.Mesh(fg, figM); fig.castShadow = true;
     const fx = x0 + 0.12, fz = TB - 1.42; fig.position.set(fx, ty, fz);
     fig.rotation.y = Math.atan2(HOME.x + 0.1 - fx, BZ - 0.85 - fz);   // turned to face whoever stands at the window
-    room.add(fig);
+    room.add(fig); fig.userData.desk = 'fig'; desk.pick.push(fig);
+    desk.views.fig = { t: new THREE.Vector3(fx, ty + 0.085, fz), yaw: fig.rotation.y, pitch: 0.12, d: 0.3, yr: 1.35, p0: -0.25, p1: 1.2, d0: 0.13, d1: 0.5 };
     { const fc = new URLSearchParams(location.search).get('figcam'); if (fc){ const v = fc.split(',').map(Number); window.__figcam = [v[0], v[1] || 0, v[2] || 0.09, { x: fx, y: ty, z: fz, ry: fig.rotation.y }]; } }
     if (DEBUG_FIG) console.log('figurine', (performance.now() - t0).toFixed(0) + ' ms', P.length / 3, 'verts');
   }
@@ -1335,16 +1354,18 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
 {
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let hovered = null, down = null;
   const pickBook = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts, ...WIN_PARTS, ...calc.parts], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
+    const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts, ...WIN_PARTS, ...calc.parts, ...desk.pick], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
   const setHover = (b) => { if (b === hovered) return;
-    if (hovered && !hovered.userData.lamp && !hovered.userData.win && !hovered.userData.calc) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
+    if (hovered && !hovered.userData.lamp && !hovered.userData.win && !hovered.userData.calc && !hovered.userData.desk && !hovered.userData.chair) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
-    if (b && (b.userData.lamp || b.userData.win || b.userData.calc)){ hovered = b; return; }
+    if (b && (b.userData.lamp || b.userData.win || b.userData.calc || b.userData.desk || b.userData.chair)){ hovered = b; return; }
     if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + tr(' — click to open'), 3); } };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
-    const b = pickBook(e); if (b){ if (b.userData.lamp) toggleLamp(); else if (b.userData.calc) toggleCalc(); else if (b.userData.win) toggleWindow(); else window.open(POST_URL, '_blank', 'noopener'); } });
+    const b = pickBook(e); if (desk.on){ deskClick(b); return; }
+    if (b && b.userData.chair){ sitDesk(true); return; }
+    if (b){ if (b.userData.lamp) toggleLamp(); else if (b.userData.calc) toggleCalc(); else if (b.userData.win) toggleWindow(); else window.open(POST_URL, '_blank', 'noopener'); } });
 }
 
 /* ============================== the chestnut tree ============================== */
@@ -2299,7 +2320,11 @@ const puddles = new THREE.Group(); scene.add(puddles);
   for (let z = ROAD_Z0 + 1.5; z < STABU_FRONT - 2; z += rn(1.5, 4.5)){                 // in the lane: long ones in the wheel ruts, the odd big one across
     if (pr() < 0.25) add(ROAD_X + rn(-0.4, 0.4), z, rn(0.9, 1.5), rn(1.0, 2.2), rn(-0.3, 0.3));
     else add(ROAD_X + (pr() < 0.5 ? -0.75 : 0.75) + rn(-0.12, 0.12), z, rn(0.25, 0.45), rn(0.8, 2.4), rn(-0.08, 0.08)); }
-  for (let k = 0; k < 14; k++){ const t = pr(); add(lerp(-8.6, 8.4, t) + rn(-0.3, 0.3), lerp(ROAD_Z0 + 0.5, -147, t) + rn(-1, 1), rn(0.35, 0.8), rn(0.4, 1.0), rn(0, TAU)); }   // on the paths and the trampled ground
+  { // on both paths to the entrances, in their dips
+    const left = new THREE.CatmullRomCurve3([[ROAD_X - 0.7, ROAD_Z0 + 0.6], [-9.3, -131], [-9.35, -138], [-9.2, -144.5], [-9, BZ + 1.15]].map(([x, z]) => new V3(x, 0, z)));
+    const right = new THREE.CatmullRomCurve3([[ROAD_X + 0.7, ROAD_Z0 + 0.6], [-4.6, -131.2], [0.2, -136.4], [5, -141.8], [8.4, -146.6], [9, BZ + 1.15]].map(([x, z]) => new V3(x, 0, z)));
+    for (const [c, n] of [[left, 8], [right, 9]]) for (let k = 0; k < n; k++){ const P = c.getPointAt((k + rn(0.1, 0.9)) / n), T = c.getTangentAt(0.5);
+      add(P.x + rn(-0.2, 0.2), P.z + rn(-0.2, 0.2), rn(0.3, 0.55), rn(0.45, 1.1), Math.atan2(T.x, T.z) + rn(-0.4, 0.4)); } }
   for (let k = 0; k < 6; k++){ const a = pr() * TAU, r = rn(1.5, 5); add(TREE.x + Math.cos(a) * r, TREE.z + Math.sin(a) * r, rn(0.6, 1.4), rn(0.6, 1.6), rn(0, TAU)); }   // the bare ring under the tree
   for (let k = 0; k < 4; k++) add(rn(-6, 14), BZ + rn(0.4, 0.8), rn(0.6, 1.5), rn(0.25, 0.4), 0);   // along the wall under the eaves
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aPud', new THREE.Float32BufferAttribute(A, 3)); g.setIndex(I); g.computeVertexNormals();
@@ -3045,7 +3070,10 @@ let drag = null;
 renderer.domElement.addEventListener('pointerdown', e => { pointers.set(e.pointerId, e); drag = { x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
 renderer.domElement.addEventListener('pointermove', e => { if (!drag || !pointers.has(e.pointerId)) return; pointers.set(e.pointerId, e);
   if (pointers.size > 1) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-  if (tween || mode === 'intro') return; cam.yaw -= dx * 0.0042; cam.pitch = clamp(cam.pitch - dy * 0.0042, -1.45, 1.45); });
+  if (tween || mode === 'intro') return;
+  if (desk.on){ const v = desk.views[desk.f || 'seat']; desk.yaw = clamp(desk.yaw - dx * 0.006, v.yaw - v.yr, v.yaw + v.yr); desk.pitch = clamp(desk.pitch + dy * 0.005, v.p0, v.p1); return; }
+  cam.yaw -= dx * 0.0042; cam.pitch = clamp(cam.pitch - dy * 0.0042, -1.45, 1.45); });
+renderer.domElement.addEventListener('wheel', e => { if (!desk.on) return; e.preventDefault(); const v = desk.views[desk.f || 'seat']; desk.d = clamp(desk.d * Math.exp(e.deltaY * 0.0012), v.d0, v.d1); }, { passive: false });
 const endPtr = e => { pointers.delete(e.pointerId); if (!pointers.size) drag = null; };
 renderer.domElement.addEventListener('pointerup', endPtr); renderer.domElement.addEventListener('pointercancel', endPtr);
 addEventListener('keydown', e => {
@@ -3058,6 +3086,8 @@ addEventListener('keydown', e => {
   if (k === 'KeyV') setMode('window');
   if (k === 'KeyL') setMode('lie');
   if (k === 'KeyC') setMode('climb');
+  if (k === 'KeyX' && mode === 'window'){ sitDesk(!desk.on); return; }
+  if (desk.on && (k === 'Escape' || k === 'KeyG')){ if (desk.f) deskView(null); else sitDesk(false); return; }
   if (k === 'Escape' || k === 'KeyG') setMode('walk');
   if (k === 'KeyE'){ if (mode === 'climb') climb(1); else if (mode === 'walk' && distTree() < 5) setMode('climb'); }
   if (k === 'KeyQ' && mode === 'climb') climb(-1);
@@ -3082,6 +3112,7 @@ function fadeThen(fn){ fadeEl.style.opacity = 1; setTimeout(() => { fn(); lastS 
 const WIN_POS = new V3(HOME.x + 0.32, 8.75, BZ - 1.0), WIN_LOOK = TREE.clone().add(new V3(0, 9, 0));
 function setMode(m){
   if (!started || m === mode && m !== 'climb') return;
+  if (desk.on){ desk.on = false; desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); }
   const prev = mode;
   if (m === 'walk'){
     mode = 'walk'; resetBody();
@@ -3280,9 +3311,9 @@ const I18N = {   // English → [Russian, Latvian]
   'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)':
     ['WASD / стрелки — идти · тянуть мышью — смотреть · Shift — бегом · Пробел — прыжок или залезть на крышу · E у ствола — на дерево · F — потрясти дерево · B — снеговик (зимой)',
      'WASD / bultiņas — iet · velc ar peli — skatīties · Shift — skriet · Atstarpe — lēkt vai uzrāpties uz jumta · E pie stumbra — kāpt kokā · F — sapurināt koku · B — sniegavīrs (ziemā)'],
-  'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · a book to open it':
-    ['Тянуть мышью — смотреть · WASD — ходить · клик по окну (F) — открыть · по лампе (O) — включить · по книге — открыть её',
-     'Velc ar peli — skatīties · WASD — staigāt · klikšķis uz loga (F) — atvērt · uz lampas (O) — ieslēgt · uz grāmatas — atvērt to'],
+  'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table':
+    ['Тянуть мышью — смотреть · WASD — ходить · клик по окну (F) — открыть · по лампе (O) — включить · по стулу (X) — сесть за стол',
+     'Velc ar peli — skatīties · WASD — staigāt · klikšķis uz loga (F) — atvērt · uz lampas (O) — ieslēgt · krēsls (X) — apsēsties pie galda'],
   'W / S or E / Q to climb up and down · drag to look · F to shake': ['W / S или E / Q — вверх и вниз · тянуть мышью — смотреть · F — потрясти', 'W / S vai E / Q — augšup un lejup · velc ar peli — skatīties · F — sapurināt'],
   'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof':
     ['Джойстик — идти (до упора — бегом) · тянуть пальцем — смотреть · ⤒ — прыжок или залезть на крышу', 'Kursorsvira — iet (līdz galam — skriet) · velc ar pirkstu — skatīties · ⤒ — lēkt vai uzrāpties uz jumta'],
@@ -3309,6 +3340,8 @@ const I18N = {   // English → [Russian, Latvian]
   'Rain again. Latvia.': ['Опять дождь. Латвия.', 'Atkal lietus. Latvija.'],
   'From my window on the third floor, the tree was the whole world.': ['Из моего окна на третьем этаже дерево было целым миром.', 'No mana loga trešajā stāvā koks bija visa pasaule.'],
   'I would sit here for hours, and the tree would sit there with me.': ['Я мог сидеть здесь часами, и дерево было там, со мной.', 'Es te varēju sēdēt stundām, un koks bija tur, kopā ar mani.'],
+  'I sat down at my table. Click anything on it to look closer; Esc to get up.': ['Я сел за свой стол. Кликни по любой вещи, чтобы рассмотреть; Esc — встать.', 'Es apsēdos pie sava galda. Noklikšķini uz jebkuras lietas, lai to aplūkotu tuvāk; Esc — piecelties.'],
+  'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.': ['Мой стол: тетрадь, калькулятор, книга, купальщица. Кликни, чтобы рассмотреть; Esc — встать.', 'Mans galds: burtnīca, kalkulators, grāmata, peldētāja. Noklikšķini, lai aplūkotu tuvāk; Esc — piecelties.'],
   'Some evenings I wrote poems to it in a school notebook.': ['Иногда по вечерам я писал ему стихи в школьной тетради.', 'Dažos vakaros es tam rakstīju dzejoļus skolas burtnīcā.'],
   'We lay in the grass and counted the stars between the leaves.': ['Мы лежали в траве и считали звёзды между листьями.', 'Mēs gulējām zālē un skaitījām zvaigznes starp lapām.'],
   'Lying on my back in the grass, looking up into the branches.': ['Лежу на спине в траве и смотрю вверх, в ветки.', 'Guļu zālē uz muguras un skatos augšup zaros.'],
@@ -3400,7 +3433,7 @@ function syncButtons(){
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
   const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
     window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
-    window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · a book to open it', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
+    window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
   $('hint').textContent = tr(hints[mode] || '');
   $('stick').classList.toggle('on', mode === 'walk' || mode === 'window'); $('jumpBtn').classList.toggle('on', mode === 'walk');
   placeSticks();
@@ -3507,6 +3540,10 @@ function frame(){
       let spd = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 8 : 3.6;
       if (stick.m > 0.12 && !mx && !mz){ mx = stick.x; mz = -stick.y; spd = stick.m > 0.92 ? 8 : 3.6 * clamp(stick.m / 0.7, 0.25, 1); }
       walkStep(dt, mx, mz, spd);
+    } else if (mode === 'window' && desk.on){
+      const v = desk.views[desk.f || 'seat'], cp = Math.cos(desk.pitch), k = desk.snap ? 1 : 1 - Math.exp(-dt * 4.5);
+      P3.set(Math.sin(desk.yaw) * cp, Math.sin(desk.pitch), Math.cos(desk.yaw) * cp).multiplyScalar(desk.d).add(v.t);
+      desk.cp.lerp(P3, k); desk.ct.lerp(v.t, k); camera.position.copy(desk.cp); camera.lookAt(desk.ct);
     } else if (mode === 'window'){
       fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
       let mx = 0, mz = 0; if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
@@ -3522,7 +3559,7 @@ function frame(){
       p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.35, 0.95);
     } else if (mode === 'lie'){ cam.pitch = clamp(cam.pitch, 0.1, 1.5); }
     else if (mode === 'climb'){ camera.position.y += Math.sin(t * 0.9) * 0.0015; }
-    camera.rotation.set(cam.pitch, cam.yaw, 0);
+    if (!(mode === 'window' && desk.on)) camera.rotation.set(cam.pitch, cam.yaw, 0);
   }
   sky.position.copy(camera.position); stars.forEach(s => s.position.copy(camera.position));
   room.visible = mode === 'window' || (Math.abs(camera.position.z - BZ) < 6 && camera.position.y > 6 && Math.abs(camera.position.x - HOME.x) < 8);
@@ -3619,7 +3656,7 @@ function frame(){
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
-    if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); }, 100); } if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.get('summon')) setTimeout(() => { summonCat(); for (let i = 0; i < +(q.get('summonff') || 0); i++) updateCat(0.05, i * 0.05); }, 200);
     if (q.get('catpose')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('catd') || 1.3)); P.y = 0;
       cat.q = [{ type: 'pose', pose: q.get('catpose'), dur: 1e9 }]; cat.state = 'on'; cat.root.visible = true; cat.root.position.copy(P);
