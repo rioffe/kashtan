@@ -609,8 +609,7 @@ var roomLight;
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.15, 12), new THREE.MeshStandardMaterial({ color: '#b5603a' })); pot.position.set(wx1 - 0.25, 8.17, BZ - 0.42); room.add(pot);
   const lv = new THREE.MeshStandardMaterial({ color: '#3d6b2e' }), fl2 = new THREE.MeshStandardMaterial({ color: '#d0303a' });
   for (let i = 0; i < 9; i++){ const sp = new THREE.Mesh(new THREE.SphereGeometry(i < 6 ? 0.06 : 0.035, 8, 6), i < 6 ? lv : fl2); sp.position.set(wx1 - 0.25 + rnd(-0.1, 0.1), 8.3 + rnd(0, i < 6 ? 0.08 : 0.2), BZ - 0.42 + rnd(-0.08, 0.08)); room.add(sp); }
-  const nm = new THREE.MeshStandardMaterial({ color: '#6a2d12', roughness: 0.22 });
-  for (let i = 0; i < 3; i++){ const sp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), nm); sp.scale.y = 0.8; sp.position.set(wx0 + 0.25 + i * 0.07, 8.09, BZ - 0.45 + (i % 2) * 0.05); room.add(sp); }
+  // (the three conkers on the sill are added with the other conkers, further down)
 
   /* the table, on the right as you look out */
   const TB = BZ - 0.5; // table, chair and bookshelf stand half a metre back from the window
@@ -1594,6 +1593,11 @@ const nutGeo = new THREE.SphereGeometry(0.05, 24, 16);
   nutGeo.computeVertexNormals(); }
 const nutsMesh = new THREE.InstancedMesh(nutGeo, new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), NUT_N);
 nutsMesh.castShadow = true; nutsMesh.frustumCulled = false; scene.add(nutsMesh);
+{ // three conkers on my window sill (the sill top is at 8.1): one on its flat side, two rolled over on their backs, the scars to the side
+  const m = new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), x0 = HOME.x - 0.7, top = 8.1;
+  for (const [dx, dz, k, ry, rx, rz, y] of [[0.2, -0.45, 0.6, -1.1, 0, -Math.PI / 2, 0.027], [0.31, -0.37, 0.56, 0.5, 1.25, 0, 0.047], [0.29, -0.53, 0.63, -0.6, 1.35, 0.3, 0.047]]){
+    const c = new THREE.Mesh(nutGeo, m); c.scale.setScalar(k); c.rotation.set(rx, ry, rz, 'YXZ'); c.position.set(x0 + dx, top + y * k - 0.001, BZ + dz);
+    c.castShadow = c.receiveShadow = true; room.add(c); } }
 // husks while they fall, and the valves they split into on the ground
 const fallHusks = new THREE.InstancedMesh(huskGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), NUT_N);
 const valvesOut = new THREE.InstancedMesh(valveOutGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), NUT_N * 3);
