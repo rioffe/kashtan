@@ -723,10 +723,34 @@ const candles = new THREE.InstancedMesh(candleGeo, candleMat, CANDLES.length); c
 /* husks (spiky green cases) */
 const HUSKS = [];
 for (let i = 0; i < 320; i++){ const t = pick(tree.tips); HUSKS.push({ p: t.p.clone().add(new V3(rnd(-0.6, 0.6), rnd(-0.4, 0.2), rnd(-0.6, 0.6))), drop: rnd(3.08, 3.62), s: rnd(0.8, 1.2) }); }
-const huskGeo = (() => { const g = new THREE.IcosahedronGeometry(0.075, 1), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++){ const v = new V3().fromBufferAttribute(p, i); v.multiplyScalar(1 + (i % 3 === 0 ? 0.35 : 0)); p.setXYZ(i, v.x, v.y, v.z); } g.computeVertexNormals(); return g; })();
+function mergeGeos(list){ // position + normal only
+  const gs = list.map(g => { g = g.index ? g.toNonIndexed() : g; return g; }); let n = 0; gs.forEach(g => n += g.attributes.position.count);
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+  gs.forEach(g => { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; });
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); return out; }
+const HUSK_R = 0.07;
+// a spiky husk: a fleshy green ball (or one valve of it) bristling with thin spines
+function spikyShell(core, nSp, keep){ let hs = 5151; const hr = () => { hs = hs + 0x6D2B79F5 | 0; let t = Math.imul(hs ^ hs >>> 15, 1 | hs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const parts = [core], up = new V3(0, 1, 0);
+  for (let i = 0; i < nSp; i++){ const y = 1 - (i + 0.5) / nSp * 2, rr = Math.sqrt(1 - y * y), ph = i * 2.39996, d = new V3(Math.cos(ph) * rr, y, Math.sin(ph) * rr);
+    if (keep && !keep(d)) continue;
+    const L = HUSK_R * (0.32 + 0.3 * hr()), c = new THREE.ConeGeometry(HUSK_R * 0.06, L, 3, 1, true); c.translate(0, L / 2 + HUSK_R * 0.93, 0);
+    c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, d.add(new V3(hr() - 0.5, hr() - 0.5, hr() - 0.5).multiplyScalar(0.3)).normalize())); parts.push(c); }
+  parts.forEach(g => g.deleteAttribute('uv')); return mergeGeos(parts); }
+const huskGeo = spikyShell(new THREE.SphereGeometry(HUSK_R, 10, 7), 64);
+const huskTreeGeo = spikyShell(new THREE.SphereGeometry(HUSK_R, 8, 6), 40).scale(1.06, 1.06, 1.06); // lighter, for the hundreds up in the tree // the tree's husks (instanced at 0.8–1.2 of this)
+// one of the three valves the husk splits into: a lune of the ball, spines outside, a pale silky lining inside
+const VALVE_W = TAU / 3, VALVE_MID = new V3(-Math.cos(VALVE_W / 2), 0, Math.sin(VALVE_W / 2));
+const VALVE_IN = 0.8;
+function valveRim(){ const P = [], N = [], seg = 8, pt = (r, th, ph) => [-r * Math.cos(ph) * Math.sin(th), r * Math.cos(th), r * Math.sin(ph) * Math.sin(th)];
+  for (const [ph, sg] of [[0, -1], [VALVE_W, 1]]){ const nx = sg * Math.sin(ph), nz = sg * Math.cos(ph);
+    for (let i = 0; i < seg; i++){ const t0 = i / seg * Math.PI, t1 = (i + 1) / seg * Math.PI, a0 = pt(HUSK_R, t0, ph), a1 = pt(HUSK_R, t1, ph), b0 = pt(HUSK_R * VALVE_IN, t0, ph), b1 = pt(HUSK_R * VALVE_IN, t1, ph);
+      for (const [tri, s_] of [[[a0, a1, b1, a0, b1, b0], 1], [[a0, b1, a1, a0, b0, b1], -1]]) for (const v of tri){ P.push(...v); N.push(nx * s_, 0, nz * s_); } } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); return g; }
+const valveOutGeo = spikyShell(mergeGeos([new THREE.SphereGeometry(HUSK_R, 6, 7, 0, VALVE_W), valveRim()]), 64, d => { const ph = (Math.atan2(d.z, -d.x) + TAU) % TAU; return ph > 0.15 && ph < VALVE_W - 0.15; });
+const valveInGeo = new THREE.SphereGeometry(HUSK_R * VALVE_IN, 6, 7, 0, VALVE_W); valveInGeo.deleteAttribute('uv');
 const huskMat = new THREE.MeshStandardMaterial({ color: '#7aa040', roughness: 0.8 });
-const husks = new THREE.InstancedMesh(huskGeo, huskMat, HUSKS.length); treeG.add(husks);
+const husks = new THREE.InstancedMesh(huskTreeGeo, huskMat, HUSKS.length); treeG.add(husks);
 /* ground litter of fallen leaves */
 const LITTER = [];
 for (let i = 0; i < 1500; i++){ const a = rng() * TAU, r = 1.3 + 13 * Math.sqrt(rng());
@@ -1341,13 +1365,80 @@ function spawnLeaf(p, col){ const L = FLs[flCur]; flCur = (flCur + 1) % FL_N; L.
   L.rot.set(rng() * TAU, rng() * TAU, rng() * TAU); L.spin.set(rnd(-2, 2), rnd(-2, 2), rnd(-2, 2)); L.c.copy(col); }
 /* chestnuts */
 const NUT_N = 160, NUTs = [];
-const nutGeo = new THREE.SphereGeometry(0.05, 14, 10); nutGeo.scale(1, 0.82, 1);
-const nutsMesh = new THREE.InstancedMesh(nutGeo, new THREE.MeshStandardMaterial({ color: '#6a2d12', roughness: 0.2, metalness: 0.05 }), NUT_N);
+// a conker: glossy mahogany with wavy darker and lighter grain, a big matt beige-grey scar (the hilum) on top, one side pressed flat
+let cks = 6061; const ckr = () => { cks = cks + 0x6D2B79F5 | 0; let t = Math.imul(cks ^ cks >>> 15, 1 | cks); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, ckn = (a, b) => a + (b - a) * ckr();
+const scarEdge = x => 0.3 + 0.035 * Math.sin(x * TAU * 2 + 0.7) + 0.02 * Math.sin(x * TAU * 5 + 2.1);
+const conkerTex = tex(256, 128, (g, w, h) => {
+  const bg = g.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#7a3414'); bg.addColorStop(0.55, '#62260c'); bg.addColorStop(1, '#3a1406'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  g.lineCap = 'round';
+  for (let i = 0; i < 170; i++){ let x = ckr() * w, y = h * (0.22 + ckr() * 0.2); const lt = ckr() < 0.45;
+    g.strokeStyle = lt ? `rgba(170,80,36,${ckn(0.12, 0.35)})` : `rgba(34,10,2,${ckn(0.15, 0.45)})`; g.lineWidth = ckn(0.6, 2.6); g.beginPath(); g.moveTo(x, y);
+    const ph = ckr() * TAU, amp = ckn(2, 7); for (let k = 0; k < 10; k++){ y += h * ckn(0.04, 0.09); g.lineTo(x + Math.sin(ph + k * 0.8) * amp, y); } g.stroke(); }
+  for (let i = 0; i < 40; i++){ const x = ckr() * w, y = h * ckn(0.35, 0.95), r = ckn(6, 18), gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, ckr() < 0.5 ? 'rgba(150,64,24,.25)' : 'rgba(30,8,0,.25)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  // the scar
+  g.beginPath(); g.moveTo(0, 0); for (let x = 0; x <= w; x += 2) g.lineTo(x, h * scarEdge(x / w)); g.lineTo(w, 0); g.closePath();
+  g.save(); g.clip(); g.fillStyle = '#bba57e'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 900; i++){ g.fillStyle = ckr() < 0.5 ? `rgba(225,210,180,${ckn(0.2, 0.5)})` : `rgba(120,100,72,${ckn(0.15, 0.4)})`; g.fillRect(ckr() * w, ckr() * h * 0.36, ckn(0.6, 2.2), ckn(0.6, 1.6)); }
+  g.restore();
+  g.strokeStyle = 'rgba(120,70,36,.7)'; g.lineWidth = 2.5; g.beginPath(); for (let x = 0; x <= w; x += 2) g.lineTo(x, h * scarEdge(x / w) + 1); g.stroke(); });
+const conkerRough = tex(256, 128, (g, w, h) => { g.fillStyle = '#3c3c3c'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#e6e6e6'; g.beginPath(); g.moveTo(0, 0); for (let x = 0; x <= w; x += 2) g.lineTo(x, h * scarEdge(x / w)); g.lineTo(w, 0); g.closePath(); g.fill(); }, { srgb: false });
+const nutGeo = new THREE.SphereGeometry(0.05, 24, 16);
+{ const pa = nutGeo.attributes.position; for (let k = 0; k < pa.count; k++){ let x = pa.getX(k), y = pa.getY(k) * 0.86, z = pa.getZ(k);
+    if (x > 0.027) x = 0.027 + (x - 0.027) * 0.3;                // flat where it pressed against its twin in the husk
+    if (y < -0.03) y *= 1 + (-0.03 - y) * 2.2;                     // a slight point at the bottom
+    const j = 1 + 0.025 * Math.sin(x * 160 + z * 90) * Math.cos(y * 120 - x * 70); pa.setXYZ(k, x * j, y * j, z * j); }
+  nutGeo.computeVertexNormals(); }
+const nutsMesh = new THREE.InstancedMesh(nutGeo, new THREE.MeshStandardMaterial({ map: conkerTex, roughnessMap: conkerRough, roughness: 1, metalness: 0 }), NUT_N);
 nutsMesh.castShadow = true; nutsMesh.frustumCulled = false; scene.add(nutsMesh);
-for (let i = 0; i < NUT_N; i++) NUTs.push({ on: false, p: new V3(), v: new V3(), rest: false, q: new THREE.Quaternion() });
+// husks while they fall, and the valves they split into on the ground
+const fallHusks = new THREE.InstancedMesh(huskGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), NUT_N);
+const valvesOut = new THREE.InstancedMesh(valveOutGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), NUT_N * 3);
+const valvesIn = new THREE.InstancedMesh(valveInGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, side: THREE.BackSide }), NUT_N * 3);
+for (const m of [fallHusks, valvesOut, valvesIn]){ m.frustumCulled = false; m.castShadow = true; scene.add(m); }
+{ const c = new THREE.Color(); for (let i = 0; i < NUT_N; i++){ const b = 0.82 + 0.3 * ckr(); nutsMesh.setColorAt(i, c.setRGB(b, b * (0.95 + 0.08 * ckr()), b * (0.92 + 0.1 * ckr()))); fallHusks.setColorAt(i, c.set('#7aa040')); }
+  for (let i = 0; i < NUT_N * 3; i++){ valvesOut.setColorAt(i, c.set('#7aa040')); valvesIn.setColorAt(i, c.set('#efe6cf')); } }
+for (let i = 0; i < NUT_N; i++) NUTs.push({ on: false, p: new V3(), v: new V3(), rest: false, q: new THREE.Quaternion(), h: 0, hp: new V3(), hy: 0, ht: 0, ha: [0, 0, 0], hc: new THREE.Color(), hq: new THREE.Quaternion(), spinAx: new V3(0, 1, 0), spin: 0 });
 let nutCur = 0;
-function spawnNut(p){ const n = NUTs[nutCur]; nutCur = (nutCur + 1) % NUT_N; n.on = true; n.rest = false; n.p.copy(p); n.v.set(rnd(-0.6, 0.6), rnd(-0.5, 0.5), rnd(-0.6, 0.6));
-  n.q.setFromEuler(new THREE.Euler(rng() * TAU, rng() * TAU, 0)); }
+function spawnNut(p, bare = Math.random() < 0.12){ const n = NUTs[nutCur]; nutCur = (nutCur + 1) % NUT_N; n.on = true; n.rest = false; n.p.copy(p); n.v.set(rnd(-0.6, 0.6), rnd(-0.5, 0.5), rnd(-0.6, 0.6));
+  n.q.setFromEuler(new THREE.Euler(rng() * TAU, rng() * TAU, 0));
+  // most come down still in the husk; now and then one has already slipped out up in the tree
+  n.h = bare ? 0 : 1; n.hc.copy(huskMat.color); n.hq.setFromEuler(new THREE.Euler(rng() * TAU, rng() * TAU, 0)); n.spinAx.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(); n.spin = rnd(2, 7); }
+const nutQ = new THREE.Quaternion(), nutV = new V3(), nutM = new THREE.Matrix4(), nutT = new THREE.Matrix4(), nutC = new THREE.Color(), huskOld = new THREE.Color('#6b5530'), liningOld = new THREE.Color('#b59a6a');
+function updateNuts(dt, canGather){
+  for (let i = 0; i < NUT_N; i++){ const n = NUTs[i];
+    if (n.on && !n.rest){ n.v.y -= 9.8 * dt; n.p.addScaledVector(n.v, dt);
+      if (n.h === 1){ n.hq.premultiply(nutQ.setFromAxisAngle(n.spinAx, n.spin * dt));
+        if (n.p.y < HUSK_R * 1.1){ // the husk hits the ground and splits; the conker hops out
+          const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.14 * clamp(1 - dd / 25));
+          n.h = 2; n.ht = 0; n.hp.set(n.p.x, 0, n.p.z); n.hy = rng() * TAU;
+          for (let k = 0; k < 3; k++) n.ha[k] = rnd(0.7, 1.35);
+          if (rng() < 0.4) n.ha[Math.floor(rng() * 3)] = rnd(0.08, 0.35);   // one valve still half shut
+          const a = rng() * TAU, sp = rng() < 0.3 ? rnd(0, 0.08) : rnd(0.3, 1.1);
+          n.p.set(n.hp.x, 0.07, n.hp.z); n.v.set(Math.cos(a) * sp, rnd(0.4, 1.3), Math.sin(a) * sp); } }
+      else {
+        if (n.p.y < 0.045){ n.p.y = 0.045;
+          if (n.v.y < -1.2){ if (n.h !== 2 || n.ht > 0.3){ const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.1 * clamp(1 - dd / 25)); } n.v.y *= -0.3; n.v.x *= 0.6; n.v.z *= 0.6; }
+          else { n.v.y = 0; const f = Math.max(0, 1 - dt * 2.6); n.v.x *= f; n.v.z *= f; if (Math.hypot(n.v.x, n.v.z) < 0.03) n.rest = true; } }
+        const hs = Math.hypot(n.v.x, n.v.z); // roll
+        if (n.p.y < 0.05 && hs > 0.01){ nutV.set(n.v.z, 0, -n.v.x).normalize(); n.q.premultiply(nutQ.setFromAxisAngle(nutV, hs * dt / 0.045)); } } }
+    if (n.h === 2) n.ht += dt;
+    if (n.on && n.h !== 1 && canGather && n.p.y < 1.0 && Math.hypot(camera.position.x - n.p.x, camera.position.z - n.p.z) < 1.5){ n.on = false; nutsHeld++; sfx.pick(); updateNutHUD();
+      if (nutsHeld === 1) caption('A chestnut — cool, glossy, the colour of a violin.', 4); if (nutsHeld === 12) caption('Pockets full. Time for a fire.', 4); }
+    SC.setScalar(n.on && n.h !== 1 ? 1 : 0); M4.compose(n.p, n.q, SC); nutsMesh.setMatrixAt(i, M4);
+    SC.setScalar(n.on && n.h === 1 ? 1 : 0); M4.compose(n.p, n.hq, SC); fallHusks.setMatrixAt(i, M4); if (n.h === 1) fallHusks.setColorAt(i, n.hc);
+    // the valves fall open like petals, hinged where they met at the bottom, bounce a little and settle; then slowly brown
+    const op = n.h === 2 ? 1 - Math.exp(-n.ht * 7) * Math.cos(n.ht * 12) : 0, age = clamp(n.ht / 150);
+    for (let k = 0; k < 3; k++){ const j = i * 3 + k;
+      if (n.h !== 2){ M4.makeScale(0, 0, 0); valvesOut.setMatrixAt(j, M4); valvesIn.setMatrixAt(j, M4); continue; }
+      const yaw = n.hy + k * VALVE_W, c = Math.cos(yaw), s_ = Math.sin(yaw), dx = VALVE_MID.x * c + VALVE_MID.z * s_, dz = -VALVE_MID.x * s_ + VALVE_MID.z * c;
+      nutM.makeRotationY(yaw).premultiply(nutT.makeTranslation(0, HUSK_R, 0)).premultiply(nutT.makeRotationAxis(nutV.set(dz, 0, -dx).normalize(), Math.max(0, n.ha[k] * op)))
+        .premultiply(nutT.makeTranslation(n.hp.x, 0.005, n.hp.z));
+      valvesOut.setMatrixAt(j, nutM); valvesIn.setMatrixAt(j, nutM);
+      if (n.ht < 0.05 || (i + k + Math.floor(n.ht)) % 7 === 0){ valvesOut.setColorAt(j, nutC.copy(n.hc).lerp(huskOld, age * 0.8)); valvesIn.setColorAt(j, nutC.set('#efe6cf').lerp(liningOld, age)); } } }
+  for (const m of [nutsMesh, fallHusks, valvesOut, valvesIn]){ m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+}
 /* birds */
 const birdMat = new THREE.MeshStandardMaterial({ color: '#3a3430', roughness: 0.8, side: THREE.DoubleSide });
 const birdBody = new THREE.SphereGeometry(0.07, 8, 6).scale(0.85, 0.8, 1.6);
@@ -1732,7 +1823,7 @@ function updateSeasonal(sp){
   sunHeads.instanceMatrix.needsUpdate = sunStems.instanceMatrix.needsUpdate = true; sunHeads.visible = sunStems.visible = sp.sunfl > 0.001;
   { let j = 0; for (const L of lilacData) for (let k = 0; k < 10; k++){ SC.setScalar(sp.lilac); Q.identity(); M4.compose(L['b' + k], Q, SC); lilacBloom.setMatrixAt(j++, M4); } }
   lilacBloom.instanceMatrix.needsUpdate = true; lilacBloom.visible = sp.lilac > 0.001;
-  if (sp.snow > 0.5) NUTs.forEach(n => n.on = false);
+  if (sp.snow > 0.5) NUTs.forEach(n => { n.on = false; n.h = 0; });
 }
 
 /* ============================== camera & controls ============================== */
@@ -2259,14 +2350,7 @@ function frame(){
   fallLeaves.instanceMatrix.needsUpdate = true; fallLeaves.instanceColor.needsUpdate = true;
 
   // chestnuts
-  const canGather = (mode === 'walk' && body.feet < 0.3) || mode === 'lie';
-  for (let i = 0; i < NUT_N; i++){ const n = NUTs[i];
-    if (n.on && !n.rest){ n.v.y -= 9.8 * dt; n.p.addScaledVector(n.v, dt);
-      if (n.p.y < 0.045){ n.p.y = 0.045; if (Math.abs(n.v.y) > 1.2){ const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.12 * clamp(1 - dd / 25)); n.v.y *= -0.3; n.v.x *= 0.5; n.v.z *= 0.5; } else { n.rest = true; } } }
-    if (n.on && canGather && n.p.y < 1.0 && Math.hypot(camera.position.x - n.p.x, camera.position.z - n.p.z) < 1.5){ n.on = false; nutsHeld++; sfx.pick(); updateNutHUD();
-      if (nutsHeld === 1) caption('A chestnut — cool, glossy, the colour of a violin.', 4); if (nutsHeld === 12) caption('Pockets full. Time for a fire.', 4); }
-    SC.setScalar(n.on ? 1 : 0); M4.compose(n.p, n.q, SC); nutsMesh.setMatrixAt(i, M4); }
-  nutsMesh.instanceMatrix.needsUpdate = true;
+  updateNuts(dt, (mode === 'walk' && body.feet < 0.3) || mode === 'lie');
 
   // birds
   const birdsOn = sp.birds > 0.3 && env.day > 0.25 && W.rain < 0.5;
@@ -2302,6 +2386,9 @@ function frame(){
     if (q.get('sm')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('smd') || 3)); P.y = 0;
       const sm = makeSnowman(P, Math.atan2(camera.position.x - P.x, camera.position.z - P.z)); sm.build = +q.get('sm'); if (q.get('smm')) sm.melt = +q.get('smm'); }
     if (q.get('sim')){ const n = +q.get('sim'); for (let i = 0; i < n; i++){ if (i % 30 === 0) console.log('SIM', i, camera.position.x.toFixed(2), camera.position.z.toFixed(2), body.feet.toFixed(2), surfKind, !!body.mantle); if (i === +q.get('simj')) jumpOrClimb(); if (i === +q.get('simt')) cam.yaw += Math.PI; walkStep(1 / 30, 0, i < +(q.get('simw') || n) ? 1 : 0, +(q.get('simv') || 3.6)); } }
+    if (q.get('nuts')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), r_ = new V3(-f.z, 0, f.x), d0 = +(q.get('nutd') || 2.2);
+      for (let i = 0; i < +q.get('nuts'); i++){ const P = camera.position.clone().addScaledVector(f, d0 + rnd(0, 1.4)).addScaledVector(r_, rnd(-1.2, 1.2)); P.y = rnd(1.5, 5); spawnNut(P, false); }
+      for (let i = 0; i < +(q.get('nutsim') || 240); i++) updateNuts(1 / 60, false); }
     if (q.get('fire')){ const f = +q.get('fire'); nutsHeld = Math.max(nutsHeld, 12); fire.on = fire.lit = f >= 1; fire.on = true; fire.t = 20; fire.flameK = Math.min(1, f); fire.emberK = 1; fire.roastT = 999; if (f >= 1) for (let i = 0; i < 200; i++) updateFire(1 / 30, i / 30, +(q.get('fw') || 0)); }
     if (q.get('m')) setTimeout(() => setMode(q.get('m')), 300); if (q.get('ct')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); renderer.render(scene, camera); window.open = (u) => console.log('OPEN', u); window.__dbgClick = 1; const tests = [['book', BOOKS[1]], ['lamp', deskLamp.parts[deskLamp.parts.length - 1]]];
       for (const [n, o] of tests){ const wp = o.getWorldPosition(new V3()); cam.yaw = yawTo(camera.position, wp); cam.pitch = Math.atan2(wp.y - camera.position.y, Math.hypot(wp.x - camera.position.x, wp.z - camera.position.z)); camera.rotation.set(cam.pitch, cam.yaw, 0); camera.updateMatrixWorld();
