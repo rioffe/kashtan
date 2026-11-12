@@ -1610,7 +1610,7 @@ const FLOWER_KINDS = [ // bloom windows on the season axis (0 = Dec … 4), so s
   { win: [1.72, 1.84, 2.12, 2.24], h: [0.55, 0.8], s: [1.3, 1.7], cols: ['#f4a0c0', '#ffffff', '#d8304a'] },                         // peonies
   { win: [2.0, 2.15, 3.15, 3.3], h: [0.5, 0.95], s: [0.7, 1.3], cols: ['#d83a4a', '#f06aa0', '#f2c73a', '#8a4ab8', '#ffffff', '#e8702a'] }, // roses, dahlias, phlox
   { win: [2.88, 3.02, 3.62, 3.8], h: [0.35, 0.7], s: [0.7, 1.0], cols: ['#8a5ad0', '#ffffff', '#f2c73a', '#e080b0', '#b84a8a'] } ];  // asters, chrysanthemums
-const SHEDS = [], INDS = [], EAVES = [];
+const SHEDS = [], INDS = [], EAVES = [], SHEDLOG = [];
 const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [], fruitSpots = [];
 {
   const woodMat = snowify(new THREE.MeshStandardMaterial({ color: '#8a7a62', roughness: 1 }), 1.2);
@@ -1629,7 +1629,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     for (let b = 0; b < beds; b++){ const bx = GX0 + 5.2 + b * 2.15, bed = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.14, 11), soilMat); bed.position.set(bx, 0.07, z0 + 9); bed.receiveShadow = true; BEDS.push({ bx, z0 }); scene.add(bed);
       for (let k = 0; k < 14; k++) vegData.push({ p: new V3(bx + rnd(-0.35, 0.35), 0.2, z0 + 4 + k * 0.75), s: rnd(0.8, 1.2), kind: rng() });
     }
-    for (let k = 0; k < 5; k++) shrubData.push({ p: new V3(rnd(13.8, 16.6), 0.45, z0 + rnd(2, 16)), s: rnd(0.8, 1.15), kind: rng() < 0.55 ? 'currant' : 'goose' });
+    for (let k = 0; k < 5; k++){ const b_ = { p: new V3(rnd(13.8, 16.6), 0.45, z0 + rnd(2, 16)), s: rnd(0.8, 1.15), kind: rng() < 0.55 ? 'currant' : 'goose' }; if (Math.abs(b_.p.z + 93.5) > 3.8) shrubData.push(b_); }   // none in the bench nook
     fruitSpots.push({ x: rnd(GX0 + 3.5, 6), z: z0 + 1.7, type: pick(['apple', 'apple', 'pear', 'plum']) }, { x: rnd(6.5, 12), z: z0 + PL - 0.9, type: pick(['apple', 'pear', 'plum', 'plum']) });
     const flower = (x, z, kind = pick(FLOWER_KINDS)) => flowerData.push({ p: new V3(x, rnd(kind.h[0], kind.h[1]), z), c: C(pick(kind.cols)), s: rnd(kind.s[0], kind.s[1]), win: kind.win, yaw: rng() * TAU });
     for (let k = 0; k < 70; k++) flower(rnd(GX0 + 0.15, GX0 + 1.1), z0 + rnd(0.6, PL - 0.6));                                  // border along the fence
@@ -1637,7 +1637,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     for (let k = 0; k < 70; k++){ const a = rng() * TAU, r = Math.sqrt(rng()) * 1.1; flower(GX0 + 2.8 + Math.cos(a) * r, fbz + Math.sin(a) * r); }   // round flower bed
     for (let k = 0; k < 26; k++) flower(rnd(13.2, 16.8), z0 + rnd(0.8, PL - 1), pick(FLOWER_KINDS.slice(3)));                      // tall ones by the back fence
     if (rng() < 0.6) for (let k = 0; k < 3; k++) sunData.push({ p: new V3(16.4 + rnd(-0.3, 0.3), 0, z0 + 6 + k * 1.1), h: rnd(1.6, 2.3) });
-    if (rng() < 0.45 || Math.round((z0 + 126) / PL) % 2 === 1){ SHEDS.push({ x0: 14.3, x1: 16.9, z0: z0 + 14.3, z1: z0 + 16.7, zc: z0 + 15.5 }); const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
+    if ((rng() < 0.45 || Math.round((z0 + 126) / PL) % 2 === 1) && z0 !== -109){ SHEDLOG.push(z0); SHEDS.push({ x0: 14.3, x1: 16.9, z0: z0 + 14.3, z1: z0 + 16.7, zc: z0 + 15.5 }); const shed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.1, 2), woodMat); shed.position.set(15.6, 1.05, z0 + 15.5); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
       const sr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.08, 2.4), tarMat); sr.position.set(15.6, 2.2, z0 + 15.5); sr.rotation.x = 0.12; sr.castShadow = true; scene.add(sr); }
     if (rng() < 0.5){ const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 14), snowify(new THREE.MeshStandardMaterial({ color: pick(['#3c5a7a', '#7a4a2a', '#4a5a4a']), roughness: 0.6, metalness: 0.4 })));
       barrel.position.set(rnd(12, 14), 0.45, z0 + rnd(3, 15)); barrel.castShadow = true; scene.add(barrel); }
@@ -1647,7 +1647,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
   { // the gardens were overgrown: lilacs along the plot lines and the lane fence, wild bushes (elder, hazel, jasmine) in every corner, more old fruit trees.
     // Own RNG, so the rest of the world stays where it was.
     let os = 4242; const orng = () => { os = os + 0x6D2B79F5 | 0; let t = Math.imul(os ^ os >>> 15, 1 | os); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, orn = (a, b) => a + (b - a) * orng();
-    const free = (x, z) => !SHEDS.some(S_ => x > S_.x0 - 1 && x < S_.x1 + 1 && z > S_.z0 - 1 && z < S_.z1 + 1) && Math.hypot(x - TREE.x, z - TREE.z) > 7;
+    const free = (x, z) => !(x > 10.5 && Math.abs(z + 93.5) < 3.8) && !SHEDS.some(S_ => x > S_.x0 - 1 && x < S_.x1 + 1 && z > S_.z0 - 1 && z < S_.z1 + 1) && Math.hypot(x - TREE.x, z - TREE.z) > 7;
     const wild = (x, z, s) => { if (free(x, z)) shrubData.push({ p: new V3(x, 0.55 + 0.45 * s, z), s, wild: true }); };
     const lilac = (x, z) => { if (free(x, z)) lilacData.push({ p: new V3(x, 1.1, z), s: orn(1.0, 1.5) }); };
     for (let z0 = -126; z0 < LANE_END - 1; z0 += PL){
@@ -1663,6 +1663,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     for (let k = 0; k < 5; k++) wild(orn(GX0 + 1, 17.2), LANE_END - orn(0.6, 1.6), orn(1.2, 1.9));   // a thicket along the back of the wooden house
     lilac(orn(GX0 + 3, 8), LANE_END - 1); lilac(orn(9, 15), LANE_END - 1.2);
   }
+  for (const [dx, dz] of [[0.5, -2.2], [-0.6, -2.8], [0.5, 2.2], [-0.6, 2.8], [-1.9, -2.7], [-1.9, 2.7]]) lilacData.push({ p: new V3(16.6 + dx, 1.1, -93.5 + dz), s: 1.25 + 0.1 * Math.abs(dz) / 2.6, white: true });   // white lilacs round the bench nook
   for (const L of lilacData) shrubData.push({ p: L.p, s: L.s * 1.2, lilac: true });
   veg = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: '#8fb86a', roughness: 0.7, flatShading: true }), vegData.length); veg.castShadow = true; scene.add(veg);
   flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.09, 1), new THREE.MeshStandardMaterial({ roughness: 0.6 }), flowerData.length); scene.add(flowers);
@@ -1688,8 +1689,8 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
       for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) corner(u, v); }
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); pg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
     pg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); pg.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
-    const LILP = [], hues = [['#a77ad8', '#b48ae0', '#9a6ad0', '#bb93e4'], ['#c4a2e6', '#b892df', '#cfb0ec'], ['#f3eef6', '#ece4f2']];
-    for (const L of lilacData){ const R = 0.7 * L.s * 1.2, pal = hues[pr() < 0.68 ? 0 : pr() < 0.7 ? 1 : 2], n = Math.round(26 * L.s + prn(0, 8));
+    const LILP = [], hues = [['#a77ad8', '#b48ae0', '#9a6ad0', '#bb93e4'], ['#c4a2e6', '#b892df', '#cfb0ec'], ['#fffaf0', '#fbf4e4', '#fff6e8']];   // white lilac is a creamy white, a touch warm
+    for (const L of lilacData){ const R = 0.7 * L.s * 1.2, pal = ((q) => L.white ? hues[2] : q)(hues[pr() < 0.68 ? 0 : pr() < 0.7 ? 1 : 2]), n = Math.round(26 * L.s + prn(0, 8));
       for (let k = 0; k < n; k++){ const a = pr() * TAU, el = prn(-0.15, 1.05), d = new V3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el));
         const pos = L.p.clone().addScaledVector(d, R * prn(0.85, 1.15)); pos.y += 0.1;
         const ax = new V3(0, 1, 0).addScaledVector(d, 0.65).add(new V3(prn(-0.25, 0.25), 0, prn(-0.25, 0.25))).normalize();
@@ -1725,6 +1726,25 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
     const top = (y, zz) => { const p0 = new V3(-BL / 2, y, zz), p1 = new V3(BL / 2, y, zz); for (const p of [p0, p1]) p.applyAxisAngle(new V3(0, 1, 0), ry).add(new V3(x, 0, z)); SNOWSEGS.push([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, 0.018, 0]); };
     top(0.64 + 0.055 * Math.cos(LEAN), -0.247 - 0.055 * Math.sin(LEAN)); top(0.82 + 0.055 * Math.cos(LEAN), -0.3 - 0.055 * Math.sin(LEAN)); };
   bench(12.5, BZ + 2.2, 0); bench(TREE.x - 2.6, TREE.z + 2.4, -0.9);
+  bench(17.35, -93.5, -Math.PI / 2);   // in the nook at the back of the gardens, its back to the workshop wall
+  { // and on the brick above it, sprayed: «Робик + Лена =» in white, a red heart
+    const gt = tex(1024, 320, (g, w, h) => { const r = mkRng(1984);
+      const spray = (draw, col, glow) => { g.save(); g.strokeStyle = g.fillStyle = col; g.shadowColor = col; g.shadowBlur = glow; g.lineCap = g.lineJoin = 'round'; draw(); g.restore(); };
+      g.font = 'bold 100px "Comic Sans MS", "Marker Felt", "Segoe Print", cursive'; g.textBaseline = 'middle';
+      const txt = 'Робик + Лена =', tw = Math.min(g.measureText(txt).width, 700), x0 = 30, y0 = 165;
+      g.save(); g.translate(x0, y0); g.rotate(-0.035);
+      spray(() => { g.lineWidth = 6; g.strokeText(txt, 0, 0, 700); g.fillText(txt, 0, 0, 700); }, 'rgba(245,244,238,.92)', 10);
+      for (let i = 0; i < 9; i++){ const x = r() * tw, L = 12 + r() * 46; g.fillStyle = 'rgba(245,244,238,.75)'; g.fillRect(x, 30 + r() * 20, 2.5, L); blot(g, x + 1.2, 30 + L + 20, 2.4, 'rgba(245,244,238,.7)'); }   // drips
+      g.restore();
+      const hx = Math.min(x0 + tw + 115, w - 105), hy = y0 + 5, H = 110;                                                                          // the heart
+      spray(() => { g.beginPath(); g.moveTo(hx, hy + H * 0.55);
+        g.bezierCurveTo(hx - H * 1.1, hy - H * 0.1, hx - H * 0.55, hy - H * 0.95, hx, hy - H * 0.38);
+        g.bezierCurveTo(hx + H * 0.55, hy - H * 0.95, hx + H * 1.1, hy - H * 0.1, hx, hy + H * 0.55); g.fill(); }, 'rgba(200,24,30,.9)', 14);
+      for (let i = 0; i < 6; i++){ const x = hx + (r() - 0.5) * H, L = 14 + r() * 40; g.fillStyle = 'rgba(190,20,26,.75)'; g.fillRect(x, hy + 20 + r() * 20, 3, L); }
+      for (let i = 0; i < 2600; i++){ const a = r() * TAU, d = 30 + r() * 60; const sx = r() < 0.75 ? x0 + r() * tw : hx, sy = y0 + Math.sin(a) * d * 0.6;   // overspray
+        g.fillStyle = sx === hx ? 'rgba(200,24,30,.35)' : 'rgba(245,244,238,.3)'; g.fillRect(sx + Math.cos(a) * d * (sx === hx ? 1 : 0.3), sy, 1.2, 1.2); } });
+    const gm = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.75), new THREE.MeshStandardMaterial({ map: gt, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }));
+    gm.rotation.y = -Math.PI / 2; gm.position.set(17.99, 1.36, -93.5); scene.add(gm); }
 }
 /* ---------- orchard: apple, pear and plum trees; red currant & gooseberry ---------- */
 const clusterGeo = mergeGeometries([new THREE.PlaneGeometry(1, 1), new THREE.PlaneGeometry(1, 1).rotateY(Math.PI / 2), new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2)]);
@@ -1755,6 +1775,7 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
       growSmall(cur, cd, len * rnd(0.7, 0.85), rEnd * rnd(0.6, 0.75), depth + 1, T, tips); }
   }
   const rq = () => new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd(-0.4, 0.4), rng() * TAU, rnd(-0.4, 0.4)));
+  for (const f of fruitSpots) if (f.x > 9 && Math.abs(f.z + 93.5) < 4) f.x = 8.2;   // keep the way into the bench nook open
   for (const f of fruitSpots){ const T = FRUIT_TYPES[f.type], tips = [];
     growSmall(new V3(f.x, 0, f.z), new V3(rnd(-0.15, 0.15), 1, rnd(-0.15, 0.15)).normalize(), rnd(1.2, 1.5), 0.13, 0, T, tips);
     for (const t of tips){
