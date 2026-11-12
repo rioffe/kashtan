@@ -2257,10 +2257,54 @@ const rainMat = new THREE.LineBasicMaterial({ color: '#b4c2d0', transparent: tru
 const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
 const rainState = new Float32Array(RAIN_N * 3); for (let i = 0; i < RAIN_N; i++){ rainState[i * 3] = rainP[i * 6]; rainState[i * 3 + 1] = rainP[i * 6 + 1]; rainState[i * 3 + 2] = rainP[i * 6 + 2]; }
 const inBuilding = (x, y, z) => x > -18.6 && x < 18.6 && z < BZ + 0.6 && z > BZ - BD - 0.6 && y < BH + 3;
-const puddleMat = new THREE.MeshStandardMaterial({ color: '#2a3036', roughness: 0.06, metalness: 0.5, transparent: true, opacity: 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+/* puddles: each one a low spot whose outline comes from warped noise, so they are ragged and lobed, never ovals; they fill
+   (and grow) as the ground gets wetter, with a darker band of soaked earth round the edge; the water reflects the sky with
+   a Fresnel sheen, the sun glints on it, and while it rains every one is pocked with spreading rings */
+const puddleU = { uWet: { value: 0 }, uRain: { value: 0 }, uSky: { value: new THREE.Color() } };
+const puddleMat = new THREE.MeshStandardMaterial({ color: '#25292c', roughness: 0.05, metalness: 0.1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+puddleMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, puddleU); sh.uniforms.uTime = timeU;
+  sh.vertexShader = 'attribute vec3 aPud;\nvarying vec3 vPud; varying vec3 vPW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vPud = aPud; vPW = (modelMatrix * vec4(transformed, 1.)).xyz;');
+  sh.fragmentShader = `uniform float uWet, uRain, uTime; uniform vec3 uSky; varying vec3 vPud; varying vec3 vPW;
+float ph(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float pn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(ph(i), ph(i + vec2(1, 0)), f.x), mix(ph(i + vec2(0, 1)), ph(i + vec2(1, 1)), f.x), f.y); }
+float pf(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 5; i++){ s += a * pn(p); p = p * 2.03 + 17.1; a *= .5; } return s; }
+float depthAt(vec2 w){ vec2 q = w * 0.9 + vPud.z * 7.3; vec2 warp = vec2(pf(q), pf(q + 5.2)) - .5;
+  float d = length(vPud.xy + warp * 0.55); return (1. - d * d) * 0.95 + (pf(w * 2.6 + vPud.z) - .5) * 0.55; }
+` + sh.fragmentShader
+    .replace('#include <color_fragment>', `#include <color_fragment>
+  float dep = depthAt(vPW.xz), th = 1.02 - uWet * 0.72;
+  float water = smoothstep(th, th + 0.025, dep), damp = smoothstep(th - 0.22, th, dep) * (1. - water);
+  if (water + damp < 0.01) discard;
+  vec3 Vv = normalize(cameraPosition - vPW); float frc = pow(1. - max(Vv.y, 0.), 4.), deep = smoothstep(th, th + 0.25, dep);
+  diffuseColor.rgb = mix(vec3(0.16, 0.13, 0.1), mix(vec3(0.22, 0.19, 0.15), diffuseColor.rgb, deep), water);   // shallow edges show the mud through them
+  diffuseColor.a = water * mix(0.3 + 0.35 * deep, 0.95, frc) + damp * 0.5 * uWet;
+  float pWater = water;`)
+    .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(0.6, 0.04, pWater);')
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  if (uRain > 0.02){ vec2 rg = vec2(0.); for (int k = 0; k < 3; k++){ vec2 cell = vPW.xz * 3.3 + float(k) * 0.37, id = floor(cell), f = fract(cell) - .5;
+      float t0 = ph(id + float(k) * 3.1), t = fract(uTime * (0.9 + 0.3 * t0) + t0), r = length(f - (vec2(ph(id + 1.7), ph(id + 4.2)) - .5) * 0.5);
+      float ring = sin((r - t * 0.45) * 60.) * exp(-abs(r - t * 0.45) * 18.) * (1. - t) * step(t0, uRain * 1.4);
+      rg += normalize(f + 1e-4) * ring; }
+    normal = normalize(normal + (viewMatrix * vec4(rg.x, 0., rg.y, 0.)).xyz * 0.35 * pWater); }`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  { vec3 V = normalize(cameraPosition - vPW); float fr = 0.03 + 0.97 * pow(1. - max(V.y, 0.), 5.);
+    totalEmissiveRadiance += uSky * fr * pWater * 0.9; }`); };
 const puddles = new THREE.Group(); scene.add(puddles);
-for (let i = 0; i < 46; i++){ const m = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), puddleMat);
-  const onRoad = i < 34; m.position.set(onRoad ? ROAD_X + rnd(-1.1, 1.1) : rnd(-12, 16), 0.02, onRoad ? rnd(ROAD_Z0 + 2, STABU_FRONT - 3) : BZ + rnd(1.5, 12)); m.scale.set(rnd(0.3, 1.0), 1, rnd(0.5, 1.8)); m.rotation.y = rng() * TAU; puddles.add(m); }
+{
+  const pr = mkRng(7070), rn = (a, b) => a + pr() * (b - a), P = [], A = [], I = [];
+  const add = (x, z, sx, sz, yaw) => { const N = 12, o = P.length / 3, cs = Math.cos(yaw), sn = Math.sin(yaw), seed = pr() * 10;
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++){ const u = i / N * 2 - 1, v = j / N * 2 - 1, lx = u * sx * 1.3, lz = v * sz * 1.3;
+      P.push(x + lx * cs - lz * sn, 0.02, z + lx * sn + lz * cs); A.push(u * 1.3, v * 1.3, seed); }
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++){ const a = o + j * (N + 1) + i; I.push(a, a + N + 1, a + 1, a + 1, a + N + 1, a + N + 2); } };
+  for (let z = ROAD_Z0 + 1.5; z < STABU_FRONT - 2; z += rn(1.5, 4.5)){                 // in the lane: long ones in the wheel ruts, the odd big one across
+    if (pr() < 0.25) add(ROAD_X + rn(-0.4, 0.4), z, rn(0.9, 1.5), rn(1.0, 2.2), rn(-0.3, 0.3));
+    else add(ROAD_X + (pr() < 0.5 ? -0.75 : 0.75) + rn(-0.12, 0.12), z, rn(0.25, 0.45), rn(0.8, 2.4), rn(-0.08, 0.08)); }
+  for (let k = 0; k < 14; k++){ const t = pr(); add(lerp(-8.6, 8.4, t) + rn(-0.3, 0.3), lerp(ROAD_Z0 + 0.5, -147, t) + rn(-1, 1), rn(0.35, 0.8), rn(0.4, 1.0), rn(0, TAU)); }   // on the paths and the trampled ground
+  for (let k = 0; k < 6; k++){ const a = pr() * TAU, r = rn(1.5, 5); add(TREE.x + Math.cos(a) * r, TREE.z + Math.sin(a) * r, rn(0.6, 1.4), rn(0.6, 1.6), rn(0, TAU)); }   // the bare ring under the tree
+  for (let k = 0; k < 4; k++) add(rn(-6, 14), BZ + rn(0.4, 0.8), rn(0.6, 1.5), rn(0.25, 0.4), 0);   // along the wall under the eaves
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aPud', new THREE.Float32BufferAttribute(A, 3)); g.setIndex(I); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, puddleMat); m.receiveShadow = true; m.renderOrder = 1; puddles.add(m);
+}
 function updateWeather(dt, t, sp){
   const T = WEATHERS[weather], k = Math.min(1, dt * 0.35);
   W.cloud += (T.cloud - W.cloud) * k; W.rain += (T.rain - W.rain) * k;
@@ -2936,7 +2980,7 @@ function updateEnv(sp){
   roomLight.intensity = lampOn ? 0.5 + lit * 2.2 : 0; deskLamp.spot.intensity = lampOn ? 1.2 + lit * 3.5 : 0;
   deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
   groundMat.color.copy(cyc(S, groundKeys, tmpC)).multiplyScalar(1 - 0.28 * W.wet); groundMat.roughness = 1 - 0.35 * W.wet;
-  roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleMat.opacity = W.wet * 0.85 * (1 - sp.snow); puddles.visible = puddleMat.opacity > 0.02;
+  roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
   snowU.value = sp.snow; snowLayer.visible = sp.snow > 0.02;
   liftU.value = 0.03 + 0.2 * env.day;
 }
