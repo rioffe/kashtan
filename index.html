@@ -522,7 +522,7 @@ const roofTex = tex(512, 512, (g, w, h) => {
 }
 /* ---------- paths and overgrowth: narrow, cracked, mossy asphalt paths to the entrances, a trodden track to the tree,
    and grass running wild along every edge, the lane's verges and between its ruts ---------- */
-const TUFTS = [];
+const TUFTS = [], DANDS = [];
 {
   const pr = mkRng(5150), rn = (a, b) => a + pr() * (b - a);
   const surfaceTex = (base, fn) => tex(256, 512, (g, w, h) => {
@@ -585,12 +585,79 @@ const TUFTS = [];
   const tm = swayify(new THREE.MeshStandardMaterial({ map: bladeTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }), 0.12);
   TUFTS.mesh = new THREE.InstancedMesh(mergeGeometries(cards), tm, TUFTS.length); TUFTS.mesh.receiveShadow = true; TUFTS.mesh.frustumCulled = false; scene.add(TUFTS.mesh);
   TUFTS.mesh.setColorAt(0, new THREE.Color());
+  /* dandelions: rosettes of toothed leaves everywhere the grass is; in spring bright yellow heads, then the white clocks */
+  const dr = mkRng(4545), dn = (a, b) => a + dr() * (b - a);
+  const cand = [];
+  for (let i = 0; i < 24000; i++) cand.push([dn(-17.8, 17.8), dn(BZ + 0.8, ROAD_Z0)]);
+  for (let z = ROAD_Z0; z < STABU_FRONT - 2; z += 0.2) for (const sd of [-1, 1]) cand.push([ROAD_X + sd * (ROAD_W / 2 + dn(0.15, 1.6)), z + dn(-0.15, 0.15)]);
+  for (const [x, z] of cand){ const k = fbm(x * 0.22 - 5, z * 0.22 + 9); if (dr() > k * 1.1 - 0.1 || blocked(x, z)) continue;
+    const pl = { x, z, j: dn(-0.07, 0.07), yaw: dn(0, TAU), s: dn(0.7, 1.25), heads: [] }; DANDS.push(pl);
+    for (let h = 0, nh = 1 + (dr() * dr() * 4 | 0); h < nh; h++){ const a = dn(0, TAU), lean = dn(0.05, 0.35);
+      pl.heads.push({ dir: new V3(Math.sin(a) * lean, 1, Math.cos(a) * lean).normalize(), h: dn(0.13, 0.26), j: dn(-0.035, 0.035), blow: dr(), yaw: dn(0, TAU) }); } }
+}
+{
+  // the yellow head: three rings of strap florets, longest and flattest outside, short and upright in the middle; a green cup under it
+  const col = new THREE.Color(), parts = [];
+  const ring = (n, len, wid, tilt, c0, c1, off) => { for (let i = 0; i < n; i++){ const g = new THREE.PlaneGeometry(wid, len, 1, 2), pa = g.attributes.position, cc = new Float32Array(pa.count * 3);
+      for (let k = 0; k < pa.count; k++){ const t = (pa.getY(k) + len / 2) / len; pa.setXYZ(k, pa.getX(k) * (t > 0.9 ? 0.75 : 1), t * len, 0.12 * t * t * len); col.set(c0).lerp(new THREE.Color(c1), t); col.toArray(cc, k * 3); }
+      g.setAttribute('color', new THREE.BufferAttribute(cc, 3)); g.rotateX(-tilt); g.rotateY((i + off) / n * TAU); parts.push(g); } };
+  ring(16, 0.023, 0.0052, 1.42, '#f0a800', '#ffdc2e', 0); ring(12, 0.017, 0.0048, 1.05, '#f2ad00', '#ffd21a', 0.5); ring(8, 0.011, 0.0044, 0.55, '#e89c00', '#ffc80a', 0.25);
+  const cup = new THREE.CylinderGeometry(0.0058, 0.0028, 0.007, 10, 1, true).translate(0, -0.0035, 0), cc = new Float32Array(cup.attributes.position.count * 3);
+  for (let i = 0; i < cup.attributes.position.count; i++) col.set('#5f8a32').toArray(cc, i * 3); cup.setAttribute('color', new THREE.BufferAttribute(cc, 3)); parts.push(cup);
+  const yellowGeo = mergeGeometries(parts.map(g => { g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g.index ? g.toNonIndexed() : g; })); yellowGeo.computeVertexNormals();
+  // the clock: drawn once in detail (the fine beaks radiating from the seed core, a feathery parachute at the end of each),
+  // shown on three crossed cards so that thousands of them cost almost nothing and read as a sphere from any side
+  const clockTex = tex(256, 256, (g, w, h) => { const cx = w / 2, cy = h / 2, R = w * 0.47, rr = mkRng(77);
+    const gl = g.createRadialGradient(cx, cy, R * 0.2, cx, cy, R); gl.addColorStop(0, 'rgba(255,255,255,.18)'); gl.addColorStop(0.85, 'rgba(255,255,255,.28)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+    for (let i = 0; i < 150; i++){ const a = rr() * TAU, k = 0.55 + 0.45 * rr(), ex = cx + Math.cos(a) * R * 0.7 * k, ey = cy + Math.sin(a) * R * 0.7 * k;
+      g.strokeStyle = 'rgba(245,240,232,.75)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(cx, cy); g.lineTo(ex, ey); g.stroke();            // the beak
+      for (let f = 0; f < 14; f++){ const b = a + (f / 13 - 0.5) * 2.2, L = R * 0.3 * k; g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 0.6;   // its parachute
+        g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex + Math.cos(b) * L, ey + Math.sin(b) * L); g.stroke(); } }
+    blot(g, cx, cy, w * 0.05, '#8a5a52'); blot(g, cx, cy, w * 0.03, '#a8706a'); });
+  const cards = []; for (const r of [[0, 0, 0], [0, Math.PI / 2, 0], [Math.PI / 2, 0, 0]]) cards.push(new THREE.PlaneGeometry(0.044, 0.044).rotateX(r[0]).rotateY(r[1]));
+  const leafTexD = tex(64, 256, (g, w, h) => {   // runcinate: deep backward-pointing lobes all along, a big triangular tip
+    g.fillStyle = '#d0dcc0'; g.beginPath(); g.moveTo(w / 2, h);
+    for (let side of [1, -1]){ const pts = []; for (let i = 0; i <= 7; i++){ const y = h - i / 7 * h * 0.78, lobe = i % 2 ? 0.46 : 0.16; pts.push([w / 2 + side * w * lobe * (0.5 + 0.5 * i / 7), y - (i % 2 ? 10 : 0)]); }
+      pts.push([w / 2 + side * w * 0.42, h * 0.16], [w / 2, 0]); if (side < 0) pts.reverse(); for (const [x, y] of pts) g.lineTo(x, y); }
+    g.closePath(); g.fill(); g.strokeStyle = 'rgba(255,255,240,.6)'; g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, 4); g.stroke(); });
+  const leafG = new THREE.PlaneGeometry(1, 1, 1, 5).translate(0, 0.5, 0), lp = leafG.attributes.position;
+  for (let i = 0; i < lp.count; i++){ const t = lp.getY(i); lp.setXYZ(i, lp.getX(i), 0.22 * t * t + 0.02, t); } leafG.computeVertexNormals();   // lying out flat, the tip lifting a little
+  const nH = DANDS.reduce((a, p) => a + p.heads.length, 0), nL = DANDS.length * 6;
+  const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; };
+  DANDS.yellow = mk(yellowGeo, swayify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.6 }), 0.05), nH);
+  DANDS.clocks = mk(mergeGeometries(cards), new THREE.MeshStandardMaterial({ map: clockTex, transparent: true, depthWrite: false, alphaTest: 0.04, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.18 }), nH); DANDS.clocks.castShadow = false;
+  DANDS.stems = mk(new THREE.CylinderGeometry(0.0017, 0.0021, 1, 5, 1, true).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: '#a3bd70', roughness: 0.7 }), nH);
+  DANDS.leaves = mk(leafG, new THREE.MeshStandardMaterial({ map: leafTexD, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 }), nL); DANDS.leaves.setColorAt(0, new THREE.Color());
+  const e = new THREE.Euler();
+  for (const p of DANDS){ p.lq = []; for (let k = 0; k < 6; k++){ e.set(0, p.yaw + k / 6 * TAU + (k % 2) * 0.3, 0); p.lq.push(new THREE.Quaternion().setFromEuler(e)); } }
+}
+let dandS = -1;
+function updateDandelions(){
+  if (Math.abs(S - dandS) < 0.002) return; dandS = S;
+  const leafA = bump(S, 1.3, 1.5, 3.4, 3.75), sn = SP(S).snow, D = DANDS, up = new V3(0, 1, 0), q = new THREE.Quaternion(), top = new V3();
+  let i = 0, li = 0;
+  for (const p of D){
+    for (let k = 0; k < 6; k++){ const l = leafA * (1 - sn) * p.s; SC.set(0.05 * l, 0.06 * l, (0.13 + 0.05 * (k % 3)) * l); M4.compose(P3.set(p.x, 0.005, p.z), p.lq[k], SC); D.leaves.setMatrixAt(li, M4);
+      D.leaves.setColorAt(li++, tmpC.set('#3d6a26').lerp(tmpC2.set('#7a7a3a'), clamp((S - 3.0) / 0.5)).multiplyScalar(0.85 + 0.1 * (k % 3))); }
+    for (const H of p.heads){ const j = p.j + H.j;
+      const open = smooth((S - 1.58 - j) / 0.04) * (1 - smooth((S - 1.83 - j) / 0.025));
+      const clock = smooth((S - 1.86 - j) / 0.03) * (1 - smooth((S - 2.0 - j - 0.1 * H.blow) / 0.03));
+      const hh = open > 0 ? H.h * (0.4 + 0.6 * open) : clock > 0 ? H.h * 1.7 : 0;
+      q.setFromUnitVectors(up, H.dir); SC.set(1, Math.max(0.0001, hh), 1); M4.compose(P3.set(p.x, 0, p.z), q, SC); D.stems.setMatrixAt(i, M4);
+      top.copy(H.dir).multiplyScalar(hh).add(P3);
+      q.setFromUnitVectors(up, H.dir).multiply(new THREE.Quaternion().setFromAxisAngle(up, H.yaw));
+      SC.setScalar(open > 0 ? 0.35 + 0.65 * open : 0); M4.compose(top, q, SC); D.yellow.setMatrixAt(i, M4);
+      SC.setScalar(clock); M4.compose(top, q, SC); D.clocks.setMatrixAt(i, M4); i++; }
+  }
+  for (const m of [D.leaves, D.stems, D.yellow, D.clocks]) m.instanceMatrix.needsUpdate = true; D.leaves.instanceColor.needsUpdate = true;
+  D.leaves.visible = leafA > 0.001 && sn < 0.99; const any = S > 1.5 && S < 2.2; D.stems.visible = D.yellow.visible = D.clocks.visible = any;
 }
 const tuftKeys = [[0.6, C('#8a7e58')], [1.2, C('#6e7e40')], [1.7, C('#6a9a3c')], [2.5, C('#4a7a2a')], [3.1, C('#647a34')], [3.6, C('#8a8048')], [3.95, C('#857652')]];
 let tuftS = -1;
 function updateTufts(){
   if (Math.abs(S - tuftS) < 0.002) return; tuftS = S;
-  const sn = SP(S).snow, grow = 0.35 + 0.65 * bump(S, 1.1, 1.9, 3.6, 4.2), col = cyc(S, tuftKeys, tmpC2).clone(), m = TUFTS.mesh, dryK = clamp((S - 3.0) / 0.6) + (S < 1.2 ? 1 : 0);
+  const sn = SP(S).snow, grow = 0.3 + 0.7 * bump(S, 1.35, 2.3, 3.6, 4.2), col = cyc(S, tuftKeys, tmpC2).clone(), m = TUFTS.mesh, dryK = clamp((S - 3.0) / 0.6) + (S < 1.2 ? 1 : 0);
   TUFTS.forEach((T, i) => { const h = T.s * grow * (1 - sn * (0.75 + 0.25 * T.r)); SC.set(T.s, Math.max(0.001, h), T.s); Q.setFromAxisAngle(P3.set(0, 1, 0), T.yaw); M4.compose(P3.set(T.x, 0, T.z), Q, SC); m.setMatrixAt(i, M4);
     m.setColorAt(i, tmpC.copy(col).lerp(tmpC2.set('#b3a46a'), Math.min(1, dryK * T.dry * 0.6 + (T.dry > 0.9 ? 0.55 : 0))).multiplyScalar(T.v)); });   // a few always gone to seed, straw-coloured
   m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.visible = sn < 0.97;
@@ -2807,6 +2874,7 @@ function updateSeasonal(sp){
   updateOrchard();
   updateVines();
   updateTufts();
+  updateDandelions();
   vegData.forEach((v, i) => { SC.setScalar(v.s * sp.veg * (v.kind < 0.5 ? 1 : 0.7)); Q.identity(); M4.compose(v.p, Q, SC); veg.setMatrixAt(i, M4); }); veg.instanceMatrix.needsUpdate = true; veg.visible = sp.veg > 0.001;
   let anyFl = false;
   flowerData.forEach((f, i) => { const k = bump(S, ...f.win); anyFl = anyFl || k > 0; Q.setFromAxisAngle(P3.set(0, 1, 0), f.yaw);
