@@ -213,7 +213,7 @@ const CB = (() => {
   const px = [], py = [], cv = [], ch = [];
   for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++){ px.push((i + 0.1 + 0.8 * r()) * cw); py.push((j + 0.1 + 0.8 * r()) * chh); cv.push(r()); ch.push(r()); }
   const hgt = new Float32Array(W * H), col = new Uint8ClampedArray(W * H * 4);
-  const pal = [[116, 106, 96], [120, 96, 82], [134, 130, 120], [102, 94, 86]];
+  const pal = [[108, 66, 48], [120, 74, 52], [96, 60, 44], [128, 84, 62]];   // deep reddish brown
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
     const u = x / W, v = y / H;
     const wx = x + 26 * (fbm(u, v, 6, 11, 3) - 0.5), wy = y + 40 * (fbm(u, v, 5, 12, 3) - 0.5);
@@ -231,10 +231,10 @@ const CB = (() => {
     const c0 = pal[Math.floor(ch[id] * pal.length)], c1 = pal[(Math.floor(ch[id] * pal.length) + 1) % pal.length], mx = fbm(u, v, 4, 31, 3);
     let R = c0[0] + (c1[0] - c0[0]) * mx, G = c0[1] + (c1[1] - c0[1]) * mx, B = c0[2] + (c1[2] - c0[2]) * mx;
     const br = 0.82 + 0.3 * plate + 0.16 * (grain - 0.5) + 0.12 * (fine - 0.5); R *= br; G *= br; B *= br;
-    R += 22 * rim; G += 18 * rim; B += 14 * rim;                                    // lifting, paler plate edges
-    const dc = crack * crack; R = R + (46 - R) * dc; G = G + (28 - G) * dc; B = B + (20 - B) * dc;   // the fissures: dark, a little rusty
+    R += 24 * rim; G += 15 * rim; B += 10 * rim;                                    // lifting, paler plate edges
+    const dc = crack * crack; R = R + (40 - R) * dc; G = G + (20 - G) * dc; B = B + (14 - B) * dc;   // the fissures: dark, a little rusty
     const lich = smooth((fbm(u, v, 5, 41, 4) - 0.6) / 0.07) * (1 - crack) * (0.55 + 0.45 * fine);
-    R += (168 - R) * lich * 0.8; G += (172 - G) * lich * 0.8; B += (150 - B) * lich * 0.8;
+    R += (150 - R) * lich * 0.5; G += (150 - G) * lich * 0.5; B += (126 - B) * lich * 0.5;
     const o = (y * W + x) * 4; col[o] = R; col[o + 1] = G; col[o + 2] = B; col[o + 3] = 255; }
   const nrm = new Uint8ClampedArray(W * H * 4), S = 5.5;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
@@ -256,12 +256,12 @@ function mossify(mat){
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vMN = normalize(mat3(modelMatrix) * objectNormal);')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n vThick = aThick; vMW = (modelMatrix * vec4(transformed, 1.)).xyz;');
     sh.fragmentShader = 'uniform sampler2D uMoss; varying float vThick; varying vec3 vMW; varying vec3 vMN;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      diffuseColor.rgb = mix(vec3(0.2, 0.17, 0.145) * (0.85 + 0.3 * texture2D(uMoss, vMapUv * vec2(1.0, 4.0)).b), diffuseColor.rgb, smoothstep(0.035, 0.2, vThick));   // young wood: smooth grey-brown
+      diffuseColor.rgb = mix(vec3(0.21, 0.14, 0.11) * (0.85 + 0.3 * texture2D(uMoss, vMapUv * vec2(1.0, 4.0)).b), diffuseColor.rgb, smoothstep(0.035, 0.2, vThick));   // young wood: smooth grey-brown
       { float big = texture2D(uMoss, vMapUv * vec2(0.5, 0.3)).r, clump = texture2D(uMoss, vMapUv * vec2(2.0, 1.2)).g, grain = texture2D(uMoss, vMapUv * vec2(3.0, 1.6)).b;
         float up = smoothstep(0.1, 0.8, vMN.y), low = 1.0 - smoothstep(0.8, 5.8, vMW.y), side = 0.5 + 0.5 * clamp(-vMN.z * 0.7 + vMN.x * 0.4, -1.0, 1.0);
         float m = (up * 0.75 + low * (0.55 + 0.35 * side)) * smoothstep(0.05, 0.2, vThick);
         m = smoothstep(0.45, 0.68, m * 0.8 + big * 0.85 - 0.38 + (clump - 0.5) * 0.5);
-        vec3 mc = mix(vec3(0.16, 0.22, 0.05), vec3(0.36, 0.44, 0.12), grain) * (0.8 + 0.4 * clump);
+        vec3 mc = mix(vec3(0.06, 0.14, 0.035), vec3(0.17, 0.3, 0.07), grain) * (0.8 + 0.4 * clump);   // deep, damp green
         float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); mc *= 0.35 + 0.75 * smoothstep(0.015, 0.12, lum);
         diffuseColor.rgb = mix(diffuseColor.rgb, mc, m * (0.6 + 0.35 * clump)); }`);
   };
