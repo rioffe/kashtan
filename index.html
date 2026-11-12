@@ -199,6 +199,75 @@ const barkTex = tex(256, 512, (g, w, h) => {
   speckle(g, w, h, 300, ['rgba(120,140,90,.35)', 'rgba(160,160,140,.3)'], 1, 4);
 }, { repeat: [2, 1] });
 
+/* the chestnut's own bark: long irregular plates split by deep fissures, grey-brown with rusty undersides and pale lichen;
+   the same height field gives a normal map so the cracks catch the light; a moss mask tells the shader where moss grows */
+const CB = (() => {
+  let s_ = 8128; const r = () => { s_ = s_ + 0x6D2B79F5 | 0; let t = Math.imul(s_ ^ s_ >>> 15, 1 | s_); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const hash = (a, b, fx, fy, sd) => { a = ((a % fx) + fx) % fx; b = ((b % fy) + fy) % fy; let n = Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(sd, 1442695041) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const vn = (x, y, fx, fy, sd) => { const xi = Math.floor(x), yi = Math.floor(y), tx = x - xi, ty = y - yi, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const a = hash(xi, yi, fx, fy, sd), b = hash(xi + 1, yi, fx, fy, sd), c = hash(xi, yi + 1, fx, fy, sd), d = hash(xi + 1, yi + 1, fx, fy, sd);
+    return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy; };
+  const fbm = (u, v, f, sd, oct = 4) => { let s = 0, a = 0.5, n = 0; for (let o = 0; o < oct; o++){ s += a * vn(u * f, v * f, f, f, sd + o); n += a; a *= 0.5; f *= 2; } return s / n; };
+  const W = 512, H = 1024, GX = 6, GY = 7, cw = W / GX, chh = H / GY;
+  const px = [], py = [], cv = [], ch = [];
+  for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++){ px.push((i + 0.1 + 0.8 * r()) * cw); py.push((j + 0.1 + 0.8 * r()) * chh); cv.push(r()); ch.push(r()); }
+  const hgt = new Float32Array(W * H), col = new Uint8ClampedArray(W * H * 4);
+  const pal = [[116, 106, 96], [120, 96, 82], [134, 130, 120], [102, 94, 86]];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    const u = x / W, v = y / H;
+    const wx = x + 26 * (fbm(u, v, 6, 11, 3) - 0.5), wy = y + 40 * (fbm(u, v, 5, 12, 3) - 0.5);
+    const ci = Math.floor(wx / cw), cj = Math.floor(wy / chh); let f1 = 1e9, f2 = 1e9, id = 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++){ const ii = ci + di, jj = cj + dj, iw = ((ii % GX) + GX) % GX, jw = ((jj % GY) + GY) % GY, k = jw * GX + iw;
+      const qx = px[k] + (ii - iw) * cw, qy = py[k] + (jj - jw) * chh, dx = wx - qx, dy = (wy - qy) * 0.42, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < f1){ f2 = f1; f1 = d; id = k; } else if (d < f2) f2 = d; }
+    const deep = smooth((vn(u * 24, v * 9, 24, 9, 13) - 0.28) / 0.3), e = f2 - f1, rim = smooth((e - 4) / 5) * (1 - smooth((e - 10) / 8));
+    let crack = (1 - smooth((e - 1.2) / (3 + 5 * cv[id]))) * (0.25 + 0.75 * deep);
+    const grain = vn(u * 70, v * 5, 70, 5, 21), fine = vn(u * 140, v * 60, 140, 60, 23);
+    const plate = 0.55 + 0.3 * cv[id] + 0.12 * grain + 0.06 * fine - 0.22 * Math.min(1, f1 / (cw * 0.9));
+    const rn = Math.abs(vn(u * 12 + 1.5 * fbm(u, v, 3, 14, 2), v * 2, 12, 2, 15) - 0.5) * 2, vline = (1 - smooth(rn / (0.05 + 0.05 * fine))) * smooth((vn(u * 8, v * 6, 8, 6, 16) - 0.3) / 0.3);
+    crack = Math.max(crack, vline * 0.85);
+    const hv = plate * (1 - crack) + 0.04 * crack; hgt[y * W + x] = hv;
+    const c0 = pal[Math.floor(ch[id] * pal.length)], c1 = pal[(Math.floor(ch[id] * pal.length) + 1) % pal.length], mx = fbm(u, v, 4, 31, 3);
+    let R = c0[0] + (c1[0] - c0[0]) * mx, G = c0[1] + (c1[1] - c0[1]) * mx, B = c0[2] + (c1[2] - c0[2]) * mx;
+    const br = 0.82 + 0.3 * plate + 0.16 * (grain - 0.5) + 0.12 * (fine - 0.5); R *= br; G *= br; B *= br;
+    R += 22 * rim; G += 18 * rim; B += 14 * rim;                                    // lifting, paler plate edges
+    const dc = crack * crack; R = R + (46 - R) * dc; G = G + (28 - G) * dc; B = B + (20 - B) * dc;   // the fissures: dark, a little rusty
+    const lich = smooth((fbm(u, v, 5, 41, 4) - 0.6) / 0.07) * (1 - crack) * (0.55 + 0.45 * fine);
+    R += (168 - R) * lich * 0.8; G += (172 - G) * lich * 0.8; B += (150 - B) * lich * 0.8;
+    const o = (y * W + x) * 4; col[o] = R; col[o + 1] = G; col[o + 2] = B; col[o + 3] = 255; }
+  const nrm = new Uint8ClampedArray(W * H * 4), S = 5.5;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    const hx = hgt[y * W + (x + 1) % W] - hgt[y * W + (x + W - 1) % W], hy = hgt[((y + 1) % H) * W + x] - hgt[((y + H - 1) % H) * W + x];
+    let nx = -hx * S, ny = hy * S, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    const o = (y * W + x) * 4; nrm[o] = (nx * 0.5 + 0.5) * 255; nrm[o + 1] = (ny * 0.5 + 0.5) * 255; nrm[o + 2] = (nz * 0.5 + 0.5) * 255; nrm[o + 3] = 255; }
+  const put = (data) => (g, w, h) => { const im = g.createImageData(w, h); im.data.set(data); g.putImageData(im, 0, 0); };
+  const MW = 256, moss = new Uint8ClampedArray(MW * MW * 4);
+  for (let y = 0; y < MW; y++) for (let x = 0; x < MW; x++){ const u = x / MW, v = y / MW, o = (y * MW + x) * 4;
+    moss[o] = 255 * fbm(u, v, 3, 51, 5); moss[o + 1] = 255 * fbm(u, v, 16, 61, 3); moss[o + 2] = 255 * vn(u * 64, v * 64, 64, 64, 71); moss[o + 3] = 255; }
+  return { color: tex(W, H, put(col)), normal: tex(W, H, put(nrm), { srgb: false }), moss: tex(MW, MW, put(moss), { srgb: false }) };
+})();
+// moss on the lower trunk and the upper sides of the big limbs, in patches; thin twigs stay bare
+function mossify(mat){
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, rr) => { if (prev) prev(sh, rr);
+    sh.uniforms.uMoss = { value: CB.moss };
+    sh.vertexShader = 'attribute float aThick; varying float vThick; varying vec3 vMW; varying vec3 vMN;\n' + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vMN = normalize(mat3(modelMatrix) * objectNormal);')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vThick = aThick; vMW = (modelMatrix * vec4(transformed, 1.)).xyz;');
+    sh.fragmentShader = 'uniform sampler2D uMoss; varying float vThick; varying vec3 vMW; varying vec3 vMN;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      diffuseColor.rgb = mix(vec3(0.2, 0.17, 0.145) * (0.85 + 0.3 * texture2D(uMoss, vMapUv * vec2(1.0, 4.0)).b), diffuseColor.rgb, smoothstep(0.035, 0.2, vThick));   // young wood: smooth grey-brown
+      { float big = texture2D(uMoss, vMapUv * vec2(0.5, 0.3)).r, clump = texture2D(uMoss, vMapUv * vec2(2.0, 1.2)).g, grain = texture2D(uMoss, vMapUv * vec2(3.0, 1.6)).b;
+        float up = smoothstep(0.1, 0.8, vMN.y), low = 1.0 - smoothstep(0.8, 5.8, vMW.y), side = 0.5 + 0.5 * clamp(-vMN.z * 0.7 + vMN.x * 0.4, -1.0, 1.0);
+        float m = (up * 0.75 + low * (0.55 + 0.35 * side)) * smoothstep(0.05, 0.2, vThick);
+        m = smoothstep(0.45, 0.68, m * 0.8 + big * 0.85 - 0.38 + (clump - 0.5) * 0.5);
+        vec3 mc = mix(vec3(0.16, 0.22, 0.05), vec3(0.36, 0.44, 0.12), grain) * (0.8 + 0.4 * clump);
+        float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); mc *= 0.35 + 0.75 * smoothstep(0.015, 0.12, lum);
+        diffuseColor.rgb = mix(diffuseColor.rgb, mc, m * (0.6 + 0.35 * clump)); }`);
+  };
+  return mat;
+}
+
 const leafTex = tex(256, 256, (g, w, h) => {
   const bx = w / 2, by = h * 0.96, n = 7;
   for (let i = 0; i < n; i++){
@@ -678,20 +747,54 @@ function grow(p, dir, len, rad, depth){
 }
 grow(new V3(0, 0, 0), new V3(0, 1, 0), 4.6, 0.85, 0);
 const CROWN = new V3(0, 10.5, 0);
-{
+{ // the wood: each limb one smooth tube along a curve, flaring into a collar where it leaves its parent; a fluted, buttressed trunk
+  const tube = (pts, rads, o) => {
+    const n = pts.length, curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal'), NS = (n - 1) * o.steps, R = o.radial;
+    const P = [], UV = [], TH = [], idx = []; let N = perpBasis(curve.getTangent(0))[0], arc = 0, prev = null;
+    for (let i = 0; i <= NS; i++){ const t = i / NS, C = curve.getPoint(t), T = curve.getTangent(t);
+      N = N.clone().addScaledVector(T, -T.dot(N)).normalize(); const B = new V3().crossVectors(T, N);
+      if (prev) arc += C.distanceTo(prev); prev = C;
+      const f = t * (n - 1), k = Math.min(n - 2, Math.floor(f)), r0 = lerp(rads[k], rads[k + 1], f - k) * (o.collar ? 1 + o.collar * Math.exp(-Math.max(0, arc - (o.collarFrom || 0)) / o.collarL) : 1);
+      for (let j = 0; j <= R; j++){ const th = j / R * TAU, c = Math.cos(th), sn = Math.sin(th), rr = r0 * (o.flute ? o.flute(th, arc, C) : 1);
+        P.push(C.x + (N.x * c + B.x * sn) * rr, C.y + (N.y * c + B.y * sn) * rr, C.z + (N.z * c + B.z * sn) * rr); UV.push(j / R * o.uRep, arc / 1.8 + o.v0); TH.push(o.thick ?? r0); } }
+    for (let i = 0; i < NS; i++) for (let j = 0; j < R; j++){ const a_ = i * (R + 1) + j, b_ = a_ + R + 1; idx.push(a_, a_ + 1, b_, b_, a_ + 1, b_ + 1); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+    g.setAttribute('aThick', new THREE.Float32BufferAttribute(TH, 1)); g.setIndex(idx); g.computeVertexNormals();
+    const nm = g.attributes.normal; for (let i = 0; i <= NS; i++){ const a_ = i * (R + 1), b_ = a_ + R; const x = nm.getX(a_) + nm.getX(b_), y = nm.getY(a_) + nm.getY(b_), z = nm.getZ(a_) + nm.getZ(b_), l = Math.hypot(x, y, z) || 1;
+      nm.setXYZ(a_, x / l, y / l, z / l); nm.setXYZ(b_, x / l, y / l, z / l); }
+    return g; };
+  const cap = (p, r_, seg) => { const g = new THREE.SphereGeometry(r_, seg, Math.max(4, seg >> 1)); g.translate(p.x, p.y, p.z); g.setAttribute('aThick', new THREE.Float32BufferAttribute(new Array(g.attributes.position.count).fill(r_), 1)); return g; };
+  const chains = []; let ch = null;
+  for (const sg of tree.segs){ if (!ch || ch.depth !== sg.depth || ch.pts[ch.pts.length - 1].distanceToSquared(sg.a) > 1e-8){ ch = { depth: sg.depth, pts: [sg.a.clone()], rads: [sg.r0] }; chains.push(ch); }
+    ch.pts.push(sg.b.clone()); ch.rads.push(sg.r1); }
+  const key = v => `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`, ends = new Map();
+  for (const c of chains) ends.set(key(c.pts[c.pts.length - 1]), c);
   const geos = [];
-  for (const s of tree.segs){
-    const len = s.a.distanceTo(s.b), radial = s.depth <= 1 ? 14 : s.depth === 2 ? 9 : 5;
-    const g = new THREE.CylinderGeometry(s.r1, s.r0, len * 1.04, radial, 1, true); g.translate(0, len / 2, 0);
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), s.b.clone().sub(s.a).normalize())); g.translate(s.a.x, s.a.y, s.a.z);
-    const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * len / 2.5);
-    geos.push(g);
-    if (s.depth <= 2){ const sp = new THREE.SphereGeometry(s.r0 * 1.02, radial, 6); sp.translate(s.a.x, s.a.y, s.a.z); geos.push(sp); }
-  }
-  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + rnd(-0.2, 0.2), b = new V3(Math.cos(a) * 1.9, -0.25, Math.sin(a) * 1.9), top = new V3(Math.cos(a) * 0.3, 1.0, Math.sin(a) * 0.3);
-    const len = top.distanceTo(b), g = new THREE.CylinderGeometry(0.42, 0.12, len, 8, 1, true); g.translate(0, len / 2, 0);
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), top.clone().sub(b).normalize())); g.translate(b.x, b.y, b.z); geos.push(g); }
-  const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: barkTex, color: '#a39a90', roughness: 0.95 }), 1.3));
+  chains.forEach((c, ci) => { const d = c.depth, pts = c.pts.slice(), rads = c.rads.slice();
+    const o = { radial: d === 0 ? 30 : d === 1 ? 18 : d === 2 ? 11 : d === 3 ? 7 : 5, steps: d === 0 ? 6 : d === 1 ? 4 : d === 2 ? 3 : d === 3 ? 2 : 1,
+      uRep: Math.max(1, Math.round(TAU * rads[0] / 0.9)), v0: (ci * 0.37) % 1 };
+    if (d === 0) o.flute = (th, arc, C) => { const y = C.y; return (1 + 0.75 * Math.exp(-y / 0.55)) * (1 - 0.2 * smooth((y - 3.0) / 1.7)) * (1 + (0.085 + 0.05 * Math.exp(-y / 1.2)) * Math.cos(3 * th + 0.6 + y * 0.15) + 0.035 * Math.cos(7 * th + 1.3 - y * 0.3) + 0.03 * Math.sin(2 * th + y * 0.9)); };
+    else {
+      // root it well down inside the parent, along the parent's own axis, so it peels away from it instead of sprouting from a joint
+      const par = ends.get(key(pts[0])), pe = par ? par.pts[par.pts.length - 1] : pts[0], pd = par ? pe.clone().sub(par.pts[par.pts.length - 2]).normalize() : pts[1].clone().sub(pts[0]).normalize();
+      const pr_ = par ? par.rads[par.rads.length - 1] : rads[0] * 1.5, L1 = pr_ * (d === 1 ? 1.7 : 1.3);
+      const cdir = pts[1].clone().sub(pts[0]).normalize();
+      const sideK = d === 1 ? 0.22 : 0.1;
+      pts.unshift(pe.clone().addScaledVector(pd, -L1).addScaledVector(cdir, pr_ * sideK * 0.6), pe.clone().addScaledVector(pd, -L1 * 0.45).addScaledVector(cdir, pr_ * sideK * 1.2));
+      rads.unshift(rads[0] * 0.35, rads[0] * (d === 1 ? 1.0 : 0.95));
+      o.collar = d === 1 ? 0.28 : 0.3; o.collarL = rads[0] * 1.8; o.collarFrom = L1;
+      if (d <= 2) o.flute = (th, arc) => 1 + 0.05 * Math.cos(2 * th + arc * 0.8 + ci) + 0.03 * Math.cos(5 * th - arc * 1.3);
+    }
+    if (d <= 3){ const e_ = pts[pts.length - 1], de = e_.clone().sub(pts[pts.length - 2]).normalize(), re = rads[rads.length - 1];   // round the end over, bark and all
+      if (d === 0){ pts.push(e_.clone().addScaledVector(de, re * 0.8), e_.clone().addScaledVector(de, re * 1.6), e_.clone().addScaledVector(de, re * 2.3)); rads.push(re * 0.82, re * 0.5, re * 0.1); }
+      else { pts.push(e_.clone().addScaledVector(de, re * 0.55), e_.clone().addScaledVector(de, re * 0.9)); rads.push(re * 0.72, re * 0.12); } }
+    geos.push(tube(pts, rads, o));
+  });
+  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + rnd(-0.2, 0.2), cs = Math.cos(a), sn = Math.sin(a);    // buttress roots running into the ground
+    geos.push(tube([new V3(cs * 0.25, 1.4, sn * 0.25), new V3(cs * 0.8, 0.5, sn * 0.8), new V3(cs * 1.45, 0.1, sn * 1.45), new V3(cs * 2.1, -0.18, sn * 2.1)], [0.32, 0.3, 0.19, 0.08],
+      { radial: 12, steps: 4, uRep: 2, v0: i * 0.21, thick: 0.4 })); }
+  const barkM = new THREE.MeshStandardMaterial({ map: CB.color, normalMap: CB.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.95 });
+  const wood = new THREE.Mesh(mergeGeometries(geos), mossify(snowify(barkM, 1.3)));
   wood.castShadow = wood.receiveShadow = true; treeG.add(wood);
 }
 /* leaves */
