@@ -605,7 +605,56 @@ var roomLight;
   WIN_PARTS.forEach(m => m.userData.win = true);
 
   rbox(wx0 - 0.1, wx1 + 0.1, wy0 - 0.04, wy0 + 0.015, BZ - 0.62, BZ - 0.2, paint);   // the sill stands 1.5 cm proud of the wall top, so the two never z-fight
-  rbox(HOME.x - 0.55, HOME.x + 0.55, 7.45, 7.95, BZ - 0.55, BZ - 0.45, new THREE.MeshStandardMaterial({ color: '#d8d3c6', roughness: 0.5 }));
+  /* the radiator: a Soviet cast-iron MS-140, ten sections of twin columns joined by round hubs top and bottom,
+     thick with layers of white paint, fed from the riser on the left through two valves with green levers */
+  {
+    const r = mkRng(1408), PITCH = 0.108, NSEC = 10, H = 0.588, HUB0 = 0.044, HUB1 = 0.544;
+    const prep = (g, shade) => { g.deleteAttribute('uv'); const n = g.attributes.position.count, c = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++){ const k = typeof shade === 'function' ? shade(g.attributes.position, i) : shade; c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = k; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
+    // a column: rounded-square section that swells at the hubs, pinches a little at the waist, with domed ends
+    const column = (aF, b, nu = 22, nv = 46) => { const pos = [], idx = [], R = 0.032;
+      for (let j = 0; j <= nv; j++){ const y = H * (0.5 - 0.5 * Math.cos(Math.PI * j / nv)); let sc = 1;
+        if (y < R) sc = Math.sqrt(Math.max(0, 1 - ((R - y) / R) ** 2)); else if (y > H - R) sc = Math.sqrt(Math.max(0, 1 - ((y - (H - R)) / R) ** 2));
+        const a = aF(y / H) * sc, bb = b * sc;
+        for (let i = 0; i < nu; i++){ const th = i / nu * TAU, c = Math.cos(th), sn = Math.sin(th); pos.push(a * Math.sign(c) * Math.abs(c) ** 0.42, y, bb * Math.sign(sn) * Math.abs(sn) ** 0.7); } }
+      for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++){ const a = j * nu + i, b2 = j * nu + (i + 1) % nu, c = a + nu, d = b2 + nu; idx.push(a, c, b2, b2, c, d); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(new Array(pos.length / 3 * 2).fill(0), 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+    const bump = (t, c, w) => Math.exp(-(((t - c) / w) ** 2));
+    const aF = t => 0.0345 + 0.005 * bump(t, HUB0 / H, 0.06) + 0.006 * bump(t, HUB1 / H, 0.06) - 0.004 * Math.sin(Math.PI * t);
+    const ao = (lo, hi) => (pa, i) => lo + (hi - lo) * Math.min(1, Math.max(0, (pa.getZ(i) + 0.064) / 0.128));   // darker towards the wall
+    const secParts = [
+      prep(column(aF, 0.019).translate(0, 0, 0.045), ao(0.94, 1)),                                           // the front column
+      prep(column(t => aF(t) * 0.92, 0.017).translate(0, 0, -0.045), 0.62),                                 // the back column, in shadow
+      prep(new THREE.BoxGeometry(0.014, H - 0.12, 0.07).translate(0, H / 2, 0), 0.55),                      // the web between them
+      prep(new THREE.CylinderGeometry(0.031, 0.031, PITCH - 0.014, 24).rotateZ(Math.PI / 2).translate(0, HUB0, 0), ao(0.75, 1)),   // hubs
+      prep(new THREE.CylinderGeometry(0.031, 0.031, PITCH - 0.014, 24).rotateZ(Math.PI / 2).translate(0, HUB1, 0), ao(0.75, 1)),
+    ];
+    const nipples = mergeGeometries([HUB0, HUB1].map(y => prep(new THREE.CylinderGeometry(0.025, 0.025, PITCH + 0.002, 20).rotateZ(Math.PI / 2).translate(PITCH / 2, y, 0), 0.8)));   // between sections
+    const section = mergeGeometries(secParts), withNip = mergeGeometries([section, nipples]), all = [], X0 = -(NSEC - 1) * PITCH / 2;
+    for (let i = 0; i < NSEC; i++){ const g = (i < NSEC - 1 ? withNip : section).clone();
+      // decades of paint: each section sits a hair off true and the paint has run a little differently
+      g.applyMatrix4(new THREE.Matrix4().makeRotationZ((r() - 0.5) * 0.006)); g.translate(X0 + i * PITCH, 0, 0); all.push(g); }
+    const pipeR = 0.0165, RX = X0 - 0.38, endL = X0 - PITCH / 2 + 0.004, endR = -X0 + PITCH / 2 - 0.004;
+    const pipe = (x0, x1, y, z = 0) => prep(new THREE.CylinderGeometry(pipeR, pipeR, x1 - x0, 14).rotateZ(Math.PI / 2).translate((x0 + x1) / 2, y, z), 0.92);
+    for (const y of [HUB0, HUB1]){
+      all.push(prep(new THREE.CylinderGeometry(0.027, 0.027, 0.014, 20).rotateZ(Math.PI / 2).translate(endR - 0.004, y, 0), 0.9));               // right-hand plugs
+      all.push(prep(new THREE.BoxGeometry(0.008, 0.022, 0.022).translate(endR + 0.006, y, 0), 0.85));
+      all.push(prep(new THREE.CylinderGeometry(0.027, 0.027, 0.02, 20).rotateZ(Math.PI / 2).translate(endL - 0.006, y, 0), 0.9));                // left-hand fittings
+      all.push(pipe(RX, endL - 0.014, y)); }
+    all.push(prep(new THREE.CylinderGeometry(pipeR + 0.002, pipeR + 0.002, y1 - y0, 14).translate(RX, (y1 + y0) / 2 - 7.32, 0), 0.88));          // the riser, floor to ceiling
+    const paintM = new THREE.MeshStandardMaterial({ color: '#fbfaf5', vertexColors: true, roughness: 0.38 });
+    const rad = new THREE.Group(); rad.position.set(HOME.x, 7.32, BZ - 0.525); rad.rotation.y = Math.PI; room.add(rad);   // 12 cm off the floor, 4 cm off the wall; front faces the room
+    const body = new THREE.Mesh(mergeGeometries(all), paintM); body.castShadow = body.receiveShadow = true; rad.add(body);
+    // the valves: brass bodies half-painted over, green levers along the pipe (open), a dab of hemp and paint at the threads
+    const brass = new THREE.MeshStandardMaterial({ color: '#b5975a', metalness: 0.6, roughness: 0.45 }), green = new THREE.MeshStandardMaterial({ color: '#2f7d4a', roughness: 0.5 }),
+          teal = new THREE.MeshStandardMaterial({ color: '#2f8a86', roughness: 0.5 }), hemp = new THREE.MeshStandardMaterial({ color: '#7d6a4c', roughness: 1 });
+    for (const [y, lev] of [[HUB1, green], [HUB0, teal]]){ const vx = RX + 0.12;
+      const vb = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.05, 6).rotateZ(Math.PI / 2), brass); vb.position.set(vx, y, 0); rad.add(vb);
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.026, 8), brass); st.position.set(vx, y + 0.032, 0); rad.add(st);
+      const lv = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.006, 0.016), lev); lv.position.set(vx - 0.035, y + 0.046, 0); rad.add(lv);
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.02), lev); grip.position.set(vx - 0.055, y + 0.046, 0); rad.add(grip);
+      for (const dx of [0.05, -0.045]){ const h = new THREE.Mesh(new THREE.TorusGeometry(pipeR + 0.002, 0.005, 6, 14).rotateY(Math.PI / 2), hemp); h.position.set(vx + dx, y, 0); h.scale.set(1, 1 + r() * 0.3, 1 + r() * 0.3); rad.add(h); } }
+  }
   for (let i = 0; i < 27; i++) rng();   // (the old plant's draws, so the rest of the world stays where it was)
   /* a small Easter cactus (Rhipsalidopsis) in bloom, in a plain unglazed clay pot */
   {
