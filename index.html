@@ -1073,7 +1073,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
     g.fillStyle = '#1a2a4a'; g.font = 'bold 30px Georgia'; g.fillText('ПОЛИТИЧЕСКАЯ КАРТА МИРА', w / 2 - 230, 48);
     g.strokeStyle = '#5a4a3a'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6); g.strokeStyle = '#1a2a4a'; g.lineWidth = 2; g.strokeRect(30, 70, w - 60, h - 100);
   });
-  const cp = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.17).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ map: worldMap, roughness: 0.85 })); cp.position.set(x0 + 0.01, 8.45, BZ - 3.35); room.add(cp);
+  const cp = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.17).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ map: worldMap, roughness: 0.85 })); cp.position.set(x0 + 0.01, 8.92, BZ - 3.35); room.add(cp);   // hung clear of the sofa back (its top is at ~8.15)
 }
 /* clicking a book opens the Post machine */
 {
