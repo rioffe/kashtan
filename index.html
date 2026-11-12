@@ -403,7 +403,6 @@ const mkRng = seed => { let t0 = seed | 0; return () => { t0 = t0 + 0x6D2B79F5 |
 function winBars(w, x0, y0, pw, ph, S){
   const b = [], o = S(0.075), m = S(0.06), s = S(0.045), t = ph * 0.28;
   b.push([x0, y0, pw, o], [x0, y0 + ph - o, pw, o], [x0, y0, o, ph], [x0 + pw - o, y0, o, ph]);
-  if (w.home){ b.push([x0 + pw / 2 - 2, y0, 4, ph], [x0, y0 + ph / 3, pw, 3], [x0, y0 + 2 * ph / 3, pw, 3]); return b; }
   const tb = w.stair ? ph / 2 : t;
   b.push([x0, y0 + tb - m / 2, pw, m], [x0 + pw / 2 - m / 2, y0, m, ph]);
   for (const [ya, yb] of [[y0 + o, y0 + tb - m / 2], [y0 + tb + m / 2, y0 + ph - o]]) for (const [xa, xb] of [[x0 + o, x0 + pw / 2 - m / 2], [x0 + pw / 2 + m / 2, x0 + pw - o]])
@@ -585,15 +584,21 @@ var roomLight;
   const fz0 = BZ - 0.26, fz1 = BZ - 0.18;
   rbox(wx0, wx1, wy0, wy0 + 0.07, fz0, fz1, paint); rbox(wx0, wx1, wy1 - 0.07, wy1, fz0, fz1, paint);
   rbox(wx0, wx0 + 0.07, wy0, wy1, fz0, fz1, paint); rbox(wx1 - 0.07, wx1, wy0, wy1, fz0, fz1, paint);
-  // two tall casements, no transom or upper pane
+  // like every window on the house: a fixed two-light transom on top, two casements below
+  const tY = wy1 - 0.28 * (wy1 - wy0), tA = tY - 0.03, tB = tY + 0.03;
+  rbox(wx0, wx1, tA, tB, fz0, fz1, paint); rbox(HOME.x - 0.03, HOME.x + 0.03, tB, wy1, fz0, fz1, paint);
   const glassM = new THREE.MeshStandardMaterial({ color: '#d6e6ee', transparent: true, opacity: 0.1, roughness: 0.04, metalness: 0.3, depthWrite: false, side: THREE.DoubleSide });
 
   // the two lower casements, hinged at the outer edges, opening out over the yard
-  const SW = (wx1 - wx0 - 0.14) / 2, ya = wy0 + 0.07, yb = wy1 - 0.07, brass = new THREE.MeshStandardMaterial({ color: '#c8a050', metalness: 0.7, roughness: 0.35 });
+  for (const [xa, xb] of [[wx0 + 0.07, HOME.x - 0.03], [HOME.x + 0.03, wx1 - 0.07]]){   // the transom lights, each in its own sash
+    const za = fz1 - 0.0625, zb = fz1 - 0.0075, ya_ = tB, yb_ = wy1 - 0.07;
+    rbox(xa, xb, ya_, ya_ + 0.045, za, zb, paint); rbox(xa, xb, yb_ - 0.045, yb_, za, zb, paint); rbox(xa, xa + 0.045, ya_, yb_, za, zb, paint); rbox(xb - 0.045, xb, ya_, yb_, za, zb, paint);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(xb - xa - 0.09, yb_ - ya_ - 0.09), glassM); gl.position.set((xa + xb) / 2, (ya_ + yb_) / 2, fz1 - 0.035); room.add(gl); }
+  const SW = (wx1 - wx0 - 0.14) / 2, ya = wy0 + 0.07, yb = tA, brass = new THREE.MeshStandardMaterial({ color: '#c8a050', metalness: 0.7, roughness: 0.35 });
   for (const [hx, dir] of [[wx0 + 0.07, 1], [wx1 - 0.07, -1]]){
     const g = new THREE.Group(); g.position.set(hx, 0, fz1); room.add(g); winOpen.sashes.push({ g, dir });
     const bar = (ta, tb, y_a, y_b, m = paint) => { const me = new THREE.Mesh(new THREE.BoxGeometry(tb - ta, y_b - y_a, 0.055), m); me.position.set(dir * (ta + tb) / 2, (y_a + y_b) / 2, -0.035); g.add(me); WIN_PARTS.push(me); return me; };
-    bar(0, 0.05, ya, yb); bar(SW - 0.05, SW, ya, yb); bar(0, SW, ya, ya + 0.055); bar(0, SW, yb - 0.05, yb); bar(0, SW, ya + (yb - ya) / 3 - 0.015, ya + (yb - ya) / 3 + 0.015); bar(0, SW, ya + 2 * (yb - ya) / 3 - 0.015, ya + 2 * (yb - ya) / 3 + 0.015);
+    bar(0, 0.05, ya, yb); bar(SW - 0.05, SW, ya, yb); bar(0, SW, ya, ya + 0.055); bar(0, SW, yb - 0.05, yb);
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(SW - 0.1, yb - ya - 0.1), glassM); gl.position.set(dir * SW / 2, (ya + yb) / 2, -0.035); g.add(gl); WIN_PARTS.push(gl);
     const hd = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.09, 0.025), brass); hd.position.set(dir * (SW - 0.03), (ya + yb) / 2, -0.075); g.add(hd); WIN_PARTS.push(hd);
   }
@@ -1813,16 +1818,22 @@ const homeWin = new THREE.Group(); scene.add(homeWin);
   const roomTex = tex(140, 170, (g, w, h) => drawRoom(g, w, h, false)), roomGlow = tex(140, 170, (g, w, h) => drawRoom(g, w, h, true));
   homeWin.userData.room = new THREE.MeshStandardMaterial({ map: roomTex, emissive: '#ffffff', emissiveMap: roomGlow, emissiveIntensity: 0, roughness: 1 });
   const pane = new THREE.Mesh(new THREE.PlaneGeometry(wx1 - wx0, wy1 - wy0), homeWin.userData.room); pane.position.set(HOME.x, (wy0 + wy1) / 2, z); homeWin.add(pane);
-  const white = new THREE.MeshStandardMaterial({ color: '#ddd8cb', roughness: 0.7 });
+  const white = new THREE.MeshStandardMaterial({ color: '#e8e6de', roughness: 0.7 });
   homeWin.userData.glass = new THREE.MeshStandardMaterial({ color: '#b8ccd8', transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.6, depthWrite: false, side: THREE.DoubleSide });
   const box = (w, h, d, x, y, zz, parent, m = white) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, zz); parent.add(me); return me; };
-  box(wx1 - wx0, 0.05, 0.05, HOME.x, wy0 + 0.025, z + 0.02, homeWin); box(wx1 - wx0, 0.05, 0.05, HOME.x, wy1 - 0.025, z + 0.02, homeWin);
-  box(0.05, wy1 - wy0, 0.05, wx0 + 0.025, (wy0 + wy1) / 2, z + 0.02, homeWin); box(0.05, wy1 - wy0, 0.05, wx1 - 0.025, (wy0 + wy1) / 2, z + 0.02, homeWin);
-  const SW = (wx1 - wx0 - 0.1) / 2, ya = wy0 + 0.05, yb = wy1 - 0.05;
-  for (const [hx, dir] of [[wx0 + 0.05, 1], [wx1 - 0.05, -1]]){ const g = new THREE.Group(); g.position.set(hx, 0, z + 0.02); homeWin.add(g); winOpen.outSashes.push({ g, dir });
+  // the same shape as the rest of the house: outer frame, a fixed two-light transom, two casements below that open out
+  const o = 0.075, tY = wy1 - 0.28 * (wy1 - wy0), tA = tY - 0.03, tB = tY + 0.03, zf = z + 0.02;
+  box(wx1 - wx0, o, 0.05, HOME.x, wy0 + o / 2, zf, homeWin); box(wx1 - wx0, o, 0.05, HOME.x, wy1 - o / 2, zf, homeWin);
+  box(o, wy1 - wy0, 0.05, wx0 + o / 2, (wy0 + wy1) / 2, zf, homeWin); box(o, wy1 - wy0, 0.05, wx1 - o / 2, (wy0 + wy1) / 2, zf, homeWin);
+  box(wx1 - wx0, tB - tA, 0.05, HOME.x, tY, zf, homeWin); box(0.06, wy1 - o - tB, 0.05, HOME.x, (tB + wy1 - o) / 2, zf, homeWin);
+  for (const [xa, xb] of [[wx0 + o, HOME.x - 0.03], [HOME.x + 0.03, wx1 - o]]){ const ya_ = tB, yb_ = wy1 - o, s_ = 0.045, zz = zf + 0.01;
+    box(xb - xa, s_, 0.04, (xa + xb) / 2, ya_ + s_ / 2, zz, homeWin); box(xb - xa, s_, 0.04, (xa + xb) / 2, yb_ - s_ / 2, zz, homeWin);
+    box(s_, yb_ - ya_, 0.04, xa + s_ / 2, (ya_ + yb_) / 2, zz, homeWin); box(s_, yb_ - ya_, 0.04, xb - s_ / 2, (ya_ + yb_) / 2, zz, homeWin);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(xb - xa - 0.08, yb_ - ya_ - 0.08), homeWin.userData.glass); gl.position.set((xa + xb) / 2, (ya_ + yb_) / 2, zz); homeWin.add(gl); }
+  const SW = (wx1 - wx0 - 2 * o) / 2, ya = wy0 + o, yb = tA;
+  for (const [hx, dir] of [[wx0 + o, 1], [wx1 - o, -1]]){ const g = new THREE.Group(); g.position.set(hx, 0, zf); homeWin.add(g); winOpen.outSashes.push({ g, dir });
     const bar = (ta, tb, y_a, y_b) => box(tb - ta, y_b - y_a, 0.045, dir * (ta + tb) / 2, (y_a + y_b) / 2, 0.025, g);
     bar(0, 0.045, ya, yb); bar(SW - 0.045, SW, ya, yb); bar(0, SW, ya, ya + 0.045); bar(0, SW, yb - 0.045, yb);
-    bar(0, SW, ya + (yb - ya) / 3 - 0.014, ya + (yb - ya) / 3 + 0.014); bar(0, SW, ya + 2 * (yb - ya) / 3 - 0.014, ya + 2 * (yb - ya) / 3 + 0.014);
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(SW - 0.08, yb - ya - 0.08), homeWin.userData.glass); gl.position.set(dir * SW / 2, (ya + yb) / 2, 0.025); g.add(gl); }
 }
 
