@@ -990,7 +990,10 @@ var roomLight;
     body.anisotropy = 16;
     const lacq = new THREE.MeshStandardMaterial({ map: body, roughness: 0.32, flatShading: true }), wood = new THREE.MeshStandardMaterial({ color: '#e9cfa2', roughness: 0.85 }),
           lead = new THREE.MeshStandardMaterial({ color: '#2b2b2e', roughness: 0.35, metalness: 0.35 });
-    const P = new THREE.Group(); P.position.set(x0 + 0.56, ty + 0.0043 + ap, TB - 1.12); P.rotation.set(0, 0.2, -0.05); room.add(P);   // lying on a flat: the back end on the notebook, the point on the table
+    // resting across the notebook's edge (x0 + 0.53, 9.5 mm up) with its point on the table: the tilt is whatever makes both touch
+    const ext = 0.07, Dt = LB + LC + LG - ext, th = Math.asin((0.0095 + ap) / Dt), yaw = 0.2;
+    const dir = new V3(Math.cos(th) * Math.cos(yaw), -Math.sin(th), -Math.cos(th) * Math.sin(yaw)), A = new V3(x0 + 0.53, ty + 0.0095 + ap / Math.cos(th), TB - 1.12);
+    const P = new THREE.Group(); P.position.copy(A).addScaledVector(dir, LB / 2 - ext); P.rotation.set(0, yaw, -th); room.add(P);
     const hexBody = new THREE.Mesh(new THREE.CylinderGeometry(R, R, LB, 6, 1), [lacq, wood, wood]); hexBody.rotation.z = Math.PI / 2; P.add(hexBody);   // tip towards +x
     const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.0011, ap * 0.98, LC, 18, 1, true), wood); cone.rotation.z = -Math.PI / 2; cone.position.x = LB / 2 + LC / 2; P.add(cone);
     // where the knife bit into the lacquer: a short six-sided collar shading from the hexagon into the round cone
@@ -1122,12 +1125,26 @@ var roomLight;
       const h = Math.min(1, Math.max(0, (ax * bx + ay * by + az * bz) / (bx * bx + by * by + bz * bz))); return len3(ax - bx * h, ay - by * h, az - bz * h) - (ra + (rb - ra) * h); };
     const rbx = (px, py, pz, c, hh, r) => { const qx = Math.abs(px - c[0]) - hh[0] + r, qy = Math.abs(py - c[1]) - hh[1] + r, qz = Math.abs(pz - c[2]) - hh[2] + r;
       return len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r; };
+    const fcap = (px, py, pz, a, b, ra, rb, n, f) => { const bx = b[0] - a[0], by = b[1] - a[1], bz = b[2] - a[2], ax = px - a[0], ay = py - a[1], az = pz - a[2];   // a capsule squashed along n
+      const h = Math.min(1, Math.max(0, (ax * bx + ay * by + az * bz) / (bx * bx + by * by + bz * bz))), dx = ax - bx * h, dy = ay - by * h, dz = az - bz * h, dn = dx * n[0] + dy * n[1] + dz * n[2];
+      return Math.sqrt(dx * dx + dy * dy + dz * dz - dn * dn + (dn / f) * (dn / f)) - (ra + (rb - ra) * h); };
+    const nrm3 = v => { const l = Math.hypot(...v); return v.map(c => c / l); };
+    // a hand: flat palm out of the wrist, the fingers together and gently curled towards the palm, a thumb along the side
+    const mkHand = (W, T, n0, side) => { const dir = nrm3([T[0] - W[0], T[1] - W[1], T[2] - W[2]]), L = Math.hypot(T[0] - W[0], T[1] - W[1], T[2] - W[2]);
+      let n = n0.slice(); const dd = n[0] * dir[0] + n[1] * dir[1] + n[2] * dir[2]; n = nrm3([n[0] - dir[0] * dd, n[1] - dir[1] * dd, n[2] - dir[2] * dd]);
+      const sd = nrm3([dir[1] * n[2] - dir[2] * n[1], dir[2] * n[0] - dir[0] * n[2], dir[0] * n[1] - dir[1] * n[0]]).map(c => c * side);
+      const at = (t, o = 0, s2 = 0) => [W[0] + dir[0] * L * t + n[0] * o + sd[0] * s2, W[1] + dir[1] * L * t + n[1] * o + sd[1] * s2, W[2] + dir[2] * L * t + n[2] * o + sd[2] * s2];
+      const P0 = at(0.12), P1 = at(0.55), F1 = at(0.8, 0.0004), F2 = at(1.0, 0.0011), T0 = at(0.22, 0.0008, 0.0021), T1 = at(0.6, 0.0015, 0.0027);
+      return (x, y, z) => { let d = fcap(x, y, z, P0, P1, 0.0026, 0.0036, n, 0.34);
+        d = smin(d, fcap(x, y, z, P1, F1, 0.0036, 0.0031, n, 0.34), 0.0009); d = smin(d, fcap(x, y, z, F1, F2, 0.0031, 0.0018, n, 0.38), 0.0007);
+        return smin(d, cap(x, y, z, T0, T1, 0.0009, 0.0007), 0.0006); }; };
     const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
     const Y = v => B + v;
     // landmarks (metres, y up from the base top, the figure faces +z, her left is +x)
     const HC = [0.001, Y(0.1398), 0.0012];
     const LS = [0.0138, Y(0.1155), -0.001], LE = [0.0262, Y(0.1425), -0.0035], LW = [0.0128, Y(0.1488), -0.0048], LH = [0.0092, Y(0.1468), -0.0036];
-    const RS = [-0.0138, Y(0.1155), -0.0005], RE = [-0.0112, Y(0.0995), 0.0118], RW = [0.0036, Y(0.1296), 0.0142], RH = [0.0078, Y(0.1378), 0.0108];
+    const RS = [-0.0138, Y(0.1155), -0.0005], RE = [-0.0055, Y(0.0965), 0.0165], RW = [0.0062, Y(0.1258), 0.0128], RH = [0.0092, Y(0.1408), 0.0036];   // right arm across the bust, hand cupping the left jaw
+    const HAND_R = mkHand(RW, RH, [-0.85, 0.1, -0.5], 1), HAND_L = mkHand(LW, [0.0042, Y(0.1492), -0.0094], [-0.65, 0.05, 0.75], -1);
     const LHp = [0.0068, Y(0.0745), 0], LK = [0.0078, Y(0.0415), 0.0012], LA = [0.0072, Y(0.0078), -0.0012], LT = [0.0098, Y(0.0021), 0.0108], LHe = [0.0072, Y(0.0026), -0.0024];
     const RHp = [-0.0068, Y(0.0745), 0.0005], RK = [-0.0052, Y(0.0428), 0.0068], RA = [-0.0042, Y(0.0088), 0.0022], RT = [-0.0078, Y(0.0023), 0.0135], RHe = [-0.0044, Y(0.0029), -0.0002];
     const groups = [
@@ -1159,8 +1176,8 @@ var roomLight;
         return d; },
       (x, y, z) => { let d = cap(x, y, z, [0, Y(0.115), -0.0008], [0.0006, Y(0.1272), 0.0006], 0.0047, 0.0043);                    // 6 neck and arms
         d = smin(d, ell(x, y, z, [0.0138, Y(0.1155), -0.001], [0.0052, 0.0048, 0.0048]), 0.003); d = smin(d, ell(x, y, z, [-0.0138, Y(0.1155), -0.0006], [0.0052, 0.0048, 0.0048]), 0.003);
-        d = smin(d, cap(x, y, z, LS, LE, 0.0048, 0.0036), 0.002); d = smin(d, cap(x, y, z, LE, LW, 0.0036, 0.0025), 0.0015); d = smin(d, ell(x, y, z, LH, [0.0023, 0.0033, 0.0024]), 0.0015);
-        d = smin(d, cap(x, y, z, RS, RE, 0.0048, 0.0036), 0.002); d = smin(d, cap(x, y, z, RE, RW, 0.0036, 0.0025), 0.0015); d = smin(d, ell(x, y, z, RH, [0.0022, 0.0034, 0.0024]), 0.0015);
+        d = smin(d, cap(x, y, z, LS, LE, 0.005, 0.0037), 0.0022); d = smin(d, cap(x, y, z, LE, LW, 0.0036, 0.0021), 0.0016); d = smin(d, HAND_L(x, y, z), 0.0011);
+        d = smin(d, cap(x, y, z, RS, RE, 0.005, 0.0037), 0.0022); d = smin(d, cap(x, y, z, RE, RW, 0.0036, 0.0021), 0.0016); d = smin(d, HAND_R(x, y, z), 0.0011);
         return d; }];
     const KS = [0, 0.0006, 0.0008, 0.0016, 0.0022, 0.0022, 0.0018];   // how softly each part flows into the others
     let REG = 0;
@@ -1257,7 +1274,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
     fig.rotation.y = Math.atan2(HOME.x + 0.1 - fx, BZ - 0.85 - fz);   // turned to face whoever stands at the window
     room.add(fig); fig.userData.desk = 'fig'; desk.pick.push(fig);
     desk.views.fig = { t: new THREE.Vector3(fx, ty + 0.085, fz), yaw: fig.rotation.y, pitch: 0.12, d: 0.3, yr: 1.35, p0: -0.25, p1: 1.2, d0: 0.13, d1: 0.5 };
-    { const fc = new URLSearchParams(location.search).get('figcam'); if (fc){ const v = fc.split(',').map(Number); window.__figcam = [v[0], v[1] || 0, v[2] || 0.09, { x: fx, y: ty, z: fz, ry: fig.rotation.y }]; } }
+    { const fc = new URLSearchParams(location.search).get('figcam'); if (fc){ const v = fc.split(',').map(Number); window.__figcam = [v[0], v[1] || 0, v[2] || 0.09, { x: fx, y: ty, z: fz, ry: fig.rotation.y }, v[3]]; } }
     if (DEBUG_FIG) console.log('figurine', (performance.now() - t0).toFixed(0) + ' ms', P.length / 3, 'verts');
   }
 
@@ -3635,7 +3652,7 @@ function frame(){
 
   if (started) syncCtx();
   if (window.__lookcam){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
-  if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + 0.085, f.z); }   // debug: ?figcam=dist,angle,height
+  if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + (window.__figcam[4] ?? 0.085), f.z); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }   // debug: ?figcam=dist,angle,height[,lookY]
   renderer.render(scene, camera);
 }
 
@@ -3656,7 +3673,7 @@ function frame(){
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
-    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); }, 100); } if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.get('summon')) setTimeout(() => { summonCat(); for (let i = 0; i < +(q.get('summonff') || 0); i++) updateCat(0.05, i * 0.05); }, 200);
     if (q.get('catpose')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('catd') || 1.3)); P.y = 0;
       cat.q = [{ type: 'pose', pose: q.get('catpose'), dur: 1e9 }]; cat.state = 'on'; cat.root.visible = true; cat.root.position.copy(P);
