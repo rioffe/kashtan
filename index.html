@@ -1266,12 +1266,18 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       vec2 lp = vec2(q.x / 0.0017, (q.y + 0.0052 - 140.0 * q.x * q.x) / 0.00066);
       if (dot(lp, lp) < 1.0 && n.z > 0.2) c = mix(vec3(0.9, 0.36, 0.32), vec3(0.95, 0.52, 0.46), smoothstep(0.3, 1.0, dot(lp, lp)));
     } }
-  else if (r == 4 || r == 5){
-    float neck = FB + (n.z > 0.0 ? 0.1098 : 0.107);
-    bool strap = abs(abs(p.x) - 0.0085) < 0.0018 && p.y < FB + 0.1205;
-    bool suit = r == 4 ? (p.y < neck || strap) : p.y > FB + 0.0662 - 0.0012 * n.z;
-    c = suit ? mix(SUL, SU, clamp(0.35 + 0.75 * (1.0 - abs(n.z)) + 0.25 * (n.y < -0.3 ? 1.0 : 0.0), 0.0, 1.0)) : SK; }
-  else if (r == 6){ c = SK; }
+  else if (r >= 4){
+    // one continuous swimsuit mask over torso, legs and arms (so part boundaries never show), with soft edges like a sprayed glaze:
+    // a scooped neckline, straps over the shoulders, leg openings that rise a little at the hips; only on the body, never on an arm crossing it
+    float ax = abs(p.x), e = 0.00045;
+    float leg = FB + 0.0655 + 0.0026 * smoothstep(0.004, 0.012, ax);
+    float neck = mix(FB + 0.1102 - 0.0045 * smoothstep(0.0092, 0.0015, ax), FB + 0.1114 - 0.0042 * smoothstep(0.0095, 0.0025, ax), smoothstep(-0.002, 0.002, p.z));
+    float body = smoothstep(leg - e, leg + e, p.y) * (1.0 - smoothstep(neck - e, neck + e, p.y));
+    float strap = smoothstep(0.0022, 0.0016, abs(ax - 0.0087)) * (1.0 - smoothstep(FB + 0.1205, FB + 0.1215, p.y)) * smoothstep(neck - 0.003, neck - 0.002, p.y);
+    float inBody = 1.0 - smoothstep(0.92, 1.08, length(vec2(p.x / 0.018, p.z / 0.0125)));
+    float m = max(body, strap) * inBody;
+    vec3 suitC = mix(SUL, SU, clamp(0.35 + 0.75 * (1.0 - abs(n.z)) + 0.25 * (n.y < -0.3 ? 1.0 : 0.0), 0.0, 1.0));
+    c = mix(SK, suitC, m); }
   return c;
 }`).replace('#include <color_fragment>', '#include <color_fragment>\nfloat figGold; diffuseColor.rgb *= paintFig(vOP, normalize(vON), figGold);')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.35, figGold);')
