@@ -37,7 +37,7 @@
   #langs button.on{color:#141210;background:rgba(255,248,235,.9);border-color:transparent}
   .ded{font-family:var(--serif);font-style:italic;font-size:17px;color:var(--accent);opacity:.85;margin:-14px 0 26px;letter-spacing:.02em;line-height:1.35;text-shadow:0 1px 10px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.7)}
   .small{margin-top:16px;font-size:12px;color:var(--ink-dim);letter-spacing:.06em}
-  #hudtop{position:fixed;left:16px;top:14px;z-index:10;pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
+  #hudtop{position:fixed;left:16px;top:14px;z-index:10;pointer-events:auto;user-select:none;-webkit-user-select:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
   #hudtop .t{font-family:var(--serif);font-size:24px;letter-spacing:.04em}
   #hudtop .s{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);margin-top:2px}
   #nuts{position:fixed;right:16px;top:14px;z-index:10;font-size:15px;background:var(--glass);backdrop-filter:blur(10px);
@@ -1863,6 +1863,27 @@ function catEpisode(){
   }
   cat.state = 'on'; cat.root.visible = true; cat.root.rotation.set(0, 0, 0);
 }
+// the secret: call it, and it comes ("kis-kis-kis")
+function summonCat(){
+  const cp = camera.position, f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), R = cat.root;
+  if (mode === 'climb'){ cat.force = 'tree'; catEpisode(); caption('Kis-kis-kis… and the cat came up the tree after us.', 5); return; }
+  let tgt;
+  if (mode === 'window') tgt = new V3(HOME.x + 0.6, 0, BZ + 2.6);
+  else { tgt = new V3(cp.x + f.x * 2.0, 0, cp.z + f.z * 2.0); tgt.y = surf(tgt.x, tgt.z); if (Math.abs(tgt.y - body.feet) > 0.4){ tgt.set(cp.x, body.feet, cp.z).addScaledVector(f, 0.7); } }
+  let start = null;
+  if (cat.state === 'on' && R.visible && R.position.distanceTo(tgt) < 25) start = R.position.clone();
+  else for (const a of [2.6, -2.6, 2.0, -2.0, 3.14, 1.5, -1.5]){ const d = new V3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a));
+    const p_ = tgt.clone().addScaledVector(d, 7), m_ = tgt.clone().addScaledVector(d, 3.5); p_.y = surf(p_.x, p_.z);
+    if (Math.abs(p_.y - tgt.y) < 0.5 && Math.abs(surf(m_.x, m_.z) - tgt.y) < 0.5){ start = p_; break; } }
+  if (!start) start = tgt.clone().add(new V3(0.8, 0, 0.8));
+  cat.q = []; cat.mouse.visible = cat.bird.visible = false; cat.where = 'summoned';
+  R.position.copy(start); R.rotation.set(0, Math.atan2(tgt.x - start.x, tgt.z - start.z), 0); R.visible = true; cat.state = 'on';
+  catGo(tgt, 1.4); catPose('sit', rnd(25, 40)); catPose('lie', rnd(20, 40)); catPose('sit', rnd(3, 6)); catGo(start, 1.0);
+  cat.meowT = 0; cat.seen = true;
+  caption(mode === 'window' ? 'Kis-kis-kis… it came and sat under the window, looking up.' : 'Kis-kis-kis… and there it was, out of nowhere, as always.', 5);
+}
+let catCode = '', catTapN = 0, catTapT = 0;
+function catSecret(ch){ catCode = (catCode + ch).slice(-3); if (catCode === 'kis' || catCode === 'cat'){ catCode = ''; summonCat(); } }
 function catScare(){
   if (cat.state !== 'on' || cat.where !== 'tree' || cat.root.position.y < 2) return false;
   const p = cat.root.position; cat.q = []; cat.where = 'ground';
@@ -2091,7 +2112,9 @@ renderer.domElement.addEventListener('pointermove', e => { if (!drag || !pointer
 const endPtr = e => { pointers.delete(e.pointerId); if (!pointers.size) drag = null; };
 renderer.domElement.addEventListener('pointerup', endPtr); renderer.domElement.addEventListener('pointercancel', endPtr);
 addEventListener('keydown', e => {
-  if (!started) return; keys.add(e.code);
+  if (!started) return;
+  if (e.altKey && /^Key[A-Z]$/.test(e.code)){ e.preventDefault(); catSecret(e.code.slice(3).toLowerCase()); return; }   // the secret: hold Option/Alt and type K-I-S (or C-A-T)
+  keys.add(e.code);
   const k = e.code;
   if (k >= 'Digit1' && k <= 'Digit4') setSeason(+k.slice(5) - 1);
   if (k === 'KeyT') setTime(Object.keys(TIMES)[(Object.values(TIMES).findIndex(v => Math.abs(v - (todTarget ?? TOD)) < 0.02) + 1) % 4]);
@@ -2299,6 +2322,9 @@ function toggleMusic(){ sfx.toggle(); syncButtons(); }
 /* ============================== UI ============================== */
 /* ============================== languages: English, Русский, Latviešu ============================== */
 const I18N = {   // English → [Russian, Latvian]
+  'Kis-kis-kis… and there it was, out of nowhere, as always.': ['Кис-кис-кис… и вот он, как всегда ниоткуда.', 'Kis-kis-kis… un tur tas bija, kā vienmēr — no nekurienes.'],
+  'Kis-kis-kis… it came and sat under the window, looking up.': ['Кис-кис-кис… он пришёл и сел под окном, глядя вверх.', 'Kis-kis-kis… tas atnāca un apsēdās zem loga, skatīdamies augšup.'],
+  'Kis-kis-kis… and the cat came up the tree after us.': ['Кис-кис-кис… и кот полез к нам на дерево.', 'Kis-kis-kis… un kaķis rāpās mums pakaļ kokā.'],
   // interface
   'Winter': ['Зима', 'Ziema'], 'Spring': ['Весна', 'Pavasaris'], 'Summer': ['Лето', 'Vasara'], 'Autumn': ['Осень', 'Rudens'],
   'Dawn': ['Рассвет', 'Rītausma'], 'Day': ['День', 'Diena'], 'Dusk': ['Сумерки', 'Krēsla'], 'Night': ['Ночь', 'Nakts'],
@@ -2654,6 +2680,7 @@ function frame(){
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('summon')) setTimeout(() => { summonCat(); for (let i = 0; i < +(q.get('summonff') || 0); i++) updateCat(0.05, i * 0.05); }, 200);
     if (q.get('catpose')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('catd') || 1.3)); P.y = 0;
       cat.q = [{ type: 'pose', pose: q.get('catpose'), dur: 1e9 }]; cat.state = 'on'; cat.root.visible = true; cat.root.position.copy(P);
       cat.root.rotation.set(0, Math.atan2(camera.position.x - P.x, camera.position.z - P.z) + +(q.get('catyaw') || 0), 0); cat.cur = JSON.parse(JSON.stringify(POSES[q.get('catpose')]));
@@ -2664,6 +2691,7 @@ function frame(){
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
     for (let i = 0; i < +(q.get('p') || 0); i++) setTimeout(() => { tween = null; climb(1); }, 3000 + i * 3000); } }
 document.querySelectorAll('#langs button').forEach(b => b.onclick = () => setLang(b.dataset.l));
+$('hudtop').addEventListener('pointerdown', () => { const n = performance.now(); catTapN = n - catTapT < 450 ? catTapN + 1 : 1; catTapT = n; if (catTapN >= 3 && started){ catTapN = 0; summonCat(); } });   // the secret on a touch screen: triple-tap the season name
 setLang(LANG); updateNutHUD(); syncButtons(); frame();
 window.__k = { get S(){ return S; }, set S(v){ S = v; }, get TOD(){ return TOD; }, set TOD(v){ TOD = v; }, setMode, setSeason, setTime, camera };
 </script>
