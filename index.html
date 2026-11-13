@@ -1406,12 +1406,12 @@ const MAXD = 6;
 function perpBasis(d){ const a = Math.abs(d.y) < 0.9 ? new V3(0, 1, 0) : new V3(1, 0, 0); const u = new V3().crossVectors(d, a).normalize(); return [u, new V3().crossVectors(d, u).normalize()]; }
 function grow(p, dir, len, rad, depth){
   const n = depth === 0 ? 5 : depth < 3 ? 3 : 2, rEnd = rad * (depth === 0 ? 0.7 : 0.78);
-  let cur = p.clone(), d = dir.clone(), r = rad; const lp = depth === 1 ? [p.clone()] : null;
+  let cur = p.clone(), d = dir.clone(), r = rad; const lp = depth === 1 ? [p.clone()] : null; if (lp) lp.r = [rad];
   for (let i = 0; i < n; i++){
     if (depth > 0){ d.x += rnd(-0.13, 0.13); d.z += rnd(-0.13, 0.13); d.y += depth >= 3 ? -0.06 : 0.02; d.normalize(); }
     else { d.x += rnd(-0.03, 0.03); d.z += rnd(-0.03, 0.03); d.normalize(); }
     const nx = cur.clone().addScaledVector(d, len / n), r1 = lerp(rad, rEnd, (i + 1) / n);
-    tree.segs.push({ a: cur.clone(), b: nx.clone(), r0: r, r1, depth }); if (lp) lp.push(nx.clone());
+    tree.segs.push({ a: cur.clone(), b: nx.clone(), r0: r, r1, depth }); if (lp){ lp.push(nx.clone()); lp.r.push(r1); }
     if (depth >= 3 && i === 0) tree.tips.push({ p: nx.clone(), d: d.clone() });
     cur = nx; r = r1;
   }
@@ -2934,17 +2934,24 @@ function catEpisode(){
   const prey = rng() < 0.3 ? (rng() < 0.6 ? 'mouse' : 'bird') : null;
   cat.mouse.visible = prey === 'mouse'; cat.bird.visible = prey === 'bird';
   const R = cat.root.position, V = (x, y, z) => new V3(x, y, z);
-  if (r < 0.4){                                   // up into the chestnut, to doze on a limb
+  if (r < 0.4){                                   // up into the chestnut, to doze on a branch
     cat.where = 'tree'; cat.mouse.visible = cat.bird.visible = false;
     R.set(17.5, 0, TREE.z + rnd(8, 18));
     catGo(V(TREE.x + 2.5, 0, TREE.z + 3), 1.0); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.4); catPose('sit', rnd(1, 2.5));
     catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.6, { climb: true }); catGo(V(TREE.x, 4.75, TREE.z + 0.25), 1.0, { climb: true });
-    const pts = pick(tree.limbs).map(p => p.clone().add(TREE).add(V(0, 0.3, 0))), n = Math.max(2, Math.round((pts.length - 1) * rnd(0.55, 1)));
-    cat.treePath = [V(TREE.x, 0, TREE.z + 1.05), V(TREE.x, 4.2, TREE.z + 0.75), V(TREE.x, 4.75, TREE.z + 0.25)].concat(pts.slice(1, Math.min(n, pts.length - 1) + 1));
-    for (let i = 1; i <= n && i < pts.length; i++) catGo(pts[i], 0.8);
+    // the big limbs rise at 45-55°, too steep to lie on: up one to where it forks, then out along the gentlest of its branches
+    // (30-40 cm thick, rising 15-30°), to lie on top of the bark where that branch is flattest, leaning with it
+    const top = (p, r) => p.clone().add(TREE).add(V(0, r + 0.012, 0)), slope = g => g ? Math.abs(Math.atan2(g.b.y - g.a.y, Math.hypot(g.b.x - g.a.x, g.b.z - g.a.z))) : 9;
+    const spots = []; for (const L of tree.limbs){ const fork = L[L.length - 1];
+      for (const g of tree.segs) if (g.depth === 2 && g.a.distanceTo(fork) < 1e-6){ const g2 = tree.segs.find(h => h.depth === 2 && h.a.distanceTo(g.b) < 1e-6); spots.push({ L, g1: g, g2, s: Math.min(slope(g), slope(g2)) }); } }
+    spots.sort((A, B) => A.s - B.s); const easy = spots.filter(o => o.s < 0.52), { L: limb, g1, g2 } = easy.length ? pick(easy) : spots[0];
+    const way = limb.slice(1).map((p, i) => top(p, limb.r[i + 1])), mid = g => top(g.a.clone().lerp(g.b, 0.5), lerp(g.r0, g.r1, 0.5));
+    if (!g2 || slope(g1) <= slope(g2)) way.push(mid(g1)); else way.push(top(g1.b, g1.r1), mid(g2));
+    cat.treePath = [V(TREE.x, 0, TREE.z + 1.05), V(TREE.x, 4.2, TREE.z + 0.75), V(TREE.x, 4.75, TREE.z + 0.25)].concat(way);
+    for (const p of way) catGo(p, 0.8, { tree: true });
     catPose('lie', rnd(50, 120)); catPose('sit', rnd(4, 8)); catPose('lie', rnd(20, 60));
-    for (let i = Math.min(n, pts.length - 1) - 1; i >= 1; i--) catGo(pts[i], 0.9);
-    catGo(V(TREE.x, 4.75, TREE.z + 0.25), 0.9); catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.0, { climb: true }); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.5, { climb: true });
+    for (let i = way.length - 2; i >= 0; i--) catGo(way[i], 0.9, { tree: true });
+    catGo(V(TREE.x, 4.75, TREE.z + 0.25), 0.9, { tree: true }); catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.0, { climb: true }); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.5, { climb: true });
     catGo(V(17.5, 0, TREE.z + rnd(4, 18)), 1.8);
   } else if (r < 0.7){                            // along the garage roofs
     cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-120, LANE_END - 10); let z = z0;
@@ -3075,7 +3082,7 @@ function updateCat(dt, t){
   if (step.type === 'go'){
     if (!step.from){ step.from = R.position.clone(); step.len = Math.max(0.01, step.from.distanceTo(step.p)); step.k = 0;
       const dx = step.p.x - step.from.x, dy = step.p.y - step.from.y, dz = step.p.z - step.from.z, h = Math.hypot(dx, dz);
-      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb ? 1 : 0.8); if (step.jump) step.pitch = clamp(step.pitch, -0.45, 0.45); }
+      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb || step.tree ? 1 : 0.8); if (step.jump) step.pitch = clamp(step.pitch, -0.45, 0.45); }
     const pace = step.jump || step.speed > 2 ? 1 : 0.75;      // an unhurried stroll, as in the film; running and leaping at full speed
     step.k = Math.min(1, step.k + step.speed * pace * dt / step.len);
     R.position.lerpVectors(step.from, step.p, step.k);
@@ -3083,7 +3090,7 @@ function updateCat(dt, t){
     R.rotation.y += wrapA(step.yaw - R.rotation.y) * Math.min(1, dt * 10); R.rotation.x += (step.pitch - R.rotation.x) * Math.min(1, dt * 8);
     pose = step.jump ? 'jump' : 'walk'; moving = step.speed * pace; if (step.k >= 1) cat.q.shift();
   } else {
-    pose = step.pose; step.dur -= dt; R.rotation.x += (0 - R.rotation.x) * Math.min(1, dt * 5);
+    pose = step.pose; step.dur -= dt; if (!(cat.where === 'tree' && R.position.y > 1)) R.rotation.x += (0 - R.rotation.x) * Math.min(1, dt * 5);   // up a limb it keeps the limb's slope
     if (pose === 'sit' && camera.position.distanceTo(R.position) < 7){ const yp = Math.atan2(camera.position.x - R.position.x, camera.position.z - R.position.z); R.rotation.y += wrapA(yp - R.rotation.y) * Math.min(1, dt * 2); }
     if (step.dur <= 0) cat.q.shift();
   }
