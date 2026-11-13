@@ -1401,7 +1401,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
 
 /* ============================== the chestnut tree ============================== */
 const treeG = new THREE.Group(); treeG.position.copy(TREE); scene.add(treeG);
-const tree = { segs: [], tips: [], limbs: [], nodes: [[], [], [], [], [], [], [], []] };
+const tree = { segs: [], tips: [], limbs: [], nodes: [[], [], [], [], [], [], [], []], perch: new Map(), perchRoots: [] };
 const MAXD = 6;
 function perpBasis(d){ const a = Math.abs(d.y) < 0.9 ? new V3(0, 1, 0) : new V3(1, 0, 0); const u = new V3().crossVectors(d, a).normalize(); return [u, new V3().crossVectors(d, u).normalize()]; }
 function grow(p, dir, len, rad, depth){
@@ -1449,7 +1449,7 @@ const CROWN = new V3(0, 10.5, 0);
   const chains = []; let ch = null;
   for (const sg of tree.segs){ if (!ch || ch.depth !== sg.depth || ch.pts[ch.pts.length - 1].distanceToSquared(sg.a) > 1e-8){ ch = { depth: sg.depth, pts: [sg.a.clone()], rads: [sg.r0] }; chains.push(ch); }
     ch.pts.push(sg.b.clone()); ch.rads.push(sg.r1); }
-  const key = v => `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`, ends = new Map();
+  const key = v => `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`, ends = new Map(); tree.key = key;
   for (const c of chains) ends.set(key(c.pts[c.pts.length - 1]), c);
   const geos = [];
   chains.forEach((c, ci) => { const d = c.depth, pts = c.pts.slice(), rads = c.rads.slice();
@@ -1470,12 +1470,12 @@ const CROWN = new V3(0, 10.5, 0);
     if (d <= 3){ const e_ = pts[pts.length - 1], de = e_.clone().sub(pts[pts.length - 2]).normalize(), re = rads[rads.length - 1];   // round the end over, bark and all
       if (d === 0){ pts.push(e_.clone().addScaledVector(de, re * 0.8), e_.clone().addScaledVector(de, re * 1.6), e_.clone().addScaledVector(de, re * 2.3)); rads.push(re * 0.82, re * 0.5, re * 0.1); }
       else { pts.push(e_.clone().addScaledVector(de, re * 0.55), e_.clone().addScaledVector(de, re * 0.9)); rads.push(re * 0.72, re * 0.12); } }
-    geos.push(tube(pts, rads, o));
+    const tg = tube(pts, rads, o); geos.push(tg); if (d <= 2) tree.perch.set(d === 0 ? 'trunk' : key(c.pts[1]), tg);
     for (let i = 0; i + 1 < pts.length; i++) SNOWSEGS.push([pts[i].x, pts[i].y, pts[i].z, pts[i + 1].x, pts[i + 1].y, pts[i + 1].z, (rads[i] + rads[i + 1]) / 2, 1]);
   });
   for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + rnd(-0.2, 0.2), cs = Math.cos(a), sn = Math.sin(a);    // buttress roots running into the ground
-    geos.push(tube([new V3(cs * 0.25, 1.4, sn * 0.25), new V3(cs * 0.8, 0.5, sn * 0.8), new V3(cs * 1.45, 0.1, sn * 1.45), new V3(cs * 2.1, -0.18, sn * 2.1)], [0.32, 0.3, 0.19, 0.08],
-      { radial: 12, steps: 4, uRep: 2, v0: i * 0.21, thick: 0.4 })); }
+    tree.perchRoots.push(tube([new V3(cs * 0.25, 1.4, sn * 0.25), new V3(cs * 0.8, 0.5, sn * 0.8), new V3(cs * 1.45, 0.1, sn * 1.45), new V3(cs * 2.1, -0.18, sn * 2.1)], [0.32, 0.3, 0.19, 0.08],
+      { radial: 12, steps: 4, uRep: 2, v0: i * 0.21, thick: 0.4 })); geos.push(tree.perchRoots[i]); }
   const barkM = new THREE.MeshStandardMaterial({ map: CB.color, normalMap: CB.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.95 });
   const wood = new THREE.Mesh(mergeGeometries(geos), mossify(snowify(barkM, 1.3)));
   wood.castShadow = wood.receiveShadow = true; treeG.add(wood);
@@ -1547,11 +1547,11 @@ const litter = new THREE.InstancedMesh(litterGeo, snowify(new THREE.MeshStandard
 litter.receiveShadow = true; scene.add(litter);
 
 /* perches for climbing */
-const PERCH = (() => {
+const PERCH = (() => { const T0_ = performance.now();
   const fork = tree.nodes[0][0].p;
   let limb = null, bs = -1e9; for (const n of tree.nodes[1]){ const sc = n.p.z - Math.abs(n.p.x) * 0.3; if (sc > bs){ bs = sc; limb = n; } }
   let top = null, ts = -1e9; for (const n of tree.nodes[3]){ const sc = n.p.y - Math.hypot(n.p.x, n.p.z) * 0.7; if (sc > ts){ ts = sc; top = n; } }
-  return [
+  const P = [
     { p: fork.clone().add(new V3(0.35, 1.05, 0.55)).add(TREE), yaw: Math.PI, pitch: -0.05,
       text: 'The first fork, worn smooth by our sneakers. From here the road ran away like a river.' },
     { p: limb.p.clone().add(new V3(0, 0.95, 0)).add(TREE), yaw: Math.PI + 0.35, pitch: -0.2,
@@ -1559,6 +1559,21 @@ const PERCH = (() => {
     { p: top.p.clone().add(new V3(0, 1.3, 0)).add(TREE), yaw: Math.PI * 0.8, pitch: -0.3,
       text: 'The observation post. Above the roof, above the whole street — nothing higher but the sky.' },
   ];
+  /* keep our eyes out of the wood: how far a point is from the bark (every branch down to the small ones, each a little fatter for
+     its flutes and collars, and the trunk's rounded crown), and if a perch is closer than 35 cm, the nearest place round it that is
+     clear, with wood to sit on 0.8-1.3 m below */
+  const crown = tree.segs.filter(g => g.depth === 0).pop(), cd = crown.b.clone().sub(crown.a).normalize();
+  const bark = [...tree.segs.filter(g => g.depth <= 3), { a: crown.b, b: crown.b.clone().addScaledVector(cd, 1.37), r0: crown.r1 * 0.82, r1: 0.06 }];
+  const clear = q => { let m = 1e9; for (const g of bark){ const ab = g.b.clone().sub(g.a), t = clamp(q.clone().sub(g.a).dot(ab) / ab.lengthSq()), c = g.a.clone().addScaledVector(ab, t);
+    m = Math.min(m, q.distanceTo(c) - lerp(g.r0, g.r1, t) * 1.25); } return m; };
+  const wood = new THREE.Mesh(mergeGeometries([...tree.perch.values()]), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })), rc = new THREE.Raycaster();
+  const seat = q => { rc.set(q, new V3(0, -1, 0)); rc.far = 1.35; const h = rc.intersectObject(wood, false)[0]; return h && h.distance > 0.75 ? h : null; };
+  for (const pe of P){ const q0 = pe.p.clone().sub(TREE); pe.clear0 = clear(q0); if (pe.clear0 >= 0.3 && seat(q0)) continue;
+    let best = null, bd = 1e9;   // the nearest clear spot with a seat under it
+    for (const r of [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1.0, 1.2]) for (let k = 0; k < (r ? 16 : 1); k++){ const a = k / 16 * TAU;
+      for (const dy of [0, 0.2, 0.4, 0.6, 0.8, -0.2]){ const q = q0.clone().add(new V3(Math.cos(a) * r, dy, Math.sin(a) * r)), d = r + Math.abs(dy) * 1.5; if (d < bd && clear(q) >= 0.3 && seat(q)){ best = q; bd = d; } } }
+    if (best) pe.p.copy(best).add(TREE); pe.clear1 = clear(pe.p.clone().sub(TREE)); }
+  wood.geometry.dispose(); P.ms = performance.now() - T0_; return P;
 })();
 
 /* ============================== the road: garages ============================== */
@@ -2928,6 +2943,44 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
 }
 const catGo = (p, speed = 0.9, extra = {}) => cat.q.push({ type: 'go', p, speed, ...extra });
 const catPose = (pose, dur) => cat.q.push({ type: 'pose', pose, dur });
+/* the cat's way up the chestnut to a branch, felt out on the wood itself (rays against the trunk, roots, the limb and the branch):
+   to the foot of the trunk between the buttress roots, on the side between its limb and the next, a spring onto the bark, up the
+   trunk belly to the bark, over its shoulder onto the top of the limb, up to the fork, and out along the top of the branch to lie
+   where that is flattest. Each point carries the surface's outward normal; worked out once per branch */
+const catTreeRoutes = new Map(), catRC = new THREE.Raycaster();
+function catTreeRoute(limb, g1, g2){
+  const id = tree.key(limb[1]) + '|' + tree.key(g1.b); if (catTreeRoutes.has(id)) return catTreeRoutes.get(id); const T0_ = performance.now();
+  const geos = [tree.perch.get('trunk'), ...tree.perchRoots, tree.perch.get(tree.key(limb[1])), tree.perch.get(tree.key(g1.b))].filter(Boolean);
+  const M = new THREE.Mesh(mergeGeometries(geos), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })), UP = new V3(0, 1, 0);
+  const hit = (o, dir, far) => { catRC.set(o, dir); catRC.far = far; const h = catRC.intersectObject(M, false)[0]; if (!h) return null;
+    const n = h.face.normal.clone(); if (n.dot(dir) > 0) n.negate(); return { p: h.point.clone(), n }; };
+  const T = tree.segs.filter(g => g.depth === 0), axis = y => { for (const g of T) if (y <= g.b.y) return g.a.clone().lerp(g.b, clamp((y - g.a.y) / (g.b.y - g.a.y))); return T[T.length - 1].b.clone().setY(y); };
+  // which side: the middle of the wider gap beside its limb (clear of both limbs all the way up), nudged to where no buttress root runs out
+  const az = L => Math.atan2(L[1].z - L[0].z, L[1].x - L[0].x), aL = az(limb); let gp = TAU, gn = TAU;
+  for (const L of tree.limbs) if (L !== limb){ const d = wrapA(az(L) - aL); if (d > 0) gp = Math.min(gp, d); else gn = Math.min(gn, -d); }
+  let phi = aL + (gp > gn ? 1 : -1) * 0.5 * Math.max(gp, gn), best = -1;
+  for (let k = -3; k <= 3; k++){ const a = phi + k * 0.1, sd = new V3(Math.cos(a), 0, Math.sin(a)), h = hit(axis(0.12).addScaledVector(sd, 4), sd.clone().negate(), 6); const dd = h ? h.p.distanceTo(axis(0.12).addScaledVector(sd, 4)) : 0; if (dd > best){ best = dd; phi = a; } }
+  const sd = new V3(Math.cos(phi), 0, Math.sin(phi)), out = [];
+  const add = (h, kind) => { if (!h) return; const p = h.p.clone().addScaledVector(h.n, 0.004); if (out.length && out[out.length - 1].p.distanceTo(p) < 0.1) return; out.push({ p, n: h.n, kind }); };
+  const f = hit(axis(0.12).addScaledVector(sd, 4), sd.clone().negate(), 6), foot = (f ? f.p : axis(0).addScaledVector(sd, 1.6)).addScaledVector(sd, 0.3).setY(0);
+  out.push({ p: foot, n: UP.clone(), kind: 'g' });
+  // up the trunk with level rays, until the bark overhangs (the limbs' collars, the trunk's rounded crown) or turns to face up
+  for (const y of [0.95, 1.4, 1.85, 2.3, 2.75, 3.2, 3.6, 4.0, 4.3, 4.45, 4.6, 4.75]){ const h = hit(axis(y).addScaledVector(sd, 3), sd.clone().negate(), 4); if (!h || h.n.y < -0.25 || h.n.y > 0.5) break; add(h, 'c'); }
+  // then a spring up onto the first stretch of the limb's top clear of the crown, and on along the tops, felt by rays straight down
+  const DOWN = new V3(0, -1, 0), fromAbove = (x, z, y0) => hit(new V3(x, y0 + 1.2, z), DOWN, 2.6), steps = [];
+  const lieOn = !g2 || Math.abs(g1.b.y - g1.a.y) / g1.a.distanceTo(g1.b) <= Math.abs(g2.b.y - g2.a.y) / g2.a.distanceTo(g2.b) ? 1 : 2;
+  const line = lieOn === 1 ? limb.concat([g1.a.clone().lerp(g1.b, 0.5)]) : limb.concat([g1.b, g2.a.clone().lerp(g2.b, 0.5)]);
+  const rr = lieOn === 1 ? limb.r.concat([lerp(g1.r0, g1.r1, 0.5)]) : limb.r.concat([g1.r1, lerp(g2.r0, g2.r1, 0.5)]);
+  for (let i = 1; i < line.length; i++){ const a = line[i - 1], b = line[i], L = a.distanceTo(b), d = b.clone().sub(a).normalize();
+    for (let u = (i === 1 ? 0.55 : 0); u < L - 1e-3; u += 0.25) steps.push([a.clone().lerp(b, u / L), lerp(rr[i - 1], rr[i], u / L), a, d]); }
+  const e = line.length - 1; steps.push([line[e], rr[e], line[e - 1], line[e].clone().sub(line[e - 1]).normalize()]);
+  let landed = false;
+  for (const [q, r, a, d] of steps){ const h = fromAbove(q.x, q.z, q.y + r); if (!h) continue;
+    if (!landed){ const off = h.p.clone().sub(a), dist = off.addScaledVector(d, -off.dot(d)).length(); if (dist > r * 1.4 || h.n.y < 0.35) continue; landed = true; add(h, 'j'); out[out.length - 1].bulge = sd.clone().multiplyScalar(0.35); continue; }   // still the crown: not yet
+    add(h, 't'); }
+  for (const o of out) o.p.add(TREE);
+  M.geometry.dispose(); catTreeRoutes.set(id, out); out.ms = performance.now() - T0_; return out;
+}
 function catEpisode(){
   cat.q = []; const f = cat.force; cat.force = null;
   const r = f === 'tree' ? 0 : f === 'roofs' ? 0.5 : f === 'garden' ? 0.9 : rng();
@@ -2936,23 +2989,21 @@ function catEpisode(){
   const R = cat.root.position, V = (x, y, z) => new V3(x, y, z);
   if (r < 0.4){                                   // up into the chestnut, to doze on a branch
     cat.where = 'tree'; cat.mouse.visible = cat.bird.visible = false;
-    R.set(17.5, 0, TREE.z + rnd(8, 18));
-    catGo(V(TREE.x + 2.5, 0, TREE.z + 3), 1.0); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.4); catPose('sit', rnd(1, 2.5));
-    catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.6, { climb: true }); catGo(V(TREE.x, 4.75, TREE.z + 0.25), 1.0, { climb: true });
     // the big limbs rise at 45-55°, too steep to lie on: up one to where it forks, then out along the gentlest of its branches
     // (30-40 cm thick, rising 15-30°), to lie on top of the bark where that branch is flattest, leaning with it
-    const top = (p, r) => p.clone().add(TREE).add(V(0, r + 0.012, 0)), slope = g => g ? Math.abs(Math.atan2(g.b.y - g.a.y, Math.hypot(g.b.x - g.a.x, g.b.z - g.a.z))) : 9;
+    const slope = g => g ? Math.abs(Math.atan2(g.b.y - g.a.y, Math.hypot(g.b.x - g.a.x, g.b.z - g.a.z))) : 9;
     const spots = []; for (const L of tree.limbs){ const fork = L[L.length - 1];
       for (const g of tree.segs) if (g.depth === 2 && g.a.distanceTo(fork) < 1e-6){ const g2 = tree.segs.find(h => h.depth === 2 && h.a.distanceTo(g.b) < 1e-6); spots.push({ L, g1: g, g2, s: Math.min(slope(g), slope(g2)) }); } }
     spots.sort((A, B) => A.s - B.s); const easy = spots.filter(o => o.s < 0.52), { L: limb, g1, g2 } = easy.length ? pick(easy) : spots[0];
-    const way = limb.slice(1).map((p, i) => top(p, limb.r[i + 1])), mid = g => top(g.a.clone().lerp(g.b, 0.5), lerp(g.r0, g.r1, 0.5));
-    if (!g2 || slope(g1) <= slope(g2)) way.push(mid(g1)); else way.push(top(g1.b, g1.r1), mid(g2));
-    cat.treePath = [V(TREE.x, 0, TREE.z + 1.05), V(TREE.x, 4.2, TREE.z + 0.75), V(TREE.x, 4.75, TREE.z + 0.25)].concat(way);
-    for (const p of way) catGo(p, 0.8, { tree: true });
+    const W = cat.treePath = catTreeRoute(limb, g1, g2), foot = W[0].p, outw = foot.clone().sub(TREE).setY(0).normalize();
+    R.set(17.5, 0, TREE.z + rnd(8, 18));
+    catRoute(R, foot.clone().addScaledVector(outw, 1.6), 1.0); catGo(foot.clone(), 1.2); catPose('sit', rnd(1, 2.5));
+    catGo(W[1].p.clone(), 5, { jump: true, arc: 0.25, nrm: W[1].n });                       // a spring onto the bark
+    for (let i = 2; i < W.length; i++) catGo(W[i].p.clone(), W[i].kind === 'c' ? 1.4 : W[i].kind === 'j' ? 4 : 0.8, W[i].kind === 'c' ? { climb: true, nrm: W[i].n } : W[i].kind === 'j' ? { jump: true, arc: 0.3, bulge: W[i].bulge } : { tree: true, nrm: W[i].n });
     catPose('lie', rnd(50, 120)); catPose('sit', rnd(4, 8)); catPose('lie', rnd(20, 60));
-    for (let i = way.length - 2; i >= 0; i--) catGo(way[i], 0.9, { tree: true });
-    catGo(V(TREE.x, 4.75, TREE.z + 0.25), 0.9, { tree: true }); catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.0, { climb: true }); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.5, { climb: true });
-    catGo(V(17.5, 0, TREE.z + rnd(4, 18)), 1.8);
+    for (let i = W.length - 2; i >= 1; i--) catGo(W[i].p.clone(), W[i + 1].kind === 'j' ? 4 : W[i].kind === 'c' ? 1.4 : 0.9, W[i + 1].kind === 'j' ? { jump: true, arc: 0.15, bulge: W[i + 1].bulge } : W[i].kind === 'c' ? { climb: true, nrm: W[i].n } : { tree: true, nrm: W[i].n });
+    catGo(foot.clone(), 4, { jump: true, arc: 0.15 });                                     // and down off the trunk
+    catRoute(foot, V(17.5, 0, TREE.z + rnd(4, 18)), 1.8);
   } else if (r < 0.7){                            // along the garage roofs
     cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-120, LANE_END - 10); let z = z0;
     R.set(GAR_X - 2.9, roofY(z0, GAR_X - 2.9), z0); let at = catRoute(R, V(GAR_X - 0.9, roofY(z0, GAR_X - 0.9), z0 + dir * 1.5), 0.8);
@@ -2975,14 +3026,23 @@ function catEpisode(){
 const catPath = (P, tol) => { if (P.length < 3) return P.slice(); const A = P[0], B = P[P.length - 1]; let k = -1, dm = 0;   // the turns that matter
   for (let i = 1; i < P.length - 1; i++){ const dv = Math.abs(P[i].y - lerp(A.y, B.y, i / (P.length - 1))); if (dv > dm){ dm = dv; k = i; } }
   return dm < tol ? [A, B] : catPath(P.slice(0, k + 1), tol).slice(0, -1).concat(catPath(P.slice(k), tol)); };
-function catRoute(a, b, speed, tree = false){
+function treeDetour(a, b){   // waypoints round the chestnut's trunk and roots (2.5 m out), if the straight way on the ground would go through them
+  if (a.y > 0.5 || b.y > 0.5) return [];
+  const R0 = 2.5, ax = a.x - TREE.x, az = a.z - TREE.z, dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz, t = L2 ? clamp(-(ax * dx + az * dz) / L2) : 0;
+  if (Math.hypot(ax + dx * t, az + dz * t) > R0 - 0.1) return [];
+  const a0 = Math.atan2(az, ax), d = wrapA(Math.atan2(b.z - TREE.z, b.x - TREE.x) - a0), n = Math.max(1, Math.ceil(Math.abs(d) / 0.5)), W = [];
+  for (let i = 0; i <= n; i++){ const an = a0 + d * i / n; W.push(new V3(TREE.x + Math.cos(an) * R0, 0, TREE.z + Math.sin(an) * R0)); }
+  return W;
+}
+function catRoute(a, b, speed, tree = false, detour = true){
   a = a.clone();
   if (tree && cat.treePath && a.y > 0.6){
-    const P = cat.treePath; let j = 0, bd = 1e9; P.forEach((p, i) => { const d = p.distanceTo(a); if (d < bd){ bd = d; j = i; } });
-    catGo(P[j].clone(), 0.9, j <= 1 ? { climb: true } : { tree: true });
-    for (let i = j - 1; i >= 0; i--) catGo(P[i].clone(), i <= 1 ? 1.2 : 0.9, i <= 1 ? { climb: true } : { tree: true });
-    a.copy(P[0]);
+    const P = cat.treePath, fl = o => o.kind === 'c' ? { climb: true, nrm: o.n } : { tree: true, nrm: o.n }; let j = 1, bd = 1e9;
+    P.forEach((o, i) => { const d = o.p.distanceTo(a); if (i && d < bd){ bd = d; j = i; } });
+    catGo(P[j].p.clone(), 0.9, fl(P[j])); for (let i = j - 1; i >= 1; i--) catGo(P[i].p.clone(), P[i + 1].kind === 'j' ? 4 : P[i].kind === 'c' ? 1.4 : 0.9, P[i + 1].kind === 'j' ? { jump: true, arc: 0.15, bulge: P[i + 1].bulge } : fl(P[i]));
+    catGo(P[0].p.clone(), 4, { jump: true, arc: 0.15 }); a.copy(P[0].p);
   }
+  if (detour){ const W = treeDetour(a, b); if (W.length){ let at = a; for (const w of W) at = catRoute(at, w, speed, false, false); return catRoute(at, b, speed, false, false); } }
   const hx = b.x - a.x, hz = b.z - a.z, h = Math.hypot(hx, hz);
   if (h < 0.3){ catGo(b.clone(), speed); return b.clone(); }
   const N = Math.ceil(h / 0.2), S = [];   // what is underfoot every 20 cm of the way
@@ -3082,11 +3142,12 @@ function updateCat(dt, t){
   if (step.type === 'go'){
     if (!step.from){ step.from = R.position.clone(); step.len = Math.max(0.01, step.from.distanceTo(step.p)); step.k = 0;
       const dx = step.p.x - step.from.x, dy = step.p.y - step.from.y, dz = step.p.z - step.from.z, h = Math.hypot(dx, dz);
-      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb || step.tree ? 1 : 0.8); if (step.jump) step.pitch = clamp(step.pitch, -0.45, 0.45); }
+      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb || step.tree ? 1 : 0.8); if (step.jump) step.pitch = clamp(step.pitch, -0.45, 0.45);
+      if (step.nrm && !step.jump && Math.abs(step.pitch) > 0.9 && Math.hypot(step.nrm.x, step.nrm.z) > 0.3) step.yaw = dy > 0 ? Math.atan2(-step.nrm.x, -step.nrm.z) : Math.atan2(step.nrm.x, step.nrm.z); }
     const pace = step.jump || step.speed > 2 ? 1 : 0.75;      // an unhurried stroll, as in the film; running and leaping at full speed
     step.k = Math.min(1, step.k + step.speed * pace * dt / step.len);
     R.position.lerpVectors(step.from, step.p, step.k);
-    if (step.jump){ const f = step.from.y, d = step.p.y - f; R.position.y = f + d * (d < 0 ? step.k ** 1.8 : 1 - (1 - step.k) ** 1.8) + Math.sin(step.k * Math.PI) * (step.arc ?? 0.8); }
+    if (step.jump){ const f = step.from.y, d = step.p.y - f; R.position.y = f + d * (d < 0 ? step.k ** 1.8 : 1 - (1 - step.k) ** 1.8) + Math.sin(step.k * Math.PI) * (step.arc ?? 0.8); if (step.bulge) R.position.addScaledVector(step.bulge, Math.sin(step.k * Math.PI)); }   // (out round an overhang)
     R.rotation.y += wrapA(step.yaw - R.rotation.y) * Math.min(1, dt * 10); R.rotation.x += (step.pitch - R.rotation.x) * Math.min(1, dt * 8);
     pose = step.jump ? 'jump' : 'walk'; moving = step.speed * pace; if (step.k >= 1) cat.q.shift();
   } else {
@@ -3889,6 +3950,7 @@ function frame(){
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('perchlog')) console.log('PERCH ms', PERCH.ms.toFixed(1)); if (q.get('perchlog')) PERCH.forEach((pe, i) => console.log('PERCH', i, pe.p.toArray().map(v => v.toFixed(2)).join(','), 'clear', (pe.clear0 ?? 0).toFixed(2), '->', (pe.clear1 ?? pe.clear0 ?? 0).toFixed(2)));
     if (q.get('catat')){ const [x, y, z] = q.get('catat').split(',').map(Number); cat.state = 'on'; cat.root.visible = true; cat.where = q.get('catwhere') || 'garden'; cat.root.position.set(x, y === y ? y : surf(x, z), z); cat.q = [{ type: 'pose', pose: 'sit', dur: 1e9 }]; }   // debug: put the cat somewhere (y 's': on whatever is there)
     if (q.get('summon')) setTimeout(() => { summonCat();
       if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | '));
@@ -3906,7 +3968,8 @@ function frame(){
         for (const L of cat.F.concat(cat.H)){ const v = new V3().setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(inv); console.log('CATLOG paw', v.toArray().map(x => x.toFixed(3)).join(',')); } }
       if (q.get('cl')){ const d = +q.get('cl'), ang = +(q.get('ca') || 0.8), cp = P.clone().add(new V3(0, +(q.get('cy') || 0.15), 0)); setTimeout(() => { mode = 'free'; if (q.get('catfov')){ camera.fov = +q.get('catfov'); camera.updateProjectionMatrix(); } const e = cp.clone().add(new V3(Math.sin(ang) * d, d * +(q.get('ch') || 0.3), Math.cos(ang) * d)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 300); } }
     if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0);
-      if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | ')); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
+      if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | ')); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05); if (q.get('catfreeze')) window.__catFreeze = true;
+      if (q.get('catlog') && cat.treePath) console.log('CATTREE ms', (cat.treePath.ms ?? 0).toFixed(1), 'points', cat.treePath.length);
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
     for (let i = 0; i < +(q.get('p') || 0); i++) setTimeout(() => { tween = null; climb(1); }, 3000 + i * 3000); } }
