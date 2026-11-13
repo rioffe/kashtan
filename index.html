@@ -162,13 +162,14 @@ function snowify(mat, k = 1){
   };
   return mat;
 }
-function swayify(mat, amp){
+function swayify(mat, amp, flut = 0){   // flut: each leaf also flutters on its own, faster, at its own phase (small leaves on a wall)
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp };
-    sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp }; sh.uniforms.uFlut = { value: flut };
+    sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uAmp; uniform float uFlut;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       #ifdef USE_INSTANCING
       vec3 ip = instanceMatrix[3].xyz;
       float w = sin(uTime*1.3 + ip.x*0.6 + ip.z*0.4)*0.6 + sin(uTime*2.7 + ip.y*1.3)*0.3 + sin(uTime*5.3 + ip.x*3.0)*0.12;
+      if (uFlut > 0.0){ float hsh = fract(sin(dot(ip, vec3(12.9898, 78.233, 37.719))) * 43758.5453); w += uFlut * sin(uTime * (3.5 + 2.5 * fract(hsh * 7.31)) + hsh * 6.2832); }
       transformed.x += w * uAmp * uWind * position.y;
       transformed.z += w * uAmp * 0.7 * uWind * position.y;
       #endif`);
@@ -2007,7 +2008,7 @@ const VINE = { leaves: [], berries: [] };
       g.strokeStyle = 'rgba(80,90,70,.35)'; g.lineWidth = 0.8; for (let k = 1; k < 6; k++){ const y = -L * k / 6.5; g.beginPath(); g.moveTo(0, y); g.lineTo(W * 0.8, y - 5); g.moveTo(0, y); g.lineTo(-W * 0.8, y - 5); g.stroke(); }
       g.restore(); } });
   const leafGeo = new THREE.PlaneGeometry(1, 1).translate(0, 0.42, 0);
-  VINE.leafMesh = new THREE.InstancedMesh(leafGeo, swayify(new THREE.MeshStandardMaterial({ map: vineLeafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 }), 0.05), VINE.leaves.length);
+  VINE.leafMesh = new THREE.InstancedMesh(leafGeo, swayify(new THREE.MeshStandardMaterial({ map: vineLeafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 }), 0.22, 0.6), VINE.leaves.length);   // (the leaves are only 10-17 cm: a stronger sway, so their tips move a couple of cm, and a flutter of their own)
   VINE.leafMesh.castShadow = VINE.leafMesh.receiveShadow = true; VINE.leafMesh.frustumCulled = false; scene.add(VINE.leafMesh);
   const e = new THREE.Euler(), q = new THREE.Quaternion();
   for (const L of VINE.leaves){ e.set(L.tilt, -Math.PI / 2 + L.yaw, L.roll, 'YXZ'); L.q = new THREE.Quaternion().setFromEuler(e); }   // facing the yard
@@ -3988,6 +3989,7 @@ function frame(){
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
+    if (q.get('bulblog')) console.log('VINELEAF', VINE.leaves.length, [VINE.leaves[40], VINE.leaves[400]].filter(Boolean).map(L => L.p.toArray().map(v => v.toFixed(2)).join(',')).join(' | '));
     if (q.get('bulblog')) console.log('BULB', BULBS.d.length, BULBS.t.length, [BULBS.d[5], BULBS.t[5]].map(L => [L.x, L.y, L.z].map(v => v.toFixed(2)).join(',')).join(' | '));
     if (q.get('windk')) window.__wk = +q.get('windk'); if (q.has('wt')) window.__wt = +q.get('wt');   // debug: hold the wind and the clock the shaders see
     if (q.get('perchlog')) console.log('PERCH ms', PERCH.ms.toFixed(1)); if (q.get('perchlog')) PERCH.forEach((pe, i) => console.log('PERCH', i, pe.p.toArray().map(v => v.toFixed(2)).join(','), 'clear', (pe.clear0 ?? 0).toFixed(2), '->', (pe.clear1 ?? pe.clear0 ?? 0).toFixed(2), 'slide', pe.slide ? pe.slide.map(v => v.toFixed(2)).join('..') : '-'));
