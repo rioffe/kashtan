@@ -2940,6 +2940,7 @@ function catEpisode(){
     catGo(V(TREE.x + 2.5, 0, TREE.z + 3), 1.0); catGo(V(TREE.x, 0, TREE.z + 1.05), 1.4); catPose('sit', rnd(1, 2.5));
     catGo(V(TREE.x, 4.2, TREE.z + 0.75), 1.6, { climb: true }); catGo(V(TREE.x, 4.75, TREE.z + 0.25), 1.0, { climb: true });
     const pts = pick(tree.limbs).map(p => p.clone().add(TREE).add(V(0, 0.3, 0))), n = Math.max(2, Math.round((pts.length - 1) * rnd(0.55, 1)));
+    cat.treePath = [V(TREE.x, 0, TREE.z + 1.05), V(TREE.x, 4.2, TREE.z + 0.75), V(TREE.x, 4.75, TREE.z + 0.25)].concat(pts.slice(1, Math.min(n, pts.length - 1) + 1));
     for (let i = 1; i <= n && i < pts.length; i++) catGo(pts[i], 0.8);
     catPose('lie', rnd(50, 120)); catPose('sit', rnd(4, 8)); catPose('lie', rnd(20, 60));
     for (let i = Math.min(n, pts.length - 1) - 1; i >= 1; i--) catGo(pts[i], 0.9);
@@ -2947,11 +2948,11 @@ function catEpisode(){
     catGo(V(17.5, 0, TREE.z + rnd(4, 18)), 1.8);
   } else if (r < 0.7){                            // along the garage roofs
     cat.where = 'roofs'; const dir = rng() < 0.5 ? 1 : -1, z0 = rnd(-120, LANE_END - 10); let z = z0;
-    R.set(GAR_X - 2.9, roofY(z0, GAR_X - 2.9), z0); catGo(V(GAR_X - 0.9, roofY(z0, GAR_X - 0.9), z0 + dir * 1.5), 0.8);
+    R.set(GAR_X - 2.9, roofY(z0, GAR_X - 2.9), z0); let at = catRoute(R, V(GAR_X - 0.9, roofY(z0, GAR_X - 0.9), z0 + dir * 1.5), 0.8);
     const segs = 6 + Math.floor(rng() * 10);
-    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, LANE_END - 6); const x = GAR_X - 0.1 + rnd(-0.6, 0.6); catGo(V(x, roofY(z, x), z), 0.9);
+    for (let i = 0; i < segs; i++){ z = clamp(z + dir * 3.4, -126, LANE_END - 6); const x = GAR_X - 0.1 + rnd(-0.6, 0.6); at = catRoute(at, V(x, roofY(z, x), z), 0.9);
       if (rng() < 0.18) catPose(pick(['sit', 'lie', 'sit']), rnd(5, 14)); }
-    catPose('sit', rnd(4, 10)); catGo(V(GAR_X - 2.9, roofY(z, GAR_X - 2.9), z + dir * 1.2), 1.0);
+    catPose('sit', rnd(4, 10)); catRoute(at, V(GAR_X - 2.9, roofY(z, GAR_X - 2.9), z + dir * 1.2), 1.0);
   } else {                                        // through the old ladies' gardens
     cat.where = 'garden'; const z0 = rnd(-120, LANE_END - 8); let z = z0; R.set(17.5, 0, z0);
     const n = 3 + Math.floor(rng() * 3);
@@ -2960,6 +2961,37 @@ function catEpisode(){
   }
   cat.state = 'on'; cat.root.visible = true; cat.root.rotation.set(0, 0, 0);
 }
+/* a way from a to b over whatever is underfoot: it follows the surface (up a roof to its ridge and down the other side, up and
+   down the steps between garage roofs); where the surface drops away it leaps down, and where it meets a wall it sits a moment
+   looking up and springs onto it (but nothing over 3 m: then it stays below); out of the chestnut it goes back along the limb and
+   down the trunk. Queues the steps and returns where the cat ends up */
+const catPath = (P, tol) => { if (P.length < 3) return P.slice(); const A = P[0], B = P[P.length - 1]; let k = -1, dm = 0;   // the turns that matter
+  for (let i = 1; i < P.length - 1; i++){ const dv = Math.abs(P[i].y - lerp(A.y, B.y, i / (P.length - 1))); if (dv > dm){ dm = dv; k = i; } }
+  return dm < tol ? [A, B] : catPath(P.slice(0, k + 1), tol).slice(0, -1).concat(catPath(P.slice(k), tol)); };
+function catRoute(a, b, speed, tree = false){
+  a = a.clone();
+  if (tree && cat.treePath && a.y > 0.6){
+    const P = cat.treePath; let j = 0, bd = 1e9; P.forEach((p, i) => { const d = p.distanceTo(a); if (d < bd){ bd = d; j = i; } });
+    catGo(P[j].clone(), 0.9, j <= 1 ? { climb: true } : { tree: true });
+    for (let i = j - 1; i >= 0; i--) catGo(P[i].clone(), i <= 1 ? 1.2 : 0.9, i <= 1 ? { climb: true } : { tree: true });
+    a.copy(P[0]);
+  }
+  const hx = b.x - a.x, hz = b.z - a.z, h = Math.hypot(hx, hz);
+  if (h < 0.3){ catGo(b.clone(), speed); return b.clone(); }
+  const N = Math.ceil(h / 0.2), S = [];   // what is underfoot every 20 cm of the way
+  for (let i = 0; i <= N; i++){ const p = new V3(a.x + hx * i / N, 0, a.z + hz * i / N); p.y = i === 0 ? a.y : i === N ? b.y : surf(p.x, p.z); S.push(p); }
+  let run = [S[0]];
+  const walk = (R) => { const W = catPath(R, 0.03); for (let k = 1; k < W.length; k++) catGo(W[k].clone(), speed); return W[W.length - 1]; };
+  for (let i = 1; i <= N; i++){ const d = S[i].y - S[i - 1].y;
+    if (Math.abs(d) <= 0.4){ run.push(S[i]); continue; }
+    if (d > 0){ let k = i; const K = Math.min(N, i + 3); while (k <= K && S[k].y - S[i - 1].y > 0.4) k++;   // only an eave overhead (it rises and comes down again within 60 cm): it walks under
+      if (k <= K && Math.abs(S[k].y - S[i - 1].y) <= 0.4){ for (let m = i; m < k; m++) S[m].y = lerp(S[i - 1].y, S[k].y, (m - i + 1) / (k - i + 1)); run.push(S[i]); continue; } }
+    if (d < 0){ walk(run); const j = Math.min(N, i + 2); catPose('sit', rnd(0.4, 0.9)); catGo(S[j].clone(), 5, { jump: true, arc: 0.25 }); run = [S[j]]; i = j; continue; }   // over the edge
+    const back = Math.max(1, run.length - 2), foot = walk(run.slice(0, back));   // a wall: come up to it
+    if (d > 3.0) return foot.clone();                                               // too high: it stays below, looking up
+    const j = Math.min(N, i + 1); catPose('sit', rnd(0.8, 1.6)); catGo(S[j].clone(), 5, { jump: true, arc: 0.35 }); run = [S[j]]; i = j; }
+  return walk(run).clone();
+}
 // the secret: call it, and it comes ("kis-kis-kis")
 function summonCat(){
   const cp = camera.position, f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), R = cat.root;
@@ -2967,6 +2999,7 @@ function summonCat(){
   let tgt;
   if (mode === 'window') tgt = new V3(HOME.x + 0.6, 0, BZ + 2.6);
   else { tgt = new V3(cp.x + f.x * 2.0, 0, cp.z + f.z * 2.0); tgt.y = surf(tgt.x, tgt.z); if (Math.abs(tgt.y - body.feet) > 0.4){ tgt.set(cp.x, body.feet, cp.z).addScaledVector(f, 0.7); } }
+  const fromTree = cat.state === 'on' && R.visible && cat.where === 'tree' && R.position.y > 0.6;
   let start = null;
   if (cat.state === 'on' && R.visible && R.position.distanceTo(tgt) < 25) start = R.position.clone();
   else for (const a of [2.6, -2.6, 2.0, -2.0, 3.14, 1.5, -1.5]){ const d = new V3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a));
@@ -2975,9 +3008,11 @@ function summonCat(){
   if (!start) start = tgt.clone().add(new V3(0.8, 0, 0.8));
   cat.q = []; cat.mouse.visible = cat.bird.visible = false; cat.where = 'summoned';
   R.position.copy(start); R.rotation.set(0, Math.atan2(tgt.x - start.x, tgt.z - start.z), 0); R.visible = true; cat.state = 'on';
-  catGo(tgt, 1.4); catPose('sit', rnd(25, 40)); catPose('lie', rnd(20, 40)); catPose('sit', rnd(3, 6)); catGo(start, 1.0);
+  const at = catRoute(start, tgt, 1.4, fromTree);
+  catPose('sit', rnd(25, 40)); catPose('lie', rnd(20, 40)); catPose('sit', rnd(3, 6));
+  catRoute(at, fromTree ? new V3(17.5, 0, TREE.z + rnd(4, 18)) : start, 1.0);   // and off again the way it came (out of the tree, it just goes)
   cat.meowT = 0; cat.seen = true;
-  caption(mode === 'window' ? 'Kis-kis-kis… it came and sat under the window, looking up.' : 'Kis-kis-kis… and there it was, out of nowhere, as always.', 5);
+  caption(mode === 'window' ? 'Kis-kis-kis… it came and sat under the window, looking up.' : at.distanceTo(tgt) > 0.6 ? 'Kis-kis-kis… it came, and sat down below, looking up at us. Too high, even for a cat.' : 'Kis-kis-kis… and there it was, out of nowhere, as always.', 5);
 }
 let catCode = '', catTapN = 0, catTapT = 0;
 function catSecret(ch){ catCode = (catCode + ch).slice(-3); if (catCode === 'kis' || catCode === 'cat'){ catCode = ''; summonCat(); } }
@@ -3032,6 +3067,7 @@ function catGait(wk, S, D){
       L.h.rotation.x = lerp(L.h.rotation.x, tf - th0, wk); L.k.rotation.x = lerp(L.k.rotation.x, tt - (tf - th0), wk); L.a.rotation.x = lerp(L.a.rotation.x, tf + g - tt, wk); }
     L.fold = fold * wk; } }
 function updateCat(dt, t){
+  if (window.__catFreeze) return;   // debug: ?catfreeze=1 holds it where the fast-forward left it
   cat.meowT -= dt; cat.eyeMat.emissiveIntensity = 0.1 + env.night * 2.5;
   if (cat.state === 'hidden'){ cat.timer -= dt; if (cat.timer <= 0) catEpisode(); return; }
   const step = cat.q[0], R = cat.root; let pose = 'sit', moving = 0;
@@ -3039,10 +3075,11 @@ function updateCat(dt, t){
   if (step.type === 'go'){
     if (!step.from){ step.from = R.position.clone(); step.len = Math.max(0.01, step.from.distanceTo(step.p)); step.k = 0;
       const dx = step.p.x - step.from.x, dy = step.p.y - step.from.y, dz = step.p.z - step.from.z, h = Math.hypot(dx, dz);
-      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb ? 1 : 0.8); }
+      step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb ? 1 : 0.8); if (step.jump) step.pitch = clamp(step.pitch, -0.45, 0.45); }
     const pace = step.jump || step.speed > 2 ? 1 : 0.75;      // an unhurried stroll, as in the film; running and leaping at full speed
     step.k = Math.min(1, step.k + step.speed * pace * dt / step.len);
-    R.position.lerpVectors(step.from, step.p, step.k); if (step.jump) R.position.y += Math.sin(step.k * Math.PI) * 0.8;
+    R.position.lerpVectors(step.from, step.p, step.k);
+    if (step.jump){ const f = step.from.y, d = step.p.y - f; R.position.y = f + d * (d < 0 ? step.k ** 1.8 : 1 - (1 - step.k) ** 1.8) + Math.sin(step.k * Math.PI) * (step.arc ?? 0.8); }
     R.rotation.y += wrapA(step.yaw - R.rotation.y) * Math.min(1, dt * 10); R.rotation.x += (step.pitch - R.rotation.x) * Math.min(1, dt * 8);
     pose = step.jump ? 'jump' : 'walk'; moving = step.speed * pace; if (step.k >= 1) cat.q.shift();
   } else {
@@ -3472,6 +3509,7 @@ function toggleMusic(){ sfx.toggle(); syncButtons(); }
 const I18N = {   // English → [Russian, Latvian]
   'Kis-kis-kis… and there it was, out of nowhere, as always.': ['Кис-кис-кис… и вот он, как всегда ниоткуда.', 'Kis-kis-kis… un tur tas bija, kā vienmēr — no nekurienes.'],
   'Kis-kis-kis… it came and sat under the window, looking up.': ['Кис-кис-кис… он пришёл и сел под окном, глядя вверх.', 'Kis-kis-kis… tas atnāca un apsēdās zem loga, skatīdamies augšup.'],
+  'Kis-kis-kis… it came, and sat down below, looking up at us. Too high, even for a cat.': ['Кис-кис-кис… он пришёл и сел внизу, глядя на нас снизу вверх. Слишком высоко, даже для кота.', 'Kis-kis-kis… tas atnāca un apsēdās lejā, skatīdamies uz mums augšup. Par augstu pat kaķim.'],
   'Kis-kis-kis… and the cat came up the tree after us.': ['Кис-кис-кис… и кот полез к нам на дерево.', 'Kis-kis-kis… un kaķis rāpās mums pakaļ kokā.'],
   // interface
   'Winter': ['Зима', 'Ziema'], 'Spring': ['Весна', 'Pavasaris'], 'Summer': ['Лето', 'Vasara'], 'Autumn': ['Осень', 'Rudens'],
@@ -3843,8 +3881,14 @@ function frame(){
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
-    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
-    if (q.get('summon')) setTimeout(() => { summonCat(); for (let i = 0; i < +(q.get('summonff') || 0); i++) updateCat(0.05, i * 0.05); }, 200);
+    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('catat')){ const [x, y, z] = q.get('catat').split(',').map(Number); cat.state = 'on'; cat.root.visible = true; cat.where = q.get('catwhere') || 'garden'; cat.root.position.set(x, y === y ? y : surf(x, z), z); cat.q = [{ type: 'pose', pose: 'sit', dur: 1e9 }]; }   // debug: put the cat somewhere (y 's': on whatever is there)
+    if (q.get('summon')) setTimeout(() => { summonCat();
+      if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | '));
+      let air = 0, airAt = ''; for (let i = 0; i < +(q.get('summonff') || 0); i++){ updateCat(0.05, i * 0.05); const P = cat.root.position, st = cat.q[0];
+        if (q.get('catlog') && st && st.type === 'go' && !st.jump && !st.climb && !st.tree && cat.where !== 'tree'){ const g = P.y - surf(P.x, P.z); if (Math.abs(g) > Math.abs(air)){ air = g; airAt = i + ' @ ' + P.toArray().map(v => v.toFixed(2)).join(','); } } }
+      if (q.get('catfreeze')) window.__catFreeze = true; if (q.get('lookcam')) window.__lookcam = q.get('lookcam').split(',').map(Number);   // (the camera moves only after the call)
+      if (q.get('catlog')) console.log('CATAIR', air.toFixed(2), airAt, '| now', cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || (cat.q[0].jump ? 'jump' : 'go'))); }, 200);
     if (q.get('catpose')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('catd') || 1.3)); P.y = 0;
       cat.q = [{ type: 'pose', pose: q.get('catpose'), dur: 1e9 }]; cat.state = 'on'; cat.root.visible = true; cat.root.position.copy(P);
       cat.root.rotation.set(0, Math.atan2(camera.position.x - P.x, camera.position.z - P.z) + +(q.get('catyaw') || 0), 0); cat.cur = JSON.parse(JSON.stringify(POSES[q.get('catpose')]));
@@ -3854,7 +3898,8 @@ function frame(){
         console.log('CATLOG body.y', cat.body.position.y.toFixed(3), 'rx', cat.body.rotation.x.toFixed(3), '| skin', bb(cat.body.children.find(o => o.isMesh && o.geometry.index && o.geometry.attributes.color && o.visible)), '| head', bb(cat.head), '| tail', bb(cat.tail[0]));
         for (const L of cat.F.concat(cat.H)){ const v = new V3().setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(inv); console.log('CATLOG paw', v.toArray().map(x => x.toFixed(3)).join(',')); } }
       if (q.get('cl')){ const d = +q.get('cl'), ang = +(q.get('ca') || 0.8), cp = P.clone().add(new V3(0, +(q.get('cy') || 0.15), 0)); setTimeout(() => { mode = 'free'; if (q.get('catfov')){ camera.fov = +q.get('catfov'); camera.updateProjectionMatrix(); } const e = cp.clone().add(new V3(Math.sin(ang) * d, d * +(q.get('ch') || 0.3), Math.cos(ang) * d)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 300); } }
-    if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
+    if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0);
+      if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | ')); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
     for (let i = 0; i < +(q.get('p') || 0); i++) setTimeout(() => { tween = null; climb(1); }, 3000 + i * 3000); } }
