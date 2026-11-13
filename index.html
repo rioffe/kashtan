@@ -306,7 +306,7 @@ const leafTex = tex(256, 256, (g, w, h) => {
   g.strokeStyle = '#aab298'; g.lineWidth = 4; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx, h); g.stroke();
 });
 
-const candleTex = tex(128, 256, (g, w, h) => {
+const candleTex = tex(128, 256, (g, w, h) => {   // (no longer shown — the candles are modelled now — but still drawn, to keep the world's random sequence)
   g.strokeStyle = '#8a9a60'; g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, h * 0.1); g.stroke();
   for (let i = 0; i < 280; i++){
     const t = Math.pow(rng(), 0.8), y = h * (0.97 - t * 0.9), mw = (1 - t) * w * 0.4 + 3, x = w / 2 + rnd(-1, 1) * mw, r = rnd(4, 8) * (1 - t * 0.45);
@@ -1518,16 +1518,138 @@ const LEAVES = [];
   }
 }
 const leaves = new THREE.InstancedMesh(leafGeo, leafMat, LEAVES.length); leaves.castShadow = true; leaves.receiveShadow = true; treeG.add(leaves);
-/* blossoms (white candles) */
-const candleGeo = (() => { const a = new THREE.PlaneGeometry(0.42, 0.78).translate(0, 0.39, 0), b = a.clone().rotateY(Math.PI / 2); return mergeGeometries([a, b]); })();
-const candleMat = swayify(new THREE.MeshStandardMaterial({ map: candleTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.6, emissive: '#ffffff', emissiveIntensity: 0.22, emissiveMap: candleTex }), 0.12);
+/* where the candles stand on the tree */
 const CANDLES = [];
 for (const t of tree.tips) for (let k = 0; k < 5; k++){
   const p = t.p.clone().addScaledVector(t.d, rnd(0.6, 1.3)).add(new V3(rnd(-0.9, 0.9), rnd(0.2, 1.1), rnd(-0.9, 0.9)));
   const dir = t.d.clone().multiplyScalar(0.25).add(new V3(rnd(-0.25, 0.25), 1, rnd(-0.25, 0.25))).normalize();
   CANDLES.push({ p, q: new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), dir).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), rng() * TAU)), s: rnd(0.8, 1.25), r: rng() });
 }
-const candles = new THREE.InstancedMesh(candleGeo, candleMat, CANDLES.length); candles.castShadow = true; treeG.add(candles);
+/* blossoms (white candles): each a real panicle after the photographs. A green rachis with short side branches in a spiral, each
+   branch carrying two to four flowers, and a knot of unopened buds at the tip, the whole a cone. Each flower: four frilled, cupped
+   white petals, the upper two with the nectar blotch (yellow while fresh, turning pink-red), a spray of long curving white stamens
+   with orange anthers, a small green calyx on a stalk. Near the eye the flowers are modelled petal by petal; further off each flower
+   is one card painted as the whole flower, in the same place, so the change is hard to see. Three layouts, so neighbours differ. */
+const CANDLE = (() => {
+  const cr = mkRng(5151), crn = (a, b) => a + (b - a) * cr();
+  const AW = 1024, AH = 512;
+  const atlas = tex(AW, AH, (g) => {
+    g.clearRect(0, 0, AW, AH);
+    // a petal, pointing up: claw at the bottom, a frilled rounded blade above; blotch 0 none, 1 yellow, 2 pink-red, 3 a faint yellow eye
+    const petal = (ox, oy, blotch, seed) => { const r = mkRng(seed), cx = ox + 64, by = oy + 188, L = 180;
+      const hw = t => t < 0.12 ? 7 + t / 0.12 * 7 : t < 0.72 ? 14 + 44 * Math.sin((t - 0.12) / 0.6 * Math.PI / 2) : 58 * Math.sqrt(Math.max(0, 1 - ((t - 0.72) / 0.28) ** 2));
+      const ph = r() * 9, frill = t => t > 0.35 ? 1 + 0.055 * Math.sin(t * 47 + ph) + 0.035 * Math.sin(t * 91 + ph * 2) : 1;
+      g.save(); g.beginPath(); const N = 70;
+      for (let i = 0; i <= N; i++){ const t = i / N; g.lineTo(cx - hw(t) * frill(t), by - t * L); }
+      for (let i = N; i >= 0; i--){ const t = i / N; g.lineTo(cx + hw(t) * frill(t + 0.37), by - t * L); }
+      g.closePath();
+      const gr = g.createLinearGradient(0, by, 0, by - L); gr.addColorStop(0, '#e6ebc4'); gr.addColorStop(0.18, '#f6f6e6'); gr.addColorStop(0.5, '#fffffb'); gr.addColorStop(1, '#fdfcf6');
+      g.fillStyle = gr; g.fill(); g.clip();
+      for (let k = 0; k < 11; k++){ const a = (k / 10 - 0.5) * 1.5; g.strokeStyle = 'rgba(214,210,192,0.42)'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(cx, by - 6);   // veins fanning from the claw
+        g.quadraticCurveTo(cx + Math.sin(a) * 40, by - 80, cx + Math.sin(a) * 66, by - 150 - Math.cos(a) * 20); g.stroke(); }
+      if (blotch){ const [c0, c1] = blotch === 1 ? ['rgba(238,204,66,0.9)', 'rgba(244,220,110,0)'] : blotch === 2 ? ['rgba(220,74,104,0.86)', 'rgba(236,140,160,0)'] : ['rgba(240,214,110,0.45)', 'rgba(240,220,130,0)'];
+        const bx = cx + (r() - 0.5) * 6, byy = by - L * 0.24, rg = g.createRadialGradient(bx, byy, 1, bx, byy, blotch === 3 ? 18 : 29); rg.addColorStop(0, c0); rg.addColorStop(0.5, c0.replace(/[\d.]+\)$/, '0.45)')); rg.addColorStop(1, c1);
+        g.fillStyle = rg; g.beginPath(); g.ellipse(bx, byy, 27, 34, 0, 0, TAU); g.fill();
+        if (blotch !== 3) for (let k = 0; k < 12; k++){ const a = (r() - 0.5) * 1.5, l = 12 + r() * 18; g.strokeStyle = blotch === 1 ? 'rgba(226,176,50,0.5)' : 'rgba(200,56,90,0.45)'; g.lineWidth = 1.4;   // the guide lines
+          g.beginPath(); g.moveTo(bx + Math.sin(a) * 6, byy + 14); g.lineTo(bx + Math.sin(a) * l, byy - Math.cos(a) * l); g.stroke(); } }
+      g.restore(); g.strokeStyle = 'rgba(196,192,176,0.55)'; g.lineWidth = 1.6; g.stroke(); };
+    petal(0, 0, 0, 11); petal(128, 0, 1, 12); petal(256, 0, 2, 13); petal(384, 0, 3, 14);
+    // the stamens: seven long filaments from the bottom centre, curving out and hooking at the tips, each with an orange anther
+    const stamens = (ox, oy, sc) => { const r = mkRng(77), x0 = ox + 64 * sc, y0 = oy + 190 * sc;
+      for (let k = 0; k < 7; k++){ const a = (k / 6 - 0.5) * 1.35 + (r() - 0.5) * 0.12, L = (128 + r() * 50) * sc, hook = (r() - 0.5) * 0.9 + (a > 0 ? 0.45 : -0.45);
+        const x1 = x0 + Math.sin(a) * L * 0.42, y1 = y0 - Math.cos(a) * L * 0.55, x2 = x0 + Math.sin(a + hook * 0.6) * L * 0.86, y2 = y0 - Math.cos(a) * L * 0.98, ex = x0 + Math.sin(a + hook) * L, ey = y0 - Math.cos(a + hook * 0.5) * L;
+        g.lineCap = 'round'; g.strokeStyle = 'rgba(160,156,140,0.55)'; g.lineWidth = 3.4 * sc; g.beginPath(); g.moveTo(x0 + sc, y0 + sc); g.bezierCurveTo(x1 + sc, y1 + sc, x2 + sc, y2 + sc, ex + sc, ey + sc); g.stroke();
+        g.strokeStyle = '#fbf9ef'; g.lineWidth = 2.6 * sc; g.beginPath(); g.moveTo(x0, y0); g.bezierCurveTo(x1, y1, x2, y2, ex, ey); g.stroke();
+        const ta = Math.atan2(ey - y2, ex - x2); g.save(); g.translate(ex, ey); g.rotate(ta);
+        g.fillStyle = '#8a4a1c'; g.beginPath(); g.ellipse(0, 0, 6.2 * sc, 4.2 * sc, 0, 0, TAU); g.fill(); g.fillStyle = '#d4782a'; g.beginPath(); g.ellipse(-0.4 * sc, -0.4 * sc, 5.2 * sc, 3.4 * sc, 0, 0, TAU); g.fill();
+        g.fillStyle = 'rgba(250,196,120,0.9)'; g.beginPath(); g.ellipse(-1.2 * sc, -1.4 * sc, 2 * sc, 1.2 * sc, 0, 0, TAU); g.fill(); g.restore(); } };
+    stamens(512, 0, 1);
+    // buds and green
+    { const rg = g.createRadialGradient(672, 30, 2, 672, 32, 30); rg.addColorStop(0, '#eef0d6'); rg.addColorStop(0.7, '#dfe5bc'); rg.addColorStop(1, '#c2cf98'); g.fillStyle = rg; g.fillRect(640, 0, 64, 64); }   // buds: pale cream-green
+    { const lg = g.createLinearGradient(704, 0, 768, 64); lg.addColorStop(0, '#8aa45a'); lg.addColorStop(1, '#6f8a46'); g.fillStyle = lg; g.fillRect(704, 0, 64, 64); }
+    // whole flowers, for the far candles: the four petals round the centre, the stamens below
+    const card = (ox, oy, up1, up2) => { const cx = ox + 96, cy = oy + 92, k = 0.5;
+      const put = (slot, ang) => { g.save(); g.translate(cx, cy); g.rotate(ang); g.drawImage(g.canvas, slot * 128, 0, 128, 192, -64 * k, -188 * k, 128 * k, 192 * k); g.restore(); };
+      put(0, Math.PI * 0.64); put(0, -Math.PI * 0.64); put(up1, -0.7); put(up2, 0.7);
+      g.save(); g.translate(cx, cy + 4); g.rotate(Math.PI * 0.92); g.drawImage(g.canvas, 512, 0, 128, 192, -64 * 0.55, -190 * 0.55, 128 * 0.55, 192 * 0.55); g.restore();
+      const cg = g.createRadialGradient(cx, cy, 1, cx, cy, 9); cg.addColorStop(0, '#e8e0a0'); cg.addColorStop(1, 'rgba(232,224,160,0)'); g.fillStyle = cg; g.beginPath(); g.arc(cx, cy, 9, 0, TAU); g.fill(); };
+    card(0, 256, 1, 1); card(192, 256, 2, 2); card(384, 256, 1, 2);
+  }, {});
+  atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping;
+  const UV = (px, py) => [px / AW, 1 - py / AH];
+  const PETAL = [0, 1, 2, 3].map(s => ({ x0: s * 128, y0: 0 })), GREEN = UV(736, 32), BUD = UV(672, 32);
+
+  // one candle's layout: the flowers' frames, buds, branches
+  const H = 0.32, coneR = y => 0.074 * Math.pow(Math.max(0, 1 - y / H), 0.72) + 0.012;
+  const layout = (seed) => { const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), F = [], B = [], up = new V3(0, 1, 0), NF = 80;
+    for (let i = 0; i < NF; i++){ const u = (i + r() * 0.7) / NF, y = H * (0.015 + 0.83 * Math.pow(u, 1.12)), az = i * 2.39996 + rn(-0.3, 0.3);   // a golden-angle spiral, densest low down
+      const R = coneR(y) * (0.58 + 0.42 * Math.sqrt(r())), rad = new V3(Math.cos(az), 0, Math.sin(az)), p = rad.clone().multiplyScalar(R).setY(y + rn(-0.005, 0.005));
+      const n = rad.clone().add(new V3(rn(-0.35, 0.35), rn(-0.15, 0.5), rn(-0.35, 0.35))).normalize();
+      const fy = up.clone().addScaledVector(n, -n.y).normalize(), fx = new V3().crossVectors(fy, n).normalize();
+      F.push({ p, n, fx, fy, s: rn(0.95, 1.2) * (y > H * 0.74 ? 0.8 : 1), blot: r() < 0.55 ? 1 : 2, root: new V3(0, y - 0.014, 0), roll: rn(-0.4, 0.4) }); }
+    for (let k = 0; k < 7; k++){ const az = k * 2.39996, y = H * (0.86 + 0.14 * k / 6), rr = 0.012 * (1 - k / 7) + 0.002;   // the tip: a tapering knot of buds
+      B.push({ p: new V3(Math.cos(az) * rr, y, Math.sin(az) * rr), s: 0.0038 - 0.0014 * k / 6 }); }
+    return { F, B, BR: [] }; };
+
+  // building blocks, written straight into arrays
+  const build = (lay, near) => { const P = [], U = [], C = [], I = [];
+    const ao = (p) => { const rr = Math.hypot(p.x, p.z) / coneR(p.y); return near ? 0.62 + 0.38 * smooth(clamp(rr * 1.1)) : 0.8 + 0.2 * smooth(clamp(rr * 1.1)); };   // shadowed in towards the rachis (less so on the cards)
+    const vtx = (p, uv, k = 1) => { P.push(p.x, p.y, p.z); U.push(uv[0], uv[1]); const a = ao(p) * k; C.push(a, a, a); return P.length / 3 - 1; };
+    const tube = (a, b, r0, r1, sides, uv) => { const d = b.clone().sub(a).normalize(), [e1, e2] = perpBasis(d), base = P.length / 3;
+      for (const [c, r] of [[a, r0], [b, r1]]) for (let i = 0; i < sides; i++){ const t = i / sides * TAU; vtx(c.clone().addScaledVector(e1, Math.cos(t) * r).addScaledVector(e2, Math.sin(t) * r), uv, 0.9); }
+      for (let i = 0; i < sides; i++){ const j = (i + 1) % sides; I.push(base + i, base + j, base + sides + i, base + j, base + sides + j, base + sides + i); } };
+    // the rachis, in four tapering lengths
+    if (near) for (let k = 0; k < 4; k++) tube(new V3(0, H * k / 4 - (k ? 0 : 0.03), 0), new V3(0, H * (k + 1) / 4, 0), lerp(0.0032, 0.0011, k / 4), lerp(0.0032, 0.0011, (k + 1) / 4), 5, GREEN);
+    if (near) for (const [a, b] of lay.BR) tube(a, b, 0.0013, 0.0009, 3, GREEN);
+    for (const f of lay.F){ const s = f.s, k = 0.92 + 0.12 * ((f.p.x * 97.1 + f.p.z * 61.3) % 1 + 1) % 1, at = (x, y, z) => f.p.clone().addScaledVector(f.fx, x * s).addScaledVector(f.fy, y * s).addScaledVector(f.n, z * s);
+      const cr_ = Math.cos(f.roll), sr_ = Math.sin(f.roll), rot = (x, y) => [x * cr_ - y * sr_, x * sr_ + y * cr_];   // each flower turned a little in its own plane
+      if (!near){ const v = f.blot === 1 ? (f.roll > 0.15 ? 2 : 0) : 1, ox = v * 192, q = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, w]) => { const [x, y] = rot(u * 0.0172, w * 0.0172); return vtx(at(x, y, 0.002), UV(ox + 96 + u * 96, 256 + 92 - w * 96), k); });
+        I.push(q[0], q[1], q[2], q[0], q[2], q[3]); continue; }
+      { const a = f.root, b = at(0, 0, -0.0055), w = new V3().crossVectors(b.clone().sub(a), f.n).normalize().multiplyScalar(0.0006);   // the flower's stalk, a thin green ribbon
+        const q = [vtx(a.clone().sub(w), GREEN, 0.8), vtx(a.clone().add(w), GREEN, 0.8), vtx(b.clone().add(w), GREEN, 0.9), vtx(b.clone().sub(w), GREEN, 0.9)]; I.push(q[0], q[1], q[2], q[0], q[2], q[3]); }
+      { const base = P.length / 3; vtx(at(0, 0, -0.0062), GREEN, 0.85); for (let i = 0; i < 4; i++){ const t = i / 4 * TAU + 0.4, [x, y] = rot(Math.cos(t) * 0.003, Math.sin(t) * 0.003); vtx(at(x, y, -0.0008), GREEN, 0.9); }
+        for (let i = 0; i < 4; i++) I.push(base, base + 1 + i, base + 1 + (i + 1) % 4); }       // the calyx
+      // four petals: two upper with the blotch, two lateral; cupped forward, edges curled back, the tips turning out
+      for (const [ang, slot] of [[-0.62, f.blot], [0.62, f.blot], [-1.95, 0], [1.95, 3]]){ const sl = PETAL[slot], ax = rot(Math.sin(ang), Math.cos(ang)), bx = [ax[1], -ax[0]], Lp = 0.0134, Wp = 0.0128, g0 = P.length / 3;
+        for (const t of [0, 0.55, 1]) for (const u of [-1, 0, 1]){ const along = 0.0012 + t * Lp, z = Lp * (0.34 * t - 0.2 * t * t) - Math.abs(u) * 0.0014 * t + (cr() - 0.5) * 0.0007 * t;
+          vtx(at(ax[0] * along + bx[0] * u * Wp / 2, ax[1] * along + bx[1] * u * Wp / 2, z + 0.0006), UV(sl.x0 + 64 + u * 62, 188 - t * 184), k * (t ? t < 1 ? 0.97 : 1 : 0.82)); }   // a little shadow down in the throat
+        for (let rI = 0; rI < 2; rI++) for (let cI = 0; cI < 2; cI++){ const a = g0 + rI * 3 + cI; I.push(a, a + 1, a + 3, a + 1, a + 4, a + 3); } }
+      // the stamens: two crossed cards spraying out and down from the throat
+      { const sd = new V3(0, -0.72, 0.69).normalize(), w1 = new V3(1, 0, 0), w2 = new V3().crossVectors(sd, w1).normalize();
+        for (const w of [w1, w2]){ const L = 0.019, W = 0.014, q = [];
+          for (const [u, t] of [[-1, 0], [1, 0], [1, 1], [-1, 1]]){ const lx = sd.x * L * t + w.x * u * W / 2, ly = sd.y * L * t + w.y * u * W / 2, lz = sd.z * L * t + w.z * u * W / 2, [x, y] = rot(lx, ly);
+            q.push(vtx(at(x, y, lz + 0.001), UV(512 + 64 + u * 64, 190 - t * 190), k)); }
+          I.push(q[0], q[1], q[2], q[0], q[2], q[3]); } } }
+    // buds at the tip: little cream knobs
+    for (const b of lay.B){ const base = P.length / 3, sg = near ? 5 : 3, rg = near ? 3 : 2;
+      for (let i = 0; i <= rg; i++){ const ph = i / rg * Math.PI; for (let j = 0; j < sg; j++){ const th = j / sg * TAU; const p = b.p.clone().add(new V3(Math.sin(ph) * Math.cos(th) * b.s, -Math.cos(ph) * b.s * 1.12, Math.sin(ph) * Math.sin(th) * b.s));
+        vtx(p, BUD, i === 0 ? 0.7 : i === 1 ? 0.88 : 1); } }
+      for (let i = 0; i < rg; i++) for (let j = 0; j < sg; j++){ const a = base + i * sg + j, b2 = base + i * sg + (j + 1) % sg; I.push(a, a + sg, b2, b2, a + sg, b2 + sg); } }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); geo.setIndex(I); geo.computeVertexNormals(); return geo; };
+
+  const mat = swayify(new THREE.MeshStandardMaterial({ map: atlas, vertexColors: true, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.62, emissive: '#ffffff', emissiveMap: atlas, emissiveIntensity: 0.2 }), 0.12);
+  const lays = [101, 202, 303].map(layout), byV = [[], [], []];
+  CANDLES.forEach((c, i) => { c.v = i % 3; c.vis = 0; byV[c.v].push(c); });
+  const matFar = swayify(new THREE.MeshStandardMaterial({ map: atlas, vertexColors: true, alphaTest: 0.24, side: THREE.DoubleSide, roughness: 0.62, emissive: '#ffffff', emissiveMap: atlas, emissiveIntensity: 0.2 }), 0.12);
+  const mk = (geo, n, m_ = mat) => { const m = new THREE.InstancedMesh(geo, m_, Math.max(1, n)); m.count = 0; m.castShadow = true; m.frustumCulled = false; treeG.add(m); return m; };
+  const near = lays.map((l, v) => mk(build(l, true), byV[v].length)), far = lays.map((l, v) => mk(build(l, false), byV[v].length, matFar)); far.forEach(m => m.castShadow = false);   // (far off, their shadows would only be specks)
+  return { near, far, byV, H, on: false, dirty: true, last: new V3(1e9, 0, 0), lastT: -1e9, tris: [near[0].geometry.index.count / 3, far[0].geometry.index.count / 3] };
+})();
+// which candles are near enough to show petal by petal (within 8 m, at most 180 of them), the rest as cards; redone as we move
+const candleCam = new V3(), candleD = [];
+function updateCandles(t){
+  const K = CANDLE; if (!K.on){ for (const m of K.near.concat(K.far)) m.visible = false; return; }
+  candleCam.copy(camera.position).sub(treeG.position);
+  if (!K.dirty && candleCam.distanceTo(K.last) < 0.3 && t - K.lastT < 1.5) return;
+  K.dirty = false; K.last.copy(candleCam); K.lastT = t;
+  candleD.length = 0; for (const c of CANDLES) if (c.vis > 0){ const d = c.p.distanceTo(candleCam); if (d < 8) candleD.push(d); }
+  let lim = 8; if (candleD.length > 180){ candleD.sort((a, b) => a - b); lim = candleD[179]; }
+  for (let v = 0; v < 3; v++){ let nn = 0, nf = 0;
+    for (const c of K.byV[v]){ if (c.vis <= 0) continue; SC.setScalar(c.s * c.vis * 1.75); M4.compose(c.p, c.q, SC);   // (the tree's leaves are large, and the candles in proportion to them)
+      if (c.p.distanceTo(candleCam) <= lim) K.near[v].setMatrixAt(nn++, M4); else K.far[v].setMatrixAt(nf++, M4); }
+    K.near[v].count = nn; K.far[v].count = nf; K.near[v].instanceMatrix.needsUpdate = K.far[v].instanceMatrix.needsUpdate = true; K.near[v].visible = nn > 0; K.far[v].visible = nf > 0; }
+}
 /* husks (spiky green cases) */
 const HUSKS = [];
 for (let i = 0; i < 320; i++){ const t = pick(tree.tips); HUSKS.push({ p: t.p.clone().add(new V3(rnd(-0.6, 0.6), rnd(-0.4, 0.2), rnd(-0.6, 0.6))), drop: rnd(3.08, 3.62), s: rnd(0.8, 1.2) }); }
@@ -3348,9 +3470,8 @@ function updateSeasonal(sp){
     if (turn > 0){ tmpC2.copy(yellowA).lerp(yellowB, L.hue); tmpC.lerp(tmpC2, smooth(turn * 2)); if (turn > 0.5) tmpC.lerp(brownC, smooth((turn - 0.5) * 2) * 0.8); }
     tmpC.multiplyScalar(L.v); leaves.setColorAt(i, tmpC); }
   leaves.instanceMatrix.needsUpdate = true; leaves.instanceColor.needsUpdate = true;
-  for (let i = 0; i < CANDLES.length; i++){ const c = CANDLES[i]; const vis = clamp((sp.blossom * 1.25 - c.r) / 0.25);
-    SC.setScalar(c.s * vis); M4.compose(c.p, c.q, SC); candles.setMatrixAt(i, M4); }
-  candles.instanceMatrix.needsUpdate = true; candles.visible = sp.blossom > 0.001;
+  for (const c of CANDLES) c.vis = clamp((sp.blossom * 1.25 - c.r) / 0.25);
+  CANDLE.on = sp.blossom > 0.001; CANDLE.dirty = true;
   huskMat.color.set('#7aa040').lerp(tmpC.set('#8a7a3a'), smooth((S - 2.9) / 0.35));
   for (let i = 0; i < HUSKS.length; i++){ const h = HUSKS[i]; const on = S < h.drop ? sp.husk : 0;
     if (prevS > 0 && prevS < h.drop && S >= h.drop && S - prevS < 0.3) spawnNut(h.p.clone().add(TREE));
@@ -3846,7 +3967,7 @@ function frame(){
   if (todTarget !== null){ const diff = ((todTarget - TOD) % 1 + 1) % 1, step = dt * 0.09; if (diff < 0.002 || diff > 0.998 || step >= diff){ TOD = todTarget; todTarget = null; } else TOD = (TOD + step) % 1; }
   else if (drift) TOD = (TOD + dt / 240) % 1;
   const sp = SP(S);
-  updateSeasonal(sp); updateEnv(sp); updateSeasonHUD();
+  updateSeasonal(sp); updateEnv(sp); updateSeasonHUD(); updateCandles(t);
 
   // camera
   if (mode === 'intro'){ const a = Math.sin(t * 0.05) * 0.55; camera.position.set(TREE.x - 6 + Math.sin(a) * 22, 4.5 + Math.sin(t * 0.07) * 1.2, TREE.z + 6 + Math.cos(a) * 22);
@@ -3994,6 +4115,9 @@ function frame(){
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
+    if (q.get('bulblog')){ const e = PERCH[0].p.clone().sub(TREE); const cs = CANDLES.map(c => [c, c.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 4);
+      cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }
+    if (q.get('bulblog')) console.log('CANDLES', CANDLES.length, 'tris near/far per candle', CANDLE.tris.join('/'));
     if (q.get('bulblog')){ const near = DANDS.filter(p => Math.hypot(p.x + 8.4, p.z + 108) < 6).slice(0, 3); console.log('DAND', DANDS.length, near.map(p => p.x.toFixed(2) + ',' + p.z.toFixed(2) + ' heads ' + p.heads.length).join(' | ')); }
     if (q.get('bulblog')) console.log('VINELEAF', VINE.leaves.length, [VINE.leaves[40], VINE.leaves[400]].filter(Boolean).map(L => L.p.toArray().map(v => v.toFixed(2)).join(',')).join(' | '));
     if (q.get('bulblog')) console.log('BULB', BULBS.d.length, BULBS.t.length, [BULBS.d[5], BULBS.t[5]].map(L => [L.x, L.y, L.z].map(v => v.toFixed(2)).join(',')).join(' | '));
