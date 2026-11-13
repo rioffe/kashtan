@@ -1573,6 +1573,19 @@ const PERCH = (() => { const T0_ = performance.now();
     for (const r of [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1.0, 1.2]) for (let k = 0; k < (r ? 16 : 1); k++){ const a = k / 16 * TAU;
       for (const dy of [0, 0.2, 0.4, 0.6, 0.8, -0.2]){ const q = q0.clone().add(new V3(Math.cos(a) * r, dy, Math.sin(a) * r)), d = r + Math.abs(dy) * 1.5; if (d < bd && clear(q) >= 0.3 && seat(q)){ best = q; bd = d; } } }
     if (best) pe.p.copy(best).add(TREE); pe.clear1 = clear(pe.p.clone().sub(TREE)); }
+  // on the first two you can shuffle sideways along the wood for a better view, the eye riding up and down with the bark under you:
+  // as far each way as the bark runs on smoothly (no drop-offs, within half a metre of the perch's height) and the eye stays clear
+  const under = q => { rc.set(q.clone().setY(q.y + 0.6), new V3(0, -1, 0)); rc.far = 2.8; return rc.intersectObject(wood, false)[0]; };
+  for (const pe of P.slice(0, 2)){ pe.right = new V3(Math.cos(pe.yaw), 0, -Math.sin(pe.yaw)); const fw = new V3(-Math.sin(pe.yaw), 0, -Math.cos(pe.yaw)), q0 = pe.p.clone().sub(TREE), h0 = under(q0);
+    pe.path = [[0, 0, 0, 0]]; pe.slide = [0, 0]; pe.off = 0; pe.cur = new V3(); if (!h0) continue; const eye = q0.y - h0.point.y;
+    for (const sg of [-1, 1]){ let prevY = q0.y, prevF = 0;   // step sideways, edging forward or back (up to 25 cm) to stay on the bark
+      for (let o = 0.05; o <= 1.2001; o += 0.05){ let ok = null;
+        for (const df of [0, 0.05, -0.05, 0.1, -0.1, 0.15, -0.15]){ const f = prevF + df; if (Math.abs(f) > 0.25) continue;
+          const q = q0.clone().addScaledVector(pe.right, sg * o).addScaledVector(fw, f), h = under(q); if (!h) continue;
+          const y = h.point.y + eye; if (Math.abs(y - prevY) > 0.12 || Math.abs(y - q0.y) > 0.5) continue; q.y = y; if (clear(q) < 0.2) continue; ok = [f, y]; break; }
+        if (!ok) break; prevF = ok[0]; prevY = ok[1]; const d = pe.right.clone().multiplyScalar(sg * o).addScaledVector(fw, ok[0]);
+        pe.path.push([sg * o, d.x, ok[1] - q0.y, d.z]); pe.slide[(sg + 1) / 2] = sg * o; } }
+    pe.path.sort((a, b) => a[0] - b[0]); }
   wood.geometry.dispose(); P.ms = performance.now() - T0_; return P;
 })();
 
@@ -1711,7 +1724,7 @@ const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [
         const ax = new V3(0, 1, 0).addScaledVector(d, 0.65).add(new V3(prn(-0.25, 0.25), 0, prn(-0.25, 0.25))).normalize();
         const q = new THREE.Quaternion().setFromUnitVectors(up, ax).multiply(new THREE.Quaternion().setFromAxisAngle(up, pr() * TAU));
         LILP.push({ p: pos, q, s: prn(0.8, 1.35) * (0.85 + 0.15 * L.s), c: new THREE.Color(pal[Math.floor(pr() * pal.length)]).multiplyScalar(prn(0.9, 1.08)) }); } }
-    lilacBloom = new THREE.InstancedMesh(pg, new THREE.MeshStandardMaterial({ map: floretTex, vertexColors: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.75 }), LILP.length);
+    lilacBloom = new THREE.InstancedMesh(pg, swayify(new THREE.MeshStandardMaterial({ map: floretTex, vertexColors: true, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.75 }), 0.24), LILP.length);   // (sways in the wind like the leaves: the panicle is 0.3 tall, so its tip swings as far as a leaf's)
     LILP.forEach((l, i) => lilacBloom.setColorAt(i, l.c)); lilacBloom.userData.L = LILP; lilacBloom.castShadow = true; scene.add(lilacBloom);
   }
   // benches: one by the entry, one under the tree
@@ -2111,10 +2124,28 @@ const BULBS = { d: [], t: [] };
   for (const g of [dLeafGeo, tLeafGeo]){ const pa = g.attributes.position; for (let i = 0; i < pa.count; i++){ const x = pa.getX(i); pa.setZ(i, pa.getZ(i) + Math.abs(x) * 0.3); } g.computeVertexNormals(); }   // a keel down the middle
   const vc = new THREE.MeshStandardMaterial({ vertexColors: false, side: THREE.DoubleSide, roughness: 0.55 });
   const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.frustumCulled = false; m.castShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; };
+  // in the wind each plant bends from its base, stem and flower together (more the higher up: a bending stem), each to its own rhythm
+  // within a slower gust that runs across the beds; every instance carries its plant's base and phase in aBase
+  const bendify = (mat, amp, lift) => { mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp };
+      sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uAmp; attribute vec4 aBase;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 mvPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+        #endif
+        { float hg = max(0.0, mvPosition.y - aBase.y), ph = aBase.w, gust = sin(uTime * 0.9 + aBase.x * 0.5 + aBase.z * 0.35);
+          float wx = sin(uTime * 1.7 + ph) * 0.55 + sin(uTime * 2.9 + ph * 1.7) * 0.25 + gust * 0.45, wz = sin(uTime * 1.4 + ph * 0.6 + 1.3) * 0.45 + gust * 0.3;
+          mvPosition.xz += vec2(wx, wz) * uWind * uAmp * hg * hg * 2.8; }
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`);
+      if (lift){ sh.uniforms.uLift = liftU; sh.fragmentShader = 'uniform float uLift;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * uLift;'); } };
+    return mat; };
+  const bases = (m, list) => { const a = new Float32Array(Math.max(1, list.length) * 4); list.forEach((L, i) => a.set([L.x, L.y, L.z, L.yaw * 2.3 + L.x * 0.7 + L.z * 0.3], i * 4)); m.geometry.setAttribute('aBase', new THREE.InstancedBufferAttribute(a, 4)); };
   const nd = BULBS.d.length, nt = BULBS.t.length;
-  BULBS.dHead = mk(dHeadGeo, swayify(vc.clone(), 0.04), nd); BULBS.dCup = mk(dCupGeo, swayify(vc.clone(), 0.04), nd);
-  BULBS.tHead = mk(tHeadGeo, swayify(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.4 }), 0.04), nt);
-  BULBS.stem = mk(new THREE.CylinderGeometry(0.0022, 0.0028, 1, 5, 1, true).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: '#5f8a42', roughness: 0.6 }), nd + nt);
+  BULBS.dHead = mk(dHeadGeo, bendify(vc.clone(), 0.12, true), nd); BULBS.dCup = mk(dCupGeo, bendify(vc.clone(), 0.12, true), nd);
+  BULBS.tHead = mk(tHeadGeo, bendify(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.4 }), 0.12, true), nt);
+  BULBS.stem = mk(new THREE.CylinderGeometry(0.0022, 0.0028, 1, 5, 1, true).translate(0, 0.5, 0), bendify(new THREE.MeshStandardMaterial({ color: '#5f8a42', roughness: 0.6 }), 0.12, false), nd + nt);
+  bases(BULBS.dHead, BULBS.d); bases(BULBS.dCup, BULBS.d); bases(BULBS.tHead, BULBS.t); bases(BULBS.stem, BULBS.d.concat(BULBS.t));   // (stems: daffodils first, then tulips, as they are laid out)
   BULBS.leaf = mk(new THREE.BufferGeometry().copy(dLeafGeo), swayify(new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.6 }), 0.05), nd * 3);
   BULBS.tLeaf = mk(tLeafGeo, swayify(new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.55 }), 0.05), nt * 2);
   const D_PER = ['#f6c81e', '#f6f2e4', '#f8f4e8'], D_CUP = ['#f2b310', '#f4c428', '#f0782a'], T_COL = ['#d0182a', '#f6c01c', '#f07aa8', '#f7f4ec'];
@@ -3407,7 +3438,7 @@ function setMode(m){
     fadeThen(() => { mode = 'window'; place(WIN_POS, Math.PI + wrapA(yawTo(WIN_POS, WIN_LOOK) - Math.PI) * 0.45, 0.12); if (window.__wv){ cam.yaw = window.__wv[0]; cam.pitch = window.__wv[1]; camera.position.z = BZ - window.__wv[2]; }
       caption(pick(['From my window on the third floor, the tree was the whole world.', 'I would sit here for hours, and the tree would sit there with me.', 'Some evenings I wrote poems to it in a school notebook.'])); });
   } else if (m === 'climb'){
-    const go = () => { mode = 'climb'; perch = 0; const P = PERCH[0]; goTo(P.p, P.yaw, P.pitch, 2.2); caption(P.text); };
+    const go = () => { mode = 'climb'; perch = 0; const P = PERCH[0]; P.off = 0; P.cur.set(0, 0, 0); goTo(P.p, P.yaw, P.pitch, 2.2); caption(P.text); };
     if (prev === 'window' || distTree() > 9) fadeThen(() => { place(TREE.clone().add(new V3(-1.5, 1.6, 3.5)), Math.PI * 0.95, 0.3); go(); }); else go();
   } else if (m === 'lie'){
     const p = TREE.clone().add(new V3(2.4, 0.32, 3.4)), go = () => { mode = 'lie'; goTo(p, yawTo(p, TREE), 1.05, 2.4);
@@ -3421,7 +3452,7 @@ function climb(dir){
   const n = perch + dir;
   if (n < 0){ setMode('walk'); return; }
   if (n >= PERCH.length){ caption('No higher. Only sky up there.', 3); return; }
-  perch = n; const P = PERCH[n]; goTo(P.p, P.yaw, P.pitch, 2.0); caption(P.text);
+  perch = n; const P = PERCH[n]; P.off = 0; if (P.cur) P.cur.set(0, 0, 0); goTo(P.p, P.yaw, P.pitch, 2.0); caption(P.text);
 }
 
 function nearLadder(){ const p = camera.position, f = -Math.sin(cam.yaw);
@@ -3600,13 +3631,13 @@ const I18N = {   // English → [Russian, Latvian]
   'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table':
     ['Тянуть мышью — смотреть · WASD — ходить · клик по окну (F) — открыть · по лампе (O) — включить · по стулу (X) — сесть за стол',
      'Velc ar peli — skatīties · WASD — staigāt · klikšķis uz loga (F) — atvērt · uz lampas (O) — ieslēgt · krēsls (X) — apsēsties pie galda'],
-  'W / S or E / Q to climb up and down · drag to look · F to shake': ['W / S или E / Q — вверх и вниз · тянуть мышью — смотреть · F — потрясти', 'W / S vai E / Q — augšup un lejup · velc ar peli — skatīties · F — sapurināt'],
+  'W / S or E / Q to climb up and down · A / D to shuffle along the branch · drag to look · F to shake': ['W / S или E / Q — вверх и вниз · A / D — подвинуться по ветке · тянуть мышью — смотреть · F — потрясти', 'W / S vai E / Q — augšup un lejup · A / D — pavirzīties pa zaru · velc ar peli — skatīties · F — sapurināt'],
   'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof':
     ['Джойстик — идти (до упора — бегом) · тянуть пальцем — смотреть · ⤒ — прыжок или залезть на крышу', 'Kursorsvira — iet (līdz galam — skriet) · velc ar pirkstu — skatīties · ⤒ — lēkt vai uzrāpties uz jumta'],
   'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it':
     ['Джойстик — ходить · тянуть пальцем — смотреть · коснитесь окна, чтобы открыть его, лампы — чтобы включить, книги — чтобы открыть её',
      'Kursorsvira — staigāt · velc ar pirkstu — skatīties · pieskarieties logam, lai to atvērtu, lampai — lai ieslēgtu, grāmatai — lai to atvērtu'],
-  'Higher / Lower to climb · drag to look': ['«Выше» / «Ниже» — лезть по дереву · тянуть пальцем — смотреть', '«Augstāk» / «Zemāk» — kāpt · velc ar pirkstu — skatīties'],
+  'Higher / Lower to climb · stick to shuffle along the branch · drag to look': ['«Выше» / «Ниже» — лезть по дереву · джойстик — подвинуться по ветке · тянуть пальцем — смотреть', '«Augstāk» / «Zemāk» — kāpt · kursorsvira — pavirzīties pa zaru · velc ar pirkstu — skatīties'],
   'Drag to look around · Walk to get up': ['Тянуть пальцем — оглядеться · «Гулять» — встать', 'Velc ar pirkstu — paskatīties apkārt · «Staigāt» — piecelties'],
   'Higher': ['Выше', 'Augstāk'], 'Lower': ['Ниже', 'Zemāk'], 'Climb down': ['Слезть', 'Kāpt lejā'],
   'Drag to look around · Esc to get up': ['Тянуть мышью — оглядеться · Esc — встать', 'Velc ar peli — paskatīties apkārt · Esc — piecelties'],
@@ -3718,10 +3749,10 @@ function syncButtons(){
   Object.keys(WEATHERS).forEach(n => $('bw' + n).classList.toggle('on', n === weather));
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
   const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
-    window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
-    window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
+    window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · stick to shuffle along the branch · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
+    window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · A / D to shuffle along the branch · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
   $('hint').textContent = tr(hints[mode] || '');
-  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window'); $('jumpBtn').classList.toggle('on', mode === 'walk');
+  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk');
   placeSticks();
 }
 let ctxState = '';
@@ -3847,7 +3878,12 @@ function frame(){
       else { if (p.z > BZ - 2.45) xhi = HOME.x + 0.58; if (p.z < BZ - 2.3 && p.z > BZ - 4.4) xlo = HOME.x - 0.1; }   // shelf end; beside the bed
       p.x = clamp(p.x, xlo, xhi); cam.pitch = clamp(cam.pitch, -1.35, 0.95);
     } else if (mode === 'lie'){ cam.pitch = clamp(cam.pitch, 0.1, 1.5); }
-    else if (mode === 'climb'){ camera.position.y += Math.sin(t * 0.9) * 0.0015; }
+    else if (mode === 'climb'){ const P = PERCH[perch];
+      if (P.slide){ const sd = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + (stick.m > 0.12 ? stick.x : 0);   // shuffle along the branch
+        P.off = clamp(P.off + sd * dt * 0.45, P.slide[0], P.slide[1]);
+        for (let i = 1; i < P.path.length; i++) if (P.off <= P.path[i][0] + 1e-6){ const a = P.path[i - 1], b = P.path[i], k = (P.off - a[0]) / (b[0] - a[0] || 1);
+          const x = lerp(a[1], b[1], k), y = lerp(a[2], b[2], k), z = lerp(a[3], b[3], k); camera.position.x = P.p.x + x; camera.position.z = P.p.z + z; camera.position.y += y - P.cur.y; P.cur.set(x, y, z); break; } }   // along the bark, up and down with it
+      camera.position.y += Math.sin(t * 0.9) * 0.0015; }
     if (!(mode === 'window' && desk.on)) camera.rotation.set(cam.pitch, cam.yaw, 0);
   }
   sky.position.copy(camera.position); stars.forEach(s => s.position.copy(camera.position));
@@ -3925,6 +3961,7 @@ function frame(){
   if (started) syncCtx();
   if (window.__lookcam){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
   if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + (window.__figcam[4] ?? 0.085), f.z); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }   // debug: ?figcam=dist,angle,height[,lookY]
+  if (window.__wk != null) windU.value = window.__wk; if (window.__wt != null) timeU.value = window.__wt;
   if (window.__studio){ if (!window.__studioP){ const p = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#80838a', roughness: 0.95 }));
       p.position.copy(cat.root.position); p.position.y += 0.0005; p.receiveShadow = true; scene.add(p); window.__studioP = p; }
     for (const o of scene.children) if (!o.isLight && o !== cat.root && o !== window.__studioP) o.visible = false;
@@ -3950,7 +3987,10 @@ function frame(){
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
-    if (q.get('perchlog')) console.log('PERCH ms', PERCH.ms.toFixed(1)); if (q.get('perchlog')) PERCH.forEach((pe, i) => console.log('PERCH', i, pe.p.toArray().map(v => v.toFixed(2)).join(','), 'clear', (pe.clear0 ?? 0).toFixed(2), '->', (pe.clear1 ?? pe.clear0 ?? 0).toFixed(2)));
+    if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
+    if (q.get('bulblog')) console.log('BULB', BULBS.d.length, BULBS.t.length, [BULBS.d[5], BULBS.t[5]].map(L => [L.x, L.y, L.z].map(v => v.toFixed(2)).join(',')).join(' | '));
+    if (q.get('windk')) window.__wk = +q.get('windk'); if (q.has('wt')) window.__wt = +q.get('wt');   // debug: hold the wind and the clock the shaders see
+    if (q.get('perchlog')) console.log('PERCH ms', PERCH.ms.toFixed(1)); if (q.get('perchlog')) PERCH.forEach((pe, i) => console.log('PERCH', i, pe.p.toArray().map(v => v.toFixed(2)).join(','), 'clear', (pe.clear0 ?? 0).toFixed(2), '->', (pe.clear1 ?? pe.clear0 ?? 0).toFixed(2), 'slide', pe.slide ? pe.slide.map(v => v.toFixed(2)).join('..') : '-'));
     if (q.get('catat')){ const [x, y, z] = q.get('catat').split(',').map(Number); cat.state = 'on'; cat.root.visible = true; cat.where = q.get('catwhere') || 'garden'; cat.root.position.set(x, y === y ? y : surf(x, z), z); cat.q = [{ type: 'pose', pose: 'sit', dur: 1e9 }]; }   // debug: put the cat somewhere (y 's': on whatever is there)
     if (q.get('summon')) setTimeout(() => { summonCat();
       if (q.get('catlog')) console.log('CATQ', cat.q.map(s => s.type === 'go' ? s.p.toArray().map(v => v.toFixed(2)).join(',') + (s.jump ? ' J' : s.climb ? ' C' : '') : s.pose + ' ' + s.dur.toFixed(1)).join(' | '));
