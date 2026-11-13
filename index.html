@@ -179,6 +179,25 @@ function swayify(mat, amp, flut = 0){   // flut: each leaf also flutters on its 
   return mat;
 }
 
+// in the wind each plant bends from its base, stem and flower together (more the higher up: a bending stem), each to its own rhythm
+// within a slower gust that runs across the beds; every instance carries its plant's base and phase in aBase
+function bendify(mat, amp, lift){ mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp };
+      sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uAmp; attribute vec4 aBase;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+        vec4 mvPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+        #endif
+        { float hg = max(0.0, mvPosition.y - aBase.y), ph = aBase.w, gust = sin(uTime * 0.9 + aBase.x * 0.5 + aBase.z * 0.35);
+          float wx = sin(uTime * 1.7 + ph) * 0.55 + sin(uTime * 2.9 + ph * 1.7) * 0.25 + gust * 0.45, wz = sin(uTime * 1.4 + ph * 0.6 + 1.3) * 0.45 + gust * 0.3;
+          mvPosition.xz += vec2(wx, wz) * uWind * uAmp * hg * hg * 2.8; }
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`);
+      if (lift){ sh.uniforms.uLift = liftU; sh.fragmentShader = 'uniform float uLift;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * uLift;'); } };
+  return mat; }
+// each instance carries its plant's base and its own phase: [x, y, z, phase] per instance
+function bendBases(m, list){ const a = new Float32Array(Math.max(1, list.length) * 4); list.forEach((b, i) => a.set(b, i * 4)); m.geometry.setAttribute('aBase', new THREE.InstancedBufferAttribute(a, 4)); }
+
 /* ============================== textures ============================== */
 const grassTex = tex(512, 512, (g, w, h) => {
   g.fillStyle = '#b4b4ac'; g.fillRect(0, 0, w, h);
@@ -632,9 +651,11 @@ const TUFTS = [], DANDS = [];
   for (let i = 0; i < lp.count; i++){ const t = lp.getY(i); lp.setXYZ(i, lp.getX(i), 0.22 * t * t + 0.02, t); } leafG.computeVertexNormals();   // lying out flat, the tip lifting a little
   const nH = DANDS.reduce((a, p) => a + p.heads.length, 0), nL = DANDS.length * 6;
   const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; };
-  DANDS.yellow = mk(yellowGeo, swayify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.6 }), 0.05), nH);
-  DANDS.clocks = mk(mergeGeometries(cards), new THREE.MeshStandardMaterial({ map: clockTex, transparent: true, depthWrite: false, alphaTest: 0.04, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.18 }), nH); DANDS.clocks.castShadow = false;
-  DANDS.stems = mk(new THREE.CylinderGeometry(0.0017, 0.0021, 1, 5, 1, true).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: '#a3bd70', roughness: 0.7 }), nH);
+  DANDS.yellow = mk(yellowGeo, bendify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.6 }), 0.15, true), nH);
+  DANDS.clocks = mk(mergeGeometries(cards), bendify(new THREE.MeshStandardMaterial({ map: clockTex, transparent: true, depthWrite: false, alphaTest: 0.04, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.18 }), 0.15, false), nH); DANDS.clocks.castShadow = false;
+  DANDS.stems = mk(new THREE.CylinderGeometry(0.0017, 0.0021, 1, 5, 1, true).translate(0, 0.5, 0), bendify(new THREE.MeshStandardMaterial({ color: '#a3bd70', roughness: 0.7 }), 0.15, false), nH);
+  { const B = []; for (const p of DANDS) for (const H of p.heads) B.push([p.x, 0, p.z, H.yaw * 3.1 + p.x * 0.9 + p.z * 0.4]);   // each stalk bends from its rosette, to its own rhythm
+    for (const m of [DANDS.yellow, DANDS.clocks, DANDS.stems]) bendBases(m, B); }
   DANDS.leaves = mk(leafG, new THREE.MeshStandardMaterial({ map: leafTexD, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 }), nL); DANDS.leaves.setColorAt(0, new THREE.Color());
   const e = new THREE.Euler();
   for (const p of DANDS){ p.lq = []; for (let k = 0; k < 6; k++){ e.set(0, p.yaw + k / 6 * TAU + (k % 2) * 0.3, 0); p.lq.push(new THREE.Quaternion().setFromEuler(e)); } }
@@ -2125,27 +2146,11 @@ const BULBS = { d: [], t: [] };
   for (const g of [dLeafGeo, tLeafGeo]){ const pa = g.attributes.position; for (let i = 0; i < pa.count; i++){ const x = pa.getX(i); pa.setZ(i, pa.getZ(i) + Math.abs(x) * 0.3); } g.computeVertexNormals(); }   // a keel down the middle
   const vc = new THREE.MeshStandardMaterial({ vertexColors: false, side: THREE.DoubleSide, roughness: 0.55 });
   const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.frustumCulled = false; m.castShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; };
-  // in the wind each plant bends from its base, stem and flower together (more the higher up: a bending stem), each to its own rhythm
-  // within a slower gust that runs across the beds; every instance carries its plant's base and phase in aBase
-  const bendify = (mat, amp, lift) => { mat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp };
-      sh.vertexShader = 'uniform float uTime; uniform float uWind; uniform float uAmp; attribute vec4 aBase;\n' + sh.vertexShader.replace('#include <project_vertex>', `
-        vec4 mvPosition = vec4(transformed, 1.0);
-        #ifdef USE_INSTANCING
-        mvPosition = instanceMatrix * mvPosition;
-        #endif
-        { float hg = max(0.0, mvPosition.y - aBase.y), ph = aBase.w, gust = sin(uTime * 0.9 + aBase.x * 0.5 + aBase.z * 0.35);
-          float wx = sin(uTime * 1.7 + ph) * 0.55 + sin(uTime * 2.9 + ph * 1.7) * 0.25 + gust * 0.45, wz = sin(uTime * 1.4 + ph * 0.6 + 1.3) * 0.45 + gust * 0.3;
-          mvPosition.xz += vec2(wx, wz) * uWind * uAmp * hg * hg * 2.8; }
-        mvPosition = modelViewMatrix * mvPosition;
-        gl_Position = projectionMatrix * mvPosition;`);
-      if (lift){ sh.uniforms.uLift = liftU; sh.fragmentShader = 'uniform float uLift;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * uLift;'); } };
-    return mat; };
-  const bases = (m, list) => { const a = new Float32Array(Math.max(1, list.length) * 4); list.forEach((L, i) => a.set([L.x, L.y, L.z, L.yaw * 2.3 + L.x * 0.7 + L.z * 0.3], i * 4)); m.geometry.setAttribute('aBase', new THREE.InstancedBufferAttribute(a, 4)); };
   const nd = BULBS.d.length, nt = BULBS.t.length;
   BULBS.dHead = mk(dHeadGeo, bendify(vc.clone(), 0.12, true), nd); BULBS.dCup = mk(dCupGeo, bendify(vc.clone(), 0.12, true), nd);
   BULBS.tHead = mk(tHeadGeo, bendify(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.4 }), 0.12, true), nt);
   BULBS.stem = mk(new THREE.CylinderGeometry(0.0022, 0.0028, 1, 5, 1, true).translate(0, 0.5, 0), bendify(new THREE.MeshStandardMaterial({ color: '#5f8a42', roughness: 0.6 }), 0.12, false), nd + nt);
+  const bases = (m, list) => bendBases(m, list.map(L => [L.x, L.y, L.z, L.yaw * 2.3 + L.x * 0.7 + L.z * 0.3]));
   bases(BULBS.dHead, BULBS.d); bases(BULBS.dCup, BULBS.d); bases(BULBS.tHead, BULBS.t); bases(BULBS.stem, BULBS.d.concat(BULBS.t));   // (stems: daffodils first, then tulips, as they are laid out)
   BULBS.leaf = mk(new THREE.BufferGeometry().copy(dLeafGeo), swayify(new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.6 }), 0.05), nd * 3);
   BULBS.tLeaf = mk(tLeafGeo, swayify(new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.55 }), 0.05), nt * 2);
@@ -3989,6 +3994,7 @@ function frame(){
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
+    if (q.get('bulblog')){ const near = DANDS.filter(p => Math.hypot(p.x + 8.4, p.z + 108) < 6).slice(0, 3); console.log('DAND', DANDS.length, near.map(p => p.x.toFixed(2) + ',' + p.z.toFixed(2) + ' heads ' + p.heads.length).join(' | ')); }
     if (q.get('bulblog')) console.log('VINELEAF', VINE.leaves.length, [VINE.leaves[40], VINE.leaves[400]].filter(Boolean).map(L => L.p.toArray().map(v => v.toFixed(2)).join(',')).join(' | '));
     if (q.get('bulblog')) console.log('BULB', BULBS.d.length, BULBS.t.length, [BULBS.d[5], BULBS.t[5]].map(L => [L.x, L.y, L.z].map(v => v.toFixed(2)).join(',')).join(' | '));
     if (q.get('windk')) window.__wk = +q.get('windk'); if (q.has('wt')) window.__wt = +q.get('wt');   // debug: hold the wind and the clock the shaders see
