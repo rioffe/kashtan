@@ -2768,7 +2768,7 @@ const homeWin = new THREE.Group(); scene.add(homeWin);
 /* ============================== the neighbourhood cat ============================== */
 function roofY(z, x = GAR_X - 0.1){ let best = null, bd = 1e9; for (const g of GARAGES){ const d = Math.abs(g.z - z); if (d < bd){ bd = d; best = g; } } return (best ? best.h + 0.1 : 2.6) + (GAR_X + 0.1 - x) * 0.03; }
 const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE.Group(), head: new THREE.Group(), F: [], H: [], tail: [], ears: [], eyes: [], q: [], state: 'hidden', timer: 7, phase: 0,
-  seen: false, preySeen: false, meowT: 0, where: '', force: null, blinkT: 2, earT: 3, ga: 0, cur: null };
+  thighD: [0, 0], seen: false, preySeen: false, meowT: 0, where: '', force: null, blinkT: 2, earT: 3, ga: 0, cur: null };
 { // a tuxedo cat after the photo: black, white bib and chin and blaze, white socks; soft fur with a sheen at the edges
   let cs_ = 4711; const cr = () => { cs_ = cs_ + 0x6D2B79F5 | 0; let t = Math.imul(cs_ ^ cs_ >>> 15, 1 | cs_); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const BLACK = new THREE.Color(0.03, 0.028, 0.032), WHITE = new THREE.Color(0.86, 0.85, 0.82), tmp = new THREE.Color();
@@ -2788,16 +2788,17 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
   cat.body.position.set(0, 0.22, -0.12); cat.root.add(cat.body);
   add(cat.body, paint(E(0.06, 0.068, 0.08), () => 0), fur, 0, 0.012, 0.0).visible = false;      // (old haunches, replaced by the sculpted body)
   add(cat.body, paint(E(0.066, 0.078, 0.2), () => 0), fur, 0, 0.006, 0.105).visible = false;
-  cat.chest.position.set(0, 0.012, 0.118); cat.body.add(cat.chest);   // a shorter back than before: body length about the leg length plus a half
+  cat.chest.position.set(0, 0, 0.118); cat.body.add(cat.chest);   // the chest bone: the body bends here when the cat sits up
   add(cat.chest, paint(E(0.064, 0.082, 0.085), (n) => sm(n.z * 0.92 - n.y * 0.3, 0.68, 0.84) * sm(0.5 - Math.abs(n.x), 0, 0.18)), fur, 0, -0.008, 0.095).visible = false;   // (old chest)
   cat.neck = add(cat.chest, paint(E(0.05, 0.06, 0.07), (n) => sm(n.z * 0.7 - n.y * 0.7, 0.0, 0.3) * sm(0.75 - Math.abs(n.x), 0, 0.25)), fur, 0, 0.05, 0.158, -0.6); cat.neck.visible = false;   // (old neck)
-  cat.head.position.set(0, 0.105, 0.21); cat.head.scale.setScalar(1.12); cat.chest.add(cat.head);
+  cat.head.position.set(0, 0.012, 0.187); cat.head.scale.setScalar(1.24); cat.chest.add(cat.head);   // a big round head carried low and forward, its crown level with the back
   // head: skull with the white blaze, cheeks with a white lower face, whisker pads, chin, nose, eyes, ears, whiskers
-  add(cat.head, paint(E(0.047, 0.042, 0.05), (n) => sm(n.z, 0.78, 0.9) * sm(0.14 - Math.abs(n.x), 0, 0.06) * sm(0.4 - n.y, 0, 0.15)), fur);
-  add(cat.head, paint(E(0.051, 0.034, 0.04), (n) => sm(n.z, 0.45, 0.7) * sm(-n.y, -0.05, 0.25) * sm(0.6 - Math.abs(n.x), 0, 0.25)), fur, 0, -0.013, 0.012);
-  for (const sd of [-1, 1]) add(cat.head, paint(E(0.0122, 0.0105, 0.012), () => 1), fur, sd * 0.0102, -0.021, 0.041);
-  add(cat.head, paint(E(0.012, 0.009, 0.012), () => 1), fur, 0, -0.033, 0.033);
-  add(cat.head, E(0.0072, 0.005, 0.005, 10, 8), new THREE.MeshStandardMaterial({ color: '#2b2023', roughness: 0.35 }), 0, -0.0085, 0.054);
+  add(cat.head, paint(E(0.048, 0.046, 0.05), (n) => sm(n.z, 0.72, 0.86) * sm(0.07 + 0.32 * Math.max(0, 0.25 - n.y) - Math.abs(n.x), 0, 0.05) * sm(0.42 - n.y, 0, 0.12)), fur);
+  add(cat.head, paint(E(0.056, 0.04, 0.043), (n) => Math.max(sm(n.z, 0.38, 0.62) * sm(0.22 - n.y, 0, 0.25) * sm(0.75 - Math.abs(n.x), 0, 0.2), sm(-n.y, 0.5, 0.78), sm(n.z, 0.74, 0.88) * sm(0.3 - Math.abs(n.x), 0, 0.1))), fur, 0, -0.017, 0.008);
+  for (const sd of [-1, 1]) add(cat.head, paint(E(0.012, 0.0098, 0.009), () => 1), fur, sd * 0.0102, -0.021, 0.0395);
+  add(cat.head, paint(E(0.013, 0.01, 0.013), () => 1), fur, 0, -0.037, 0.031);
+  add(cat.head, E(0.0072, 0.005, 0.005, 10, 8), new THREE.MeshStandardMaterial({ color: '#c98a8e', roughness: 0.45 }), 0, -0.0085, 0.054);   // a pink nose
+  add(cat.head, paint(E(0.0062, 0.016, 0.0028), () => 1), fur, 0, 0.003, 0.0478, -0.35);   // the white blaze up the bridge of the nose, between the eyes
   const eyeTex = tex(256, 128, (g, w, h) => { g.fillStyle = '#4a5a1a'; g.fillRect(0, 0, w, h); const cx = w * 0.25, cy = h / 2;
     const gr = g.createRadialGradient(cx, cy, 2, cx, cy, 30); gr.addColorStop(0, '#e2e86a'); gr.addColorStop(0.6, '#b7c84a'); gr.addColorStop(0.92, '#7a9430'); gr.addColorStop(1, '#2a3410');
     g.fillStyle = gr; g.beginPath(); g.ellipse(cx, cy, 26, 40, 0, 0, TAU); g.fill();
@@ -2806,58 +2807,67 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
   cat.eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTex, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#b8d040', emissiveMap: eyeTex, emissiveIntensity: 0.1 });
   for (const sd of [-1, 1]){ const eg = new THREE.Group(); eg.position.set(sd * 0.0195, 0.006, 0.04); eg.rotation.set(0.05, sd * 0.38, sd * -0.12); cat.head.add(eg); cat.eyes.push(eg);
     add(eg, new THREE.SphereGeometry(0.0105, 16, 12).scale(1.2, 0.85, 0.65), cat.eyeMat); }
-  const earOut = new THREE.ConeGeometry(0.021, 0.045, 14, 1, false).scale(1, 1, 0.42).translate(0, 0.022, 0);
-  const earIn = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.015, 0.002), new THREE.Vector2(0.015, 0.002), new THREE.Vector2(0.002, 0.038), new THREE.Vector2(-0.002, 0.038)]));
-  for (const sd of [-1, 1]){ const eg = new THREE.Group(); eg.position.set(sd * 0.026, 0.032, -0.004); eg.rotation.set(-0.12, sd * 0.25, -sd * 0.32); cat.head.add(eg); cat.ears.push(eg);
-    add(eg, paint(earOut, () => 0), fur); add(eg, earIn, new THREE.MeshStandardMaterial({ color: '#4a3436', roughness: 0.9, side: THREE.DoubleSide }), 0, 0, 0.0075); }
+  const earOut = new THREE.ConeGeometry(0.025, 0.047, 14, 1, false).scale(1, 1, 0.42).translate(0, 0.023, 0);
+  const earIn = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.018, 0.002), new THREE.Vector2(0.018, 0.002), new THREE.Vector2(0.003, 0.039), new THREE.Vector2(-0.003, 0.039)]));
+  for (const sd of [-1, 1]){ const eg = new THREE.Group(); eg.position.set(sd * 0.028, 0.036, -0.004); eg.rotation.set(-0.1, sd * 0.5, -sd * 0.3); cat.head.add(eg); cat.ears.push(eg);
+    add(eg, paint(earOut, () => 0), fur); add(eg, earIn, new THREE.MeshStandardMaterial({ color: '#ab7c7f', roughness: 0.9, side: THREE.DoubleSide }), 0, 0, 0.0088); }
   { const P = []; for (const sd of [-1, 1]) for (let i = 0; i < 9; i++){ const a0 = (i / 8 - 0.5) * 0.5, L = 0.052 + cr() * 0.02, ox = sd * (0.008 + cr() * 0.008), oy = -0.018 - cr() * 0.008;
       let px = sd * 0.012 + ox, py = oy, pz = 0.046; for (let k = 0; k < 4; k++){ const t = (k + 1) / 4, nx = sd * 0.012 + ox + sd * L * t, ny = oy + Math.sin(a0) * L * t - 0.012 * t * t, nz = 0.046 + 0.02 * t - 0.035 * t * t;
         P.push(px, py, pz, nx, ny, nz); px = nx; py = ny; pz = nz; } }
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
     cat.head.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: '#f2f0ea', transparent: true, opacity: 0.8 }))); }
   // legs: front (shoulder, elbow, wrist, paw) hanging from the chest; hind (hip, knee, hock, paw) from the haunches. White socks.
-  for (const sd of [-1, 1]){ const L = { s: new THREE.Group(), e: new THREE.Group(), w: new THREE.Group(), paw: new THREE.Group() };
-    L.s.position.set(sd * 0.036, -0.04, 0.125); cat.chest.add(L.s);
-    add(L.s, paint(limb(0.03, 0.0195, 0.112), () => 0), fur, sd * -0.004, 0.01, 0);
-    L.e.position.set(0, -0.112, 0); L.s.add(L.e); add(L.e, paint(limb(0.0188, 0.0152, 0.106), () => 0), fur); add(L.e, paint(limb(0.0158, 0.0154, 0.022), () => 1), fur, 0, -0.085, 0);
+  for (const sd of [-1, 1]){ const L = { s: new THREE.Group(), e: new THREE.Group(), w: new THREE.Group(), paw: new THREE.Group(), fold: 0, rest: new V3() };
+    L.s.position.set(sd * 0.024, -0.055, 0.095); L.sz = 0.095; cat.chest.add(L.s);
+    add(L.s, paint(limb(0.018, 0.024, 0.112), () => 0), fur, 0, 0.01, 0);   // the upper arm, hidden in the chest but for the elbow
+    L.e.position.set(0, -0.112, 0); L.s.add(L.e); add(L.e, paint(limb(0.024, 0.018, 0.106), () => 0), fur); add(L.e, paint(limb(0.0187, 0.0183, 0.024), () => 1), fur, 0, -0.083, 0);
+    add(L.e, paint(E(0.0245, 0.026, 0.026), () => 0), fur, 0, 0.002, -0.003);   // the elbow
     L.w.position.set(0, -0.107, 0); L.e.add(L.w); L.paw.position.set(0, -0.006, 0); L.w.add(L.paw);
-    add(L.paw, paint(E(0.0175, 0.0105, 0.024), () => 1), fur, 0, -0.002, 0.009); cat.F.push(L); }
-  for (const sd of [-1, 1]){ const L = { h: new THREE.Group(), k: new THREE.Group(), a: new THREE.Group(), paw: new THREE.Group() };
-    L.h.position.set(sd * 0.036, -0.012, 0.0); cat.body.add(L.h);
-    add(L.h, paint(E(0.036, 0.08, 0.058), () => 0), fur, sd * -0.006, -0.038, 0.014);
-    L.k.position.set(0, -0.098, 0.032); L.h.add(L.k); add(L.k, paint(limb(0.022, 0.0148, 0.106), () => 0), fur);
-    L.a.position.set(0, -0.106, 0); L.k.add(L.a); add(L.a, paint(limb(0.014, 0.013, 0.072), () => 0), fur); add(L.a, paint(limb(0.0144, 0.0136, 0.028), () => 1), fur, 0, -0.046, 0);
-    L.paw.position.set(0, -0.074, 0); L.a.add(L.paw); add(L.paw, paint(E(0.017, 0.0105, 0.026), () => 1), fur, 0, -0.002, 0.011); cat.H.push(L); }
+    add(L.paw, paint(E(0.0205, 0.0115, 0.026), () => 1), fur, 0, -0.002, 0.009); cat.F.push(L); }
+  for (const sd of [-1, 1]){ const L = { h: new THREE.Group(), k: new THREE.Group(), a: new THREE.Group(), paw: new THREE.Group(), fold: 0, rest: new V3() };
+    L.h.position.set(sd * 0.04, -0.02, -0.035); cat.body.add(L.h);
+    add(L.h, paint(limb(0.044, 0.031, 0.1), () => 0), fur, sd * -0.006, 0.0, 0.0, -0.3155).scale.set(0.82, 1, 1.2);   // the thigh: black trousers down over the knee
+    L.k.position.set(0, -0.098, 0.032); L.h.add(L.k); add(L.k, paint(limb(0.027, 0.019, 0.118), (n, v) => sm(-v.y, 0.024, 0.036)), fur);   // white from just below the knee: the stocking
+    L.a.position.set(0, -0.118, 0); L.k.add(L.a); add(L.a, paint(limb(0.019, 0.0165, 0.078), () => 1), fur); add(L.a, paint(E(0.0178, 0.019, 0.0195), () => 1), fur, 0, 0.002, -0.001);   // the hock
+    L.paw.position.set(0, -0.078, 0); L.a.add(L.paw); add(L.paw, paint(E(0.0205, 0.0115, 0.028), () => 1), fur, 0, -0.002, 0.011); cat.H.push(L); }
   /* the body as one smooth sculpted skin, lofted through sections measured off a side view of a walking cat: the round rump
      and high hips, the flank tucked up in front of the thighs, deep ribs, a slight dip behind the shoulder blades, the deep chest,
      and the neck rising forward into the head. It is skinned to three bones (body, chest, head) and re-posed every frame,
      so it bends when the cat sits and follows the head when it looks round */
   {
     //            z       y      half-w  half-h  (cat.body space; y up, z forward)
-    const SEC = [[-0.126, 0.03, 0.012, 0.012], [-0.117, 0.03, 0.036, 0.042], [-0.098, 0.028, 0.053, 0.061], [-0.068, 0.027, 0.06, 0.069], [-0.03, 0.024, 0.059, 0.067],
-                 [0.01, 0.021, 0.054, 0.059], [0.05, 0.012, 0.057, 0.066], [0.1, 0.003, 0.061, 0.074], [0.15, -0.003, 0.061, 0.077], [0.2, 0.0, 0.058, 0.08],
-                 [0.245, 0.012, 0.055, 0.079], [0.282, 0.026, 0.047, 0.066], [0.31, 0.05, 0.039, 0.05], [0.33, 0.077, 0.033, 0.04], [0.346, 0.103, 0.03, 0.034], [0.356, 0.122, 0.028, 0.03]];
-    const SHZ = z => z <= 0 ? z : z - 0.027 * sm(z, 0, 0.145);   // the back shortened by 2.7 cm between hips and chest
+    // traced off a side-on frame of the video: a deep, compact body; the round rump with the tail rising from its top; the haunches
+    // swelling down into the thighs; the deep chest; and no neck to speak of, the throat running straight forward into the head
+    const SEC = [[-0.152, 0.012, 0.008, 0.008], [-0.148, 0.013, 0.03, 0.036], [-0.139, 0.015, 0.047, 0.056], [-0.125, 0.016, 0.06, 0.072], [-0.105, 0.012, 0.069, 0.086],
+                 [-0.08, 0.002, 0.074, 0.1], [-0.05, -0.006, 0.075, 0.104], [-0.015, 0.0, 0.072, 0.096], [0.022, 0.006, 0.068, 0.086], [0.06, -0.006, 0.068, 0.094],
+                 [0.095, -0.02, 0.07, 0.1], [0.13, -0.031, 0.068, 0.1], [0.165, -0.035, 0.065, 0.098], [0.198, -0.031, 0.061, 0.093], [0.226, -0.02, 0.057, 0.082],
+                 [0.25, -0.006, 0.053, 0.068], [0.272, 0.004, 0.048, 0.056], [0.295, 0.01, 0.042, 0.046]];
+    const SHZ = z => z;
     const n = SEC.length, cr1 = (a, i, t) => { const p0 = SEC[Math.max(0, i - 1)][a], p1 = SEC[i][a], p2 = SEC[Math.min(n - 1, i + 1)][a], p3 = SEC[Math.min(n - 1, i + 2)][a];
       return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t); };
     const at = u => { const i = Math.min(n - 2, Math.floor(u)), t = u - i; return [cr1(0, i, t), cr1(1, i, t), cr1(2, i, t), cr1(3, i, t)]; };
-    const NV = 64, NU = 24, pos = [], col = [], W = [], idx = [];
+    const NV = 64, NU = 24, pos = [], col = [], W = [], WT = [], idx = [];
     const chestRest = new THREE.Matrix4().compose(cat.chest.position, new THREE.Quaternion(), new V3(1, 1, 1)), headRest = new THREE.Matrix4().compose(cat.head.position, new THREE.Quaternion(), cat.head.scale);
     const headRestB = chestRest.clone().multiply(headRest);
     const rings = []; for (let j = 0; j <= NV; j++) rings.push(at(j / NV * (n - 1)));
     for (let j = 0; j <= NV; j++){ const [z, y, rx, ry] = rings[j], a = rings[Math.max(0, j - 1)], b = rings[Math.min(NV, j + 1)];
       const T = new V3(0, b[1] - a[1], b[0] - a[0]).normalize(), up = new V3(0, 1, 0).addScaledVector(T, -T.y).normalize(), side = new V3(1, 0, 0);
-      const wc = sm(z, 0.1, 0.22), wh = sm(z, 0.31, 0.352);
+      const wc = sm(z, 0.06, 0.2), wh = sm(z, 0.245, 0.292);
       for (let i = 0; i < NU; i++){ const th = i / NU * TAU, c = Math.cos(th), sn = Math.sin(th);
         // a slightly squared section (a cat is flatter at the back and the sides than an ellipse); the belly hangs a touch lower
-        const k = 2.4, cx = Math.sign(c) * Math.abs(c) ** (2 / k), sy = Math.sign(sn) * Math.abs(sn) ** (2 / k), sag = sn < 0 ? 1 + 0.06 * sm(z, -0.02, 0.06) * (1 - sm(z, 0.22, 0.28)) : 1;
+        const k = 2.0, cx = Math.sign(c) * Math.abs(c) ** (2 / k), sy = Math.sign(sn) * Math.abs(sn) ** (2 / k), sag = 1;
         const P = new V3(0, y, z).addScaledVector(side, cx * rx).addScaledVector(up, sy * ry * sag); P.z = SHZ(P.z); pos.push(P.x, P.y, P.z);
         W.push(1 - Math.max(wc, wh), wc * (1 - wh), wh, z > -0.02 && z < 0.24 ? Math.sin(Math.PI * (z + 0.02) / 0.26) : 0);
-        // the tuxedo's white: the bib down the chest between the forelegs, up the throat to the chin
-        const down = -sy, front = sm(z, 0.2, 0.3), mid = sm(0.55 - Math.abs(cx), 0, 0.25);
-        const w = clamp(front * sm(down, -0.15, 0.25) * mid + sm(z, 0.3, 0.33) * sm(down + 0.2 * T.y, -0.3, 0.1) * sm(0.85 - Math.abs(cx), 0, 0.3));
+        WT.push(Math.sign(P.x) * sm(-P.y, -0.02, 0.07) * sm(P.z, -0.14, -0.1) * (1 - sm(P.z, -0.01, 0.035)) * sm(Math.abs(P.x), 0.01, 0.05));   // the haunch: moves with the thigh
+        // the tuxedo's white: a broad bib over the front of the chest, wrapping round its sides to the forelegs, up the throat to the chin,
+        // and a strip on along the belly to the hind legs
+        const down = -sy, ax = Math.abs(cx);
+        const bib = sm(z, 0.185, 0.215) * sm(down, 0.42 - 2.8 * Math.max(0, z - 0.19), 0.54 - 2.8 * Math.max(0, z - 0.19)) * sm(0.97 - ax, 0, 0.08);
+        const throat = sm(z, 0.235, 0.26) * sm(down, -0.35, -0.05);
+        const belly = sm(z, -0.06, 0.0) * sm(down, 0.8, 0.93) * sm(0.5 - ax, 0, 0.2);
+        const w = clamp(Math.max(bib, throat, belly));
         tmp.copy(BLACK).lerp(WHITE, w); col.push(tmp.r, tmp.g, tmp.b); } }
-    pos.push(SEC[0][0] - 0.004, SEC[0][1], 0); pos.splice(pos.length - 3, 3, 0, SEC[0][1], SEC[0][0] - 0.004); W.push(1, 0, 0, 0); col.push(BLACK.r, BLACK.g, BLACK.b);   // the point of the rump
+    pos.push(SEC[0][0] - 0.004, SEC[0][1], 0); pos.splice(pos.length - 3, 3, 0, SEC[0][1], SEC[0][0] - 0.004); W.push(1, 0, 0, 0); WT.push(0); col.push(BLACK.r, BLACK.g, BLACK.b);   // the point of the rump
     const tip = (NV + 1) * NU;
     for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++){ const a = j * NU + i, b = j * NU + (i + 1) % NU; idx.push(a, b, a + NU, b, b + NU, a + NU); }
     for (let i = 0; i < NU; i++) idx.push(tip, (i + 1) % NU, i);
@@ -2871,13 +2881,44 @@ const cat = { root: new THREE.Group(), body: new THREE.Group(), chest: new THREE
         let x = v.x * wb, y = v.y * wb, z = v.z * wb;
         if (wc){ a.copy(v).applyMatrix4(Mc); x += a.x * wc; y += a.y * wc; z += a.z * wc; }
         if (wh){ b2.copy(v).applyMatrix4(Mh); x += b2.x * wh; y += b2.y * wh; z += b2.z * wh; }
+        const wt = WT[i]; if (wt){ const d = (wt > 0 ? cat.thighD[1] : cat.thighD[0]) * Math.abs(wt), cs = Math.cos(d), sn = Math.sin(d), yy = y + 0.02, zz = z + 0.035; y = -0.02 + yy * cs - zz * sn; z = -0.035 + yy * sn + zz * cs; }
         A[i * 3] = x; A[i * 3 + 1] = y; A[i * 3 + 2] = z; }
       pa.needsUpdate = true; g.computeVertexNormals(); };
   }
   // the tail: twelve segments, thick at the root, a rounded tip
-  let parent = new THREE.Group(); parent.position.set(0, 0.035, -0.085); cat.body.add(parent); cat.tailRoot = parent;
-  for (let i = 0; i < 12; i++){ const seg = new THREE.Group(); if (i) seg.position.z = -0.024; parent.add(seg); const r = lerp(0.0155, 0.0075, i / 11);
-    add(seg, paint(new THREE.CapsuleGeometry(r, 0.03, 4, 12).rotateX(Math.PI / 2), () => 0), fur, 0, 0, -0.012); cat.tail.push(seg); parent = seg; }
+  let parent = new THREE.Group(); parent.position.set(0, 0.07, -0.106); cat.body.add(parent); cat.tailRoot = parent;
+  for (let i = 0; i < 12; i++){ const seg = new THREE.Group(); if (i) seg.position.z = -0.028; parent.add(seg); const r = lerp(0.021, 0.0145, i / 11);
+    cat.tail.push(seg); parent = seg; }
+  { // the tail's skin: one smooth tube through the bones, thick at the root, ending in a round tip; rebuilt as the tail moves
+    const NR = 12, NS = 44, N = (NS + 1) * NR + 1, g = new THREE.BufferGeometry(), pos = new Float32Array(N * 3), col = new Float32Array(N * 3), idx = [];
+    for (let i = 0; i < N; i++){ col[i * 3] = BLACK.r; col[i * 3 + 1] = BLACK.g; col[i * 3 + 2] = BLACK.b; }
+    for (let j = 0; j < NS; j++) for (let i = 0; i < NR; i++){ const a = j * NR + i, b = j * NR + (i + 1) % NR; idx.push(a, b, a + NR, b, b + NR, a + NR); }
+    for (let i = 0; i < NR; i++) idx.push(NS * NR + i, NS * NR + (i + 1) % NR, N - 1);
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx);
+    const mesh = new THREE.Mesh(g, fur); mesh.castShadow = true; mesh.frustumCulled = false; cat.body.add(mesh);
+    const P = cat.tail.map(() => new V3()).concat([new V3()]), curve = new THREE.CatmullRomCurve3(P, false, 'centripetal'), inv = new THREE.Matrix4(), end = new V3(0, 0, -0.026);
+    const C = new V3(), Tn = new V3(), Nn = new V3(1, 0, 0), Bn = new V3(), prevT = new V3(), q = new THREE.Quaternion();
+    const Q = new V3(), Q0 = new V3();
+    cat.tailSkin = (sitW = 0) => { cat.body.updateMatrixWorld(true); inv.copy(cat.body.matrixWorld).invert();
+      cat.tail.forEach((sg, i) => P[i].setFromMatrixPosition(sg.matrixWorld).applyMatrix4(inv));
+      P[cat.tail.length].copy(end).applyMatrix4(cat.tail[cat.tail.length - 1].matrixWorld).applyMatrix4(inv);
+      if (sitW > 0.001){   // sitting: the tail drops to the ground behind and curls round beside the paws
+        const g = catPaws(), zc = (g.zF + g.zH) / 2, r = Math.max(0.1, (g.zF - g.zH) / 2 + 0.07), n = P.length - 1;
+        Q0.copy(P[0]).applyMatrix4(cat.body.matrixWorld).applyMatrix4(catInv);   // the root, in the cat's ground frame
+        for (let i = 1; i <= n; i++){ const u = i / n, rr = lerp(0.021, 0.015, u);
+          if (u < 0.24){ const k = u / 0.24; Q.set(lerp(Q0.x, 0.02, k), lerp(Q0.y, rr, Math.sqrt(k)), lerp(Q0.z, zc - r * 0.97, k)); }
+          else { const a = Math.PI - 0.2 - (u - 0.24) / 0.76 * 1.95; Q.set(Math.sin(a) * r, rr, zc + Math.cos(a) * r); }
+          Q.applyMatrix4(cat.root.matrixWorld).applyMatrix4(inv); P[i].lerp(Q, sitW); } }
+      Nn.set(1, 0, 0);
+      for (let j = 0; j <= NS; j++){ const u = j / NS; curve.getPoint(u, C); curve.getTangent(u, Tn).normalize();
+        if (j) { q.setFromUnitVectors(prevT, Tn); Nn.applyQuaternion(q); }   // carried along the curve without twisting
+        Nn.addScaledVector(Tn, -Nn.dot(Tn)).normalize(); Bn.crossVectors(Tn, Nn); prevT.copy(Tn);
+        const r = lerp(0.021, 0.0152, u) * (u > 0.86 ? Math.sqrt(Math.max(0.02, 1 - ((u - 0.86) / 0.14) ** 2)) : 1) * (1 + 0.1 * sm(u, 0.7, 0.86));
+        for (let i = 0; i < NR; i++){ const a = i / NR * TAU, ca = Math.cos(a) * r, sa = Math.sin(a) * r, o = (j * NR + i) * 3;
+          pos[o] = C.x + Nn.x * ca + Bn.x * sa; pos[o + 1] = C.y + Nn.y * ca + Bn.y * sa; pos[o + 2] = C.z + Nn.z * ca + Bn.z * sa; } }
+      curve.getPoint(1, C); pos[(N - 1) * 3] = C.x + Tn.x * 0.004; pos[(N - 1) * 3 + 1] = C.y + Tn.y * 0.004; pos[(N - 1) * 3 + 2] = C.z + Tn.z * 0.004;
+      g.attributes.position.needsUpdate = true; g.computeVertexNormals(); };
+  }
   cat.mouse = new THREE.Group(); add(cat.mouse, E(0.025, 0.02, 0.047, 12, 9), new THREE.MeshStandardMaterial({ color: '#7a7068' }), 0, 0, 0);
   add(cat.mouse, new THREE.CylinderGeometry(0.004, 0.003, 0.08, 4).rotateX(Math.PI / 2 - 0.4).translate(0, -0.015, -0.07), new THREE.MeshStandardMaterial({ color: '#b09a90' }), 0, 0, 0);
   cat.mouse.rotation.set(0.2, Math.PI / 2, 1.2); cat.mouse.position.set(0, -0.04, 0.07);
@@ -2948,15 +2989,48 @@ function catScare(){
 }
 // poses: body pitch, chest bend, body height (null: stand on the paws), front leg [shoulder, elbow, wrist], hind [hip, knee, hock], tail [root lift, curl, sideways wrap, tip hook], head pitch
 const POSES = {
-  walk: { rx: 0, cb: 0, by: null, F: [0.08, -0.18, 0.1], Hl: [-0.34, 0.82, -0.56], T: [0.72, 0.1, 0, 0.42], hx: 0.12 },   // tail: up and back from the root, rising to upright, the tip hooked forward
+  walk: { rx: 0, cb: 0, by: null, F: [0.45, -0.45, 0.0], Hl: [-0.4, 1.25, -1.07], T: [1.32, 0.03, 0, 0.45], hx: 0.06 },   // tail: straight up from the rump, the top curving over and the tip hooked forward
   sit:  { rx: -1.05, cb: -0.3, by: null, F: [1.2, -0.05, 0.12], Hl: [-0.5, 2.6, -2.45], T: [0.75, 0.07, 0.2, 0.05], hx: 1.35 },
-  lie:  { rx: 0.02, cb: 0.04, by: 0.085, F: [0.85, -2.35, 1.35], Hl: [-1.5, 2.75, -2.1], T: [-0.12, -0.02, 0.17, 0.05], hx: 0.05 },
+  lie:  { rx: 0.02, cb: 0.04, by: 0.128, F: [0.85, -2.35, 1.35], Hl: [-1.5, 2.75, -2.1], T: [-0.12, -0.02, 0.17, 0.05], hx: 0.05 },
   jump: { rx: -0.15, cb: 0.05, by: 0.24, F: [-1.05, -0.2, 0.2], Hl: [0.7, 0.25, 0.35], T: [0.35, -0.02, 0, -0.1], hx: 0.15 } };
 cat.cur = JSON.parse(JSON.stringify(POSES.sit));
 const catInv = new THREE.Matrix4(), catV = new V3(), catHeadW = new V3();
 function catPaws(){ cat.root.updateMatrixWorld(true); catInv.copy(cat.root.matrixWorld).invert();
   const f = cat.F.map(L => catV.setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(catInv).clone()), h = cat.H.map(L => catV.setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(catInv).clone());
   return { yF: Math.min(f[0].y, f[1].y), yH: Math.min(h[0].y, h[1].y), zF: (f[0].z + f[1].z) / 2, zH: (h[0].z + h[1].z) / 2 }; }
+/* the walk, after the film of a walking cat: a lateral-sequence walk (right hind, right fore, left hind, left fore) with each foot
+   planted while the body passes over it and then lifted and swung forward; the legs are solved to reach their feet (two-bone for the
+   foreleg, with a sliding shoulder blade; the hind leg as a pantograph, the shank kept near parallel to the thigh) so the paws never skate */
+const sm01 = x => smooth(x), catT = new V3(), catM = new THREE.Matrix4(), catMi = new THREE.Matrix4();
+function catRest(){ cat.root.updateMatrixWorld(true); catInv.copy(cat.root.matrixWorld).invert();
+  for (const L of cat.F.concat(cat.H)) L.rest.setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(catInv); }
+function catGait(wk, S, D){
+  const A = D * S;   // how far each planted paw travels back under the body
+  cat.root.updateMatrixWorld(true); catInv.copy(cat.root.matrixWorld).invert();
+  for (let n = 0; n < 4; n++){ const front = n < 2, L = front ? cat.F[n] : cat.H[n - 2], off = [0.25, 0.75, 0, 0.5][n];
+    const u = ((cat.phase + off) % 1 + 1) % 1; let dz, dy = 0, fold = 0, flick = 0;
+    if (u < D){ const s = u / D; dz = A * (0.5 - s); const peel = sm01((s - 0.72) / 0.28); fold = (front ? 0.55 : 0.45) * peel; dy = 0.008 * peel; }   // planted; the heel peels up at the end
+    else { const v = (u - D) / (1 - D);
+      if (front){ dz = A * (-0.5 + sm01((v - 0.1) / 0.82)); dy = 0.04 * Math.sin(Math.PI * v ** 0.8);
+        fold = Math.max(0.55 * (1 - v / 0.15), 1.5 * Math.sin(Math.PI * clamp(v / 0.78)) ** 0.8) - 0.15 * Math.sin(Math.PI * clamp((v - 0.78) / 0.22)); }   // the wrist flicks the paw back, then it reaches and lands
+      else { dz = A * (-0.5 + sm01((v - 0.12) / 0.8)); dy = 0.038 * Math.sin(Math.PI * v ** 0.75);
+        flick = 0.3 * Math.sin(Math.PI * clamp(v / 0.6)); fold = Math.max(0.45 * (1 - v / 0.15), 1.0 * Math.sin(Math.PI * clamp(v / 0.75)) ** 0.8); } }   // the paw trails, curled, then swings through low
+    const par = front ? cat.chest : cat.body; catM.copy(catInv).multiply(par.matrixWorld); catMi.copy(catM).invert();
+    catT.set(L.rest.x, 0.011 + dy, L.rest.z + dz).applyMatrix4(catMi);
+    if (front){
+      const sw = clamp(dz / (A / 2 || 1), -1, 1), sz = L.sz + (sw > 0 ? 0.016 : 0.03) * sw; L.s.position.z = lerp(L.sz, sz, wk);   // the shoulder blade swings with the leg
+      const l1 = 0.112, l2 = 0.107, py = L.s.position.y, pz = L.s.position.z, Dy = catT.y + 0.006 - py, Dz = catT.z - pz;
+      const d = clamp(Math.hypot(Dy, Dz), 0.02, (l1 + l2) * 0.999), phi = Math.atan2(-Dz, -Dy), a1 = Math.acos(clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1));
+      const t1 = phi + a1, ey = py - l1 * Math.cos(t1), ez = pz - l1 * Math.sin(t1), t2 = Math.atan2(-(catT.z - ez), -(catT.y + 0.006 - ey));   // the elbow behind
+      L.s.rotation.x = lerp(L.s.rotation.x, t1, wk); L.e.rotation.x = lerp(L.e.rotation.x, t2 - t1, wk); L.w.rotation.x *= 1 - wk;
+    } else {
+      const l1 = 0.1031, l2 = 0.118, l3 = 0.078, th0 = -0.3155, g = 0.5 + flick, py = L.h.position.y, pz = L.h.position.z;
+      const Ay = -l1 - l3 * Math.cos(g), Az = -l3 * Math.sin(g), LA = Math.hypot(Ay, Az), dl = Math.atan2(-Az, -Ay), Dy = catT.y - py, Dz = catT.z - pz;
+      const d = clamp(Math.hypot(Dy, Dz), Math.abs(LA - l2) + 1e-3, (LA + l2) * 0.999), phi = Math.atan2(-Dz, -Dy), aA = Math.acos(clamp((LA * LA + d * d - l2 * l2) / (2 * LA * d), -1, 1));
+      const tf = phi - aA - dl, ky = py - l1 * Math.cos(tf), kz = pz - l1 * Math.sin(tf);   // the stifle forward
+      const hy = catT.y + l3 * Math.cos(tf + g), hz = catT.z + l3 * Math.sin(tf + g), tt = Math.atan2(-(hz - kz), -(hy - ky));
+      L.h.rotation.x = lerp(L.h.rotation.x, tf - th0, wk); L.k.rotation.x = lerp(L.k.rotation.x, tt - (tf - th0), wk); L.a.rotation.x = lerp(L.a.rotation.x, tf + g - tt, wk); }
+    L.fold = fold * wk; } }
 function updateCat(dt, t){
   cat.meowT -= dt; cat.eyeMat.emissiveIntensity = 0.1 + env.night * 2.5;
   if (cat.state === 'hidden'){ cat.timer -= dt; if (cat.timer <= 0) catEpisode(); return; }
@@ -2966,42 +3040,46 @@ function updateCat(dt, t){
     if (!step.from){ step.from = R.position.clone(); step.len = Math.max(0.01, step.from.distanceTo(step.p)); step.k = 0;
       const dx = step.p.x - step.from.x, dy = step.p.y - step.from.y, dz = step.p.z - step.from.z, h = Math.hypot(dx, dz);
       step.yaw = h > 0.05 ? Math.atan2(dx, dz) : R.rotation.y; step.pitch = -Math.atan2(dy, Math.max(h, 0.001)) * (step.climb ? 1 : 0.8); }
-    step.k = Math.min(1, step.k + step.speed * dt / step.len);
+    const pace = step.jump || step.speed > 2 ? 1 : 0.75;      // an unhurried stroll, as in the film; running and leaping at full speed
+    step.k = Math.min(1, step.k + step.speed * pace * dt / step.len);
     R.position.lerpVectors(step.from, step.p, step.k); if (step.jump) R.position.y += Math.sin(step.k * Math.PI) * 0.8;
     R.rotation.y += wrapA(step.yaw - R.rotation.y) * Math.min(1, dt * 10); R.rotation.x += (step.pitch - R.rotation.x) * Math.min(1, dt * 8);
-    pose = step.jump ? 'jump' : 'walk'; moving = step.speed; if (step.k >= 1) cat.q.shift();
+    pose = step.jump ? 'jump' : 'walk'; moving = step.speed * pace; if (step.k >= 1) cat.q.shift();
   } else {
     pose = step.pose; step.dur -= dt; R.rotation.x += (0 - R.rotation.x) * Math.min(1, dt * 5);
     if (pose === 'sit' && camera.position.distanceTo(R.position) < 7){ const yp = Math.atan2(camera.position.x - R.position.x, camera.position.z - R.position.z); R.rotation.y += wrapA(yp - R.rotation.y) * Math.min(1, dt * 2); }
     if (step.dur <= 0) cat.q.shift();
   }
-  if (pose === 'walk' && !moving) moving = 0.9;
-  cat.phase += dt * (moving ? moving / 0.34 : 0);             // one stride is about a third of a metre
+  if (pose === 'walk' && !moving) moving = 0.7;
+  const stride = clamp(0.3 + 0.12 * moving, 0.34, 0.5), duty = clamp(0.665 - 0.06 * moving, 0.5, 0.64);   // longer strides and less time on each foot as it hurries
+  cat.phase += dt * (moving ? moving / stride : 0);
+  if (window.__catph != null) cat.phase = window.__catph;     // debug: ?catph= freezes the gait phase
   const T = POSES[pose], c = cat.cur, k = Math.min(1, dt * 5), L_ = (x, y) => x + (y - x) * k;
   if (!(c.ga === c.ga) || c.ga === undefined) c.ga = 0;
   c.rx = L_(c.rx, T.rx); c.cb = L_(c.cb, T.cb); c.hx = L_(c.hx, T.hx); c.byv = L_(c.byv ?? 0.2, T.by ?? 0.2); c.fix = L_(c.fix ?? 0, T.by == null ? 0 : 1);
   for (let i = 0; i < 3; i++){ c.F[i] = L_(c.F[i], T.F[i]); c.Hl[i] = L_(c.Hl[i], T.Hl[i]); } for (let i = 0; i < 4; i++) c.T[i] = L_(c.T[i], T.T[i]);
-  // the gait: lateral sequence walk (left hind, left fore, right hind, right fore); stance 60%, swing 40% with the paw lifted
-  const walkK = pose === 'walk' ? 1 : 0, amp = moving > 2.5 ? 1.35 : 1;
-  const leg = (off) => { const u = ((cat.phase + off) % 1 + 1) % 1; if (u < 0.6) return [-1 + 2 * u / 0.6, 0]; const v = (u - 0.6) / 0.4; return [1 - 2 * smooth(v), Math.sin(Math.PI * v)]; };
-  const bodyPitch = c.rx + c.ga * (1 - c.fix);
+  c.wk = (c.wk ?? 0) + ((pose === 'walk' ? 1 : 0) - (c.wk ?? 0)) * Math.min(1, dt * 6);   // how much the gait drives the legs (eases in and out of poses)
   // sitting upright: bring the head forward over the chest and stand the neck up under it, so the neck never hides the face
   const sk = clamp(-(c.rx + c.cb) / 1.45);
-  cat.head.position.set(0, lerp(0.105, -0.005, sk), lerp(0.21, 0.2, sk)); cat.neck.position.set(0, lerp(0.05, 0.0, sk), lerp(0.158, 0.15, sk)); cat.neck.rotation.x = lerp(-0.6, 0.2, sk);
-  cat.F.forEach((L, i) => { const [sw, lift] = walkK ? leg(i ? 0.75 : 0.25) : [0, 0];
-    L.s.rotation.x = c.F[0] + sw * 0.32 * amp - lift * 0.25; L.e.rotation.x = c.F[1] + lift * 0.9; L.w.rotation.x = c.F[2] + lift * 0.9;
-    L.paw.rotation.x = -(bodyPitch + c.cb + L.s.rotation.x + L.e.rotation.x + L.w.rotation.x) * (1 - 0.6 * c.fix); });
-  cat.H.forEach((L, i) => { const [sw, lift] = walkK ? leg(i ? 0.5 : 0) : [0, 0];
-    L.h.rotation.x = c.Hl[0] + sw * 0.36 * amp; L.k.rotation.x = c.Hl[1] + lift * 0.55; L.a.rotation.x = c.Hl[2] - lift * 0.65;
-    L.paw.rotation.x = -(bodyPitch + L.h.rotation.x + L.k.rotation.x + L.a.rotation.x) * (1 - 0.6 * c.fix); });
+  cat.head.position.set(0, lerp(0.012, -0.005, sk), lerp(0.187, 0.2, sk)); cat.neck.position.set(0, lerp(0.05, 0.0, sk), lerp(0.158, 0.15, sk)); cat.neck.rotation.x = lerp(-0.6, 0.2, sk);
+  // the pose's own leg angles: the stance the gait works about
+  cat.F.forEach(L => { L.s.position.z = L.sz; L.s.rotation.x = c.F[0]; L.e.rotation.x = c.F[1]; L.w.rotation.x = c.F[2]; L.fold = 0; });
+  cat.H.forEach(L => { L.h.rotation.x = c.Hl[0]; L.k.rotation.x = c.Hl[1]; L.a.rotation.x = c.Hl[2]; L.fold = 0; });
   // stand on the paws: tip the body so fore and hind paws both touch, then set its height; lying and leaping are posed directly
-  cat.body.rotation.x = c.rx; cat.chest.rotation.x = c.cb; cat.body.position.y = 0.3;
+  cat.body.rotation.set(c.rx, 0, 0); cat.chest.rotation.x = c.cb; cat.body.position.y = 0.3;
   if (c.fix < 0.999){ let g = catPaws(); const a_ = clamp(Math.asin(clamp((g.yF - g.yH) / Math.max(0.1, Math.abs(g.zF - g.zH)), -0.9, 0.9)), -0.5, 0.5);
     c.ga += (a_ - c.ga) * Math.min(1, dt * 8); cat.body.rotation.x = c.rx + c.ga * (1 - c.fix); g = catPaws();
     const yGround = 0.3 - (pose === 'sit' ? Math.min(g.yF, g.yH) : (g.yF + g.yH) / 2) + 0.011;   /* sitting: the lowest paws stand on the ground */ cat.body.position.y = lerp(yGround, c.byv, c.fix); }
   else cat.body.position.y = c.byv;
-  cat.body.position.y += (pose === 'walk' ? Math.abs(Math.sin(cat.phase * TAU * 2)) * 0.004 : 0) + (pose === 'lie' ? Math.sin(t * 1.3) * 0.002 : 0);
-  cat.body.rotation.z = pose === 'walk' ? Math.sin(cat.phase * TAU) * 0.03 : 0; cat.body.rotation.y = pose === 'walk' ? Math.sin(cat.phase * TAU) * 0.04 : 0;
+  const wk = c.wk; if (wk > 0.002) catRest();
+  // walking: the back rides highest as each pair of legs passes under it, and the hips and shoulders roll a little from side to side
+  cat.body.position.y += wk * (Math.cos(cat.phase * TAU * 2) * 0.0025 - 0.006) + (pose === 'lie' ? Math.sin(t * 1.3) * 0.002 : 0);
+  cat.body.rotation.z = wk * Math.sin(cat.phase * TAU) * 0.02; cat.body.rotation.y = wk * Math.sin(cat.phase * TAU) * 0.025;
+  if (wk > 0.002) catGait(wk, stride, duty);
+  // paws: level with the ground, unless folded back as they swing
+  const bodyPitch = cat.body.rotation.x;
+  cat.F.forEach(L => L.paw.rotation.x = -(bodyPitch + c.cb + L.s.rotation.x + L.e.rotation.x + L.w.rotation.x) * (1 - 0.6 * c.fix) + L.fold);
+  cat.H.forEach(L => L.paw.rotation.x = -(bodyPitch + L.h.rotation.x + L.k.rotation.x + L.a.rotation.x) * (1 - 0.6 * c.fix) + L.fold);
   const br = 1 + Math.sin(t * (pose === 'lie' ? 1.3 : 2.2)) * 0.012;       // breathing (applied in the skin)
   // head: looks at you when you are near and it is resting; otherwise forward, now and then a glance around
   let hy = 0, hp = c.hx;
@@ -3010,17 +3088,20 @@ function updateCat(dt, t){
     hy = clamp(Math.atan2(catHeadW.x, catHeadW.z), -1.1, 1.1); hp = clamp(-Math.atan2(catHeadW.y, Math.hypot(catHeadW.x, catHeadW.z)), c.hx - 0.6, c.hx + 0.5); }
   else if (pose !== 'walk') hy = Math.sin(t * 0.37) * 0.5 * Math.sin(t * 0.11);
   cat.head.rotation.y += (hy - cat.head.rotation.y) * Math.min(1, dt * 3); cat.head.rotation.x += (hp - cat.head.rotation.x) * Math.min(1, dt * 3);
+  cat.H.forEach((L, i) => cat.thighD[i] = clamp(L.h.rotation.x - c.Hl[0], -0.6, 0.6) * 0.85);   // how far the gait swings each thigh
   if (cat.root.visible) cat.skin(br);
-  if (pose === 'walk') cat.head.rotation.x += Math.sin(cat.phase * TAU * 2) * 0.03;
+  if (pose === 'walk') cat.head.rotation.x += Math.sin(cat.phase * TAU * 2) * 0.012;   // the head rides steady
   // blink, ear twitches
   cat.blinkT -= dt; const bl = cat.blinkT < 0.13 ? 0.12 : 1; if (cat.blinkT < 0) cat.blinkT = 2.5 + Math.random() * 5; cat.eyes.forEach(e => e.scale.y = bl);
   cat.earT -= dt; const tw = cat.earT < 0.25 ? Math.sin(cat.earT / 0.25 * Math.PI) * 0.5 : 0; if (cat.earT < 0) cat.earT = 2 + Math.random() * 6;
   cat.ears.forEach((e, i) => { e.rotation.y = (i ? 0.25 : -0.25) + (i === (Math.floor(t) % 2) ? tw : 0); });
   // tail: carried high with a hooked tip when walking; down and wrapped round the paws when sitting; along the side when lying
-  const sway = pose === 'walk' ? 0.1 : pose === 'lie' ? 0.04 : 0.06, flick = pose === 'walk' ? 2.2 : 0.8;
+  const sway = pose === 'walk' ? 0.05 : pose === 'lie' ? 0.04 : 0.06, flick = pose === 'walk' ? 1.6 : 0.8;
   cat.tail.forEach((sg, i) => { const tip = i >= 9 ? 1 : 0;
     sg.rotation.x = i === 0 ? c.T[0] : c.T[1] + tip * c.T[3];
     sg.rotation.y = (i === 0 ? 0 : c.T[2] * (i >= 2 ? 1 : 0.3)) + Math.sin(t * flick - i * 0.55) * sway * (0.3 + i / 11); });
+  c.sitT = (c.sitT ?? 0) + ((pose === 'sit' ? 1 : 0) - (c.sitT ?? 0)) * Math.min(1, dt * 3);
+  if (cat.root.visible) cat.tailSkin(c.sitT);
   // noticing the cat
   const dc = camera.position.distanceTo(R.position);
   if (!cat.seen && dc < 28 && inView(R.position)){ cat.seen = true; caption("Our cat — nobody's and everybody's. Black, with white socks and a white shirt-front, out of nowhere as always.", 7); }
@@ -3738,6 +3819,10 @@ function frame(){
   if (started) syncCtx();
   if (window.__lookcam){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
   if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + (window.__figcam[4] ?? 0.085), f.z); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }   // debug: ?figcam=dist,angle,height[,lookY]
+  if (window.__studio){ if (!window.__studioP){ const p = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#80838a', roughness: 0.95 }));
+      p.position.copy(cat.root.position); p.position.y += 0.0005; p.receiveShadow = true; scene.add(p); window.__studioP = p; }
+    for (const o of scene.children) if (!o.isLight && o !== cat.root && o !== window.__studioP) o.visible = false;
+    scene.background = new THREE.Color('#77756f'); scene.fog.density = 0; }   // debug: ?studio=1
   renderer.render(scene, camera);
 }
 
@@ -3763,8 +3848,12 @@ function frame(){
     if (q.get('catpose')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('catd') || 1.3)); P.y = 0;
       cat.q = [{ type: 'pose', pose: q.get('catpose'), dur: 1e9 }]; cat.state = 'on'; cat.root.visible = true; cat.root.position.copy(P);
       cat.root.rotation.set(0, Math.atan2(camera.position.x - P.x, camera.position.z - P.z) + +(q.get('catyaw') || 0), 0); cat.cur = JSON.parse(JSON.stringify(POSES[q.get('catpose')]));
+      if (q.has('catry')) cat.root.rotation.y = +q.get('catry'); if (q.has('catph')) window.__catph = +q.get('catph'); if (q.get('studio')) window.__studio = true;
       for (let i = 0; i < 80; i++) updateCat(0.05, i * 0.05 + +(q.get('catt') || 0));
-      if (q.get('cl')){ const d = +q.get('cl'), ang = +(q.get('ca') || 0.8), cp = P.clone().add(new V3(0, 0.15, 0)); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(Math.sin(ang) * d, d * +(q.get('ch') || 0.3), Math.cos(ang) * d)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 300); } }
+      if (q.get('catlog')){ cat.root.updateMatrixWorld(true); const inv = cat.root.matrixWorld.clone().invert(), bb = (o) => { const B = new THREE.Box3().setFromObject(o).applyMatrix4(inv); return [B.min, B.max].map(v => v.toArray().map(x => x.toFixed(3)).join(',')).join(' .. '); };
+        console.log('CATLOG body.y', cat.body.position.y.toFixed(3), 'rx', cat.body.rotation.x.toFixed(3), '| skin', bb(cat.body.children.find(o => o.isMesh && o.geometry.index && o.geometry.attributes.color && o.visible)), '| head', bb(cat.head), '| tail', bb(cat.tail[0]));
+        for (const L of cat.F.concat(cat.H)){ const v = new V3().setFromMatrixPosition(L.paw.matrixWorld).applyMatrix4(inv); console.log('CATLOG paw', v.toArray().map(x => x.toFixed(3)).join(',')); } }
+      if (q.get('cl')){ const d = +q.get('cl'), ang = +(q.get('ca') || 0.8), cp = P.clone().add(new V3(0, +(q.get('cy') || 0.15), 0)); setTimeout(() => { mode = 'free'; if (q.get('catfov')){ camera.fov = +q.get('catfov'); camera.updateProjectionMatrix(); } const e = cp.clone().add(new V3(Math.sin(ang) * d, d * +(q.get('ch') || 0.3), Math.cos(ang) * d)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 300); } }
     if (q.get('cat')){ cat.force = q.get('cat'); cat.timer = 0; updateCat(0.01, 0); for (let i = 0; i < +(q.get('catff') || 0) * 20; i++) updateCat(0.05, i * 0.05);
       console.log('CAT', cat.where, cat.root.position.toArray().map(v => v.toFixed(2)).join(','), cat.q[0] && (cat.q[0].pose || cat.q[0].type));
       if (q.get('look')){ const cp = cat.root.position, d = +q.get('look'); setTimeout(() => { mode = 'free'; const e = cp.clone().add(new V3(d * 0.7, d * 0.35, d * 0.7)); place(e, yawTo(e, cp), -Math.atan2(e.y - cp.y, Math.hypot(e.x - cp.x, e.z - cp.z))); }, 400); } }
