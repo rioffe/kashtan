@@ -290,20 +290,28 @@ function mossify(mat){
   return mat;
 }
 
-const leafTex = tex(256, 256, (g, w, h) => {
-  const bx = w / 2, by = h * 0.96, n = 7;
-  for (let i = 0; i < n; i++){
-    const o = i - (n - 1) / 2, a = o * 0.42, L = h * 0.8 * (1 - Math.abs(o) * 0.13), W = L * 0.21;
-    g.save(); g.translate(bx, by); g.rotate(a);
-    const gr = g.createLinearGradient(0, 0, 0, -L); gr.addColorStop(0, '#c4ccbc'); gr.addColorStop(0.6, '#f4f6f0'); gr.addColorStop(1, '#ffffff');
-    g.fillStyle = gr; g.beginPath(); g.moveTo(0, -L * 0.06);
-    g.bezierCurveTo(W * 1.15, -L * 0.42, W * 1.1, -L * 0.86, 0, -L); g.bezierCurveTo(-W * 1.1, -L * 0.86, -W * 1.15, -L * 0.42, 0, -L * 0.06); g.fill();
-    g.strokeStyle = 'rgba(110,120,100,.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -L * 0.06); g.lineTo(0, -L * 0.96); g.stroke();
-    g.lineWidth = 0.8; g.strokeStyle = 'rgba(110,120,100,.45)';
-    for (let k = 0.2; k < 0.88; k += 0.07){ g.beginPath(); g.moveTo(0, -L * k); g.lineTo(W * 0.85, -L * (k + 0.08)); g.moveTo(0, -L * k); g.lineTo(-W * 0.85, -L * (k + 0.08)); g.stroke(); }
-    g.restore();
-  }
+// one horse-chestnut leaflet pointing up from (cx, by): obovate with a drawn-out tip, doubly toothed (the teeth pointing to the tip),
+// a pale midrib and straight paired veins running out towards the tip, each a fine groove with a light edge
+function drawLeaflet(g, cx, by, hw0, L, seed){
+  const hw = t => (t < 0.68 ? 0.05 + 0.95 * Math.pow(Math.sin(t / 0.68 * Math.PI / 2), 1.9) : Math.pow(Math.max(0, Math.cos((t - 0.68) / 0.32 * Math.PI / 2)), 1.5)) * hw0;   // obovate: a narrow wedge at the base, widest two-thirds out, a drawn-out point
+  const saw = x => x - Math.floor(x), tooth = t => t < 0.12 ? 1 : 1 + 0.06 * (1 - saw(t * 42)) + 0.025 * (1 - saw(t * 84 + 0.5));
+  g.save(); g.beginPath(); const N = 160;
+  for (let i = 0; i <= N; i++){ const t = i / N; g.lineTo(cx - hw(t) * tooth(t), by - t * L); }
+  for (let i = N; i >= 0; i--){ const t = i / N; g.lineTo(cx + hw(t) * tooth(t + 0.013), by - t * L); }
+  g.closePath();
+  const gr = g.createLinearGradient(cx - hw0, 0, cx + hw0, 0); gr.addColorStop(0, '#e6ecd8'); gr.addColorStop(0.5, '#fafcf2'); gr.addColorStop(1, '#e6ecd8');
+  g.fillStyle = gr; g.fill(); g.save(); g.clip();
+  for (let k = 0; k < 24; k++){ const t0 = 0.05 + k * 0.04; if (t0 > 0.94) break; const y0 = by - t0 * L, len = hw(Math.min(1, t0 + 0.1)) * 1.15;
+    for (const s of [-1, 1]){ const x1 = cx + s * len, y1 = y0 - len * 1.05;
+      g.strokeStyle = 'rgba(118,136,98,0.4)'; g.lineWidth = Math.max(0.8, hw0 / 50); g.beginPath(); g.moveTo(cx, y0); g.lineTo(x1, y1); g.stroke();
+      g.strokeStyle = 'rgba(255,255,244,0.38)'; g.lineWidth = Math.max(0.6, hw0 / 70); g.beginPath(); g.moveTo(cx + s, y0 - 1.5); g.lineTo(x1 + s, y1 - 1.5); g.stroke(); } }
+  g.strokeStyle = 'rgba(250,250,226,0.92)'; g.lineWidth = Math.max(1.4, hw0 / 22); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.97); g.stroke();
+  g.restore(); g.strokeStyle = 'rgba(146,162,124,0.6)'; g.lineWidth = 1.1; g.stroke(); g.restore();
+}
+const leafTex = tex(256, 256, (g, w, h) => {   // a whole leaf, for the fallen and falling ones: seven leaflets fanned from the stalk
+  const bx = w / 2, by = h * 0.64, ang = [-1.58, 1.58, -1.0, 1.0, -0.5, 0.5, 0], len = [0.56, 0.56, 0.78, 0.78, 0.93, 0.93, 1];
   g.strokeStyle = '#aab298'; g.lineWidth = 4; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx, h); g.stroke();
+  ang.forEach((a, i) => { g.save(); g.translate(bx, by); g.rotate(a); drawLeaflet(g, 0, -3, h * 0.085 * Math.sqrt(len[i]), h * 0.58 * len[i], 20 + i); g.restore(); });
 });
 
 const candleTex = tex(128, 256, (g, w, h) => {   // (no longer shown — the candles are modelled now — but still drawn, to keep the world's random sequence)
@@ -1502,9 +1510,7 @@ const CROWN = new V3(0, 10.5, 0);
   const wood = new THREE.Mesh(mergeGeometries(geos), mossify(snowify(barkM, 1.3)));
   wood.castShadow = wood.receiveShadow = true; treeG.add(wood);
 }
-/* leaves */
-const leafGeo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
-const leafMat = swayify(new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.72 }), 0.09);
+/* leaves: where they grow */
 const LEAVES = [];
 {
   const up = new V3(0, 1, 0);
@@ -1517,7 +1523,46 @@ const LEAVES = [];
     LEAVES.push({ p, q: new THREE.Quaternion().setFromRotationMatrix(m), s: rnd(0.95, 1.45), r: rng(), r2: rng(), v: rnd(0.82, 1.12), hue: rng() });
   }
 }
-const leaves = new THREE.InstancedMesh(leafGeo, leafMat, LEAVES.length); leaves.castShadow = true; leaves.receiveShadow = true; treeG.add(leaves);
+/* the chestnut's leaves, after the photographs: palmately compound, a long stalk ending in five or seven leaflets fanned round it,
+   each leaflet obovate with a drawn-out tip, doubly toothed, a pale midrib and some twenty pairs of straight veins, a little folded
+   along the midrib, the leaflets drooping at their tips like hanging hands. In 3D, each leaflet a curved strip. A leaf is 1 unit
+   at its scale: stalk 0.16, the middle leaflet 0.3 */
+// a sibling for every leaf, close by (own random numbers, so the rest of the world stays where it was): leaves come in clusters
+{ const lr = mkRng(4471), lrn = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0), n0 = LEAVES.length;
+  for (let i = 0; i < n0; i++){ const L = LEAVES[i], q = L.q.clone(), ly = new V3(0, 1, 0).applyQuaternion(q);
+    q.premultiply(new THREE.Quaternion().setFromAxisAngle(up, lrn(-0.9, 0.9))).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), lrn(-0.6, 0.6)));
+    const off = new V3(lrn(-1, 1), lrn(-0.6, 0.5), lrn(-1, 1)).normalize().multiplyScalar(lrn(0.28, 0.6)).addScaledVector(ly, -0.15);
+    LEAVES.push({ p: L.p.clone().add(off), q, s: L.s * lrn(0.82, 1.08), r: lr(), r2: lr(), v: lrn(0.82, 1.12), hue: lr() }); } }
+const LEAF = (() => {
+  const lr = mkRng(9133), lrn = (a, b) => a + (b - a) * lr();
+  const leafletTex = tex(320, 512, (g, w, h) => { g.clearRect(0, 0, w, h); drawLeaflet(g, 192, h - 3, 124, h - 10, 3);
+    g.fillStyle = '#c8cfa4'; g.fillRect(0, 0, 24, h); }, {});   // the leaflet in x 64-320; a strip of stalk colour at x 0-24, for the stalks
+  const U0 = 64 / 320, US = 256 / 320;
+  leafletTex.wrapS = leafletTex.wrapT = THREE.ClampToEdgeWrapping;
+  const P = 0.2, LC = 0.4, WC = LC * 0.3;
+  // one leaf: [stalk + leaflets], leaflets fanned in the blade plane (x, y) round the stalk's end; z is the blade's normal (up)
+  const build = (nLeaflets, droop, fold, seed) => { const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), Pp = [], U = [], I = [];
+    const v = (x, y, z, u, w) => { Pp.push(x, y, z); U.push(u, w); return Pp.length / 3 - 1; };
+    const C = new V3(0, P, P * 0.3);
+    for (const sd of [new V3(1, 0, 0), new V3(0, 0, 1)]){ const a = v(-sd.x * 0.007, 0, -sd.z * 0.007, 0.01, 0.1), b = v(sd.x * 0.007, 0, sd.z * 0.007, 0.065, 0.1), c = v(C.x + sd.x * 0.005, C.y, C.z + sd.z * 0.005, 0.065, 0.9), d = v(C.x - sd.x * 0.005, C.y, C.z - sd.z * 0.005, 0.01, 0.9);
+      I.push(a, b, c, a, c, d); }   // the stalk: two crossed ribbons
+    const ang = nLeaflets === 7 ? [0, -0.56, 0.56, -1.12, 1.12, -1.78, 1.78] : [0, -0.66, 0.66, -1.36, 1.36], len = nLeaflets === 7 ? [1, 0.92, 0.92, 0.76, 0.76, 0.52, 0.52] : [1, 0.88, 0.88, 0.64, 0.64];   // fanned round more than half a circle, the smallest pointing back
+    ang.forEach((a0, k) => { const a = a0 + rn(-0.08, 0.08), L = LC * len[k] * rn(0.94, 1.04), W = WC * len[k] ** 0.5, d = new V3(Math.sin(a), Math.cos(a), 0), e = new V3(Math.cos(a), -Math.sin(a), 0);
+      const dr = droop * rn(0.8, 1.2) * (0.7 + 0.3 * len[k]), tw = rn(-0.12, 0.12), base = Pp.length / 3;
+      for (const t of [0, 0.5, 1]) for (const u of [-1, 0, 1]){   // rising a little from the stalk, then drooping; folded up along the midrib; a slight twist
+        const along = 0.008 + t * L, z = L * (0.16 * t - dr * t * t) + Math.abs(u) * W * 0.5 * fold * (0.4 + t) + u * tw * W * 0.5 * t;
+        const p = C.clone().addScaledVector(d, along).addScaledVector(e, u * W * 0.5); v(p.x, p.y, p.z + z, U0 + US * (0.5 + u * 0.5), t); }
+      for (let rI = 0; rI < 2; rI++) for (let cI = 0; cI < 2; cI++){ const q = base + rI * 3 + cI; I.push(q, q + 1, q + 3, q + 1, q + 4, q + 3); } });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); g.computeVertexNormals(); return g; };
+  const geos = [build(7, 0.16, 0.2, 11), build(7, 0.34, 0.26, 12), build(7, 0.55, 0.28, 13), build(5, 0.36, 0.24, 14)];
+  const mat = swayify(new THREE.MeshStandardMaterial({ map: leafletTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.66 }), 0.09, 0.22);
+  const by = [[], [], [], []], map = LEAVES.map((L) => { const vI = lr() < 0.18 ? 3 : lr() < 0.3 ? 0 : lr() < 0.55 ? 1 : 2; by[vI].push(L); return [vI, by[vI].length - 1]; });
+  const meshes = geos.map((g, vI) => { const m = new THREE.InstancedMesh(g, mat, Math.max(1, by[vI].length)); m.castShadow = m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); treeG.add(m); return m; });
+  return { meshes, tris: geos.map(g => g.index.count / 3),
+    setMatrixAt(i, M){ const [vI, j] = map[i]; meshes[vI].setMatrixAt(j, M); }, setColorAt(i, c){ const [vI, j] = map[i]; meshes[vI].setColorAt(j, c); },
+    touch(){ for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } } };
+})();
+const leaves = LEAF;
 /* where the candles stand on the tree */
 const CANDLES = [];
 for (const t of tree.tips) for (let k = 0; k < 5; k++){
@@ -3469,7 +3514,7 @@ function updateSeasonal(sp){
     const turn = clamp(turnA * 1.6 - L.r2 * 0.6);
     if (turn > 0){ tmpC2.copy(yellowA).lerp(yellowB, L.hue); tmpC.lerp(tmpC2, smooth(turn * 2)); if (turn > 0.5) tmpC.lerp(brownC, smooth((turn - 0.5) * 2) * 0.8); }
     tmpC.multiplyScalar(L.v); leaves.setColorAt(i, tmpC); }
-  leaves.instanceMatrix.needsUpdate = true; leaves.instanceColor.needsUpdate = true;
+  leaves.touch();
   for (const c of CANDLES) c.vis = clamp((sp.blossom * 1.25 - c.r) / 0.25);
   CANDLE.on = sp.blossom > 0.001; CANDLE.dirty = true;
   huskMat.color.set('#7aa040').lerp(tmpC.set('#8a7a3a'), smooth((S - 2.9) / 0.35));
@@ -4117,6 +4162,8 @@ function frame(){
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
     if (q.get('bulblog')){ const e = PERCH[0].p.clone().sub(TREE); const cs = CANDLES.map(c => [c, c.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 4);
       cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }
+    if (q.get('bulblog')) console.log('LEAVES', LEAVES.length, 'tris per leaf', LEAF.tris.join('/'));
+    if (q.get('bulblog')){ const e = new V3(11.94, 9.14, -134.18).sub(TREE); LEAVES.map(L => [L, L.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 3).forEach(([L, d]) => console.log('NEARLEAF', d.toFixed(2), L.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'n', new V3(0, 0, 1).applyQuaternion(L.q).toArray().map(v => v.toFixed(2)).join(','), 's', L.s.toFixed(2))); }
     if (q.get('bulblog')) console.log('CANDLES', CANDLES.length, 'tris near/far per candle', CANDLE.tris.join('/'));
     if (q.get('bulblog')){ const near = DANDS.filter(p => Math.hypot(p.x + 8.4, p.z + 108) < 6).slice(0, 3); console.log('DAND', DANDS.length, near.map(p => p.x.toFixed(2) + ',' + p.z.toFixed(2) + ' heads ' + p.heads.length).join(' | ')); }
     if (q.get('bulblog')) console.log('VINELEAF', VINE.leaves.length, [VINE.leaves[40], VINE.leaves[400]].filter(Boolean).map(L => L.p.toArray().map(v => v.toFixed(2)).join(',')).join(' | '));
