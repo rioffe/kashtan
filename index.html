@@ -212,6 +212,41 @@ function leafGlow(mat){ const prev = mat.onBeforeCompile;
         totalEmissiveRadiance += diffuseColor.rgb * uSunC * uTr * behind * (1.0 + 4.6 * look) * vn; }`); };
   mat.customProgramCacheKey = () => 'leafGlow' + (prev ? 'S' : ''); return mat; }
 
+/* rain on the leaves: wet, a leaf darkens and deepens in colour, turns glossy (the grey sky sheening off it at a glance), and
+   carries beads of water, each with its bright point of reflected sky; the beads are drawn only near the eye, and grow in number
+   as the rain goes on. Chained on top of whatever the material already does */
+const wetU = { wet: { value: 0 }, sky: { value: new THREE.Color(0.6, 0.65, 0.7) } };
+function leafWet(mat, drops = true){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uWet = wetU.wet; sh.uniforms.uSkyW = wetU.sky;
+    sh.vertexShader = 'varying vec3 vDrop;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+      vDrop = fract(instanceMatrix[3].xyz * vec3(3.17, 5.31, 2.73));
+      #else
+      vDrop = vec3(0.0);
+      #endif`);
+    sh.fragmentShader = 'uniform float uWet; uniform vec3 uSkyW; varying vec3 vDrop;\n' + sh.fragmentShader
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        { float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 1.0 + 0.3 * uWet) * (1.0 - 0.24 * uWet);
+          roughnessFactor = mix(roughnessFactor, 0.3, uWet); }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (uWet > 0.001){ vec3 vv = normalize(vViewPosition); float fr = pow(1.0 - clamp(abs(dot(normal, vv)), 0.0, 1.0), 4.0);
+          totalEmissiveRadiance += uSkyW * uWet * (0.015 + 0.3 * fr);   // the sheen of a wet surface
+          ${drops ? `#ifdef USE_MAP
+          { float dist = length(vViewPosition), fade = smoothstep(7.0, 2.5, dist) * uWet;
+            if (fade > 0.001){
+              for (int L = 0; L < 2; L++){   // two scatterings: many small beads, and a few large ones
+                vec2 sc = L == 0 ? vec2(13.0, 34.0) : vec2(5.0, 13.0), gg = vMapUv * sc + vDrop.xy * (37.0 + float(L) * 11.0), id = floor(gg), f = fract(gg);
+                float h = fract(sin(dot(id, vec2(127.1, 311.7)) + float(L) * 7.1) * 43758.5453);
+                if (h < (L == 0 ? 0.24 : 0.16) * uWet){ vec2 c = vec2(0.25 + 0.5 * fract(h * 7.7), 0.25 + 0.5 * fract(h * 13.3));
+                  float rr = (L == 0 ? 0.1 + 0.26 * fract(h * 29.1) : 0.14 + 0.12 * fract(h * 29.1)), d = length((f - c) * vec2(1.0, 1.0 + 0.25 * fract(h * 3.3))) / rr;
+                  if (d < 1.0){ float sp = smoothstep(0.5, 0.0, length(f - c - vec2(-0.32, 0.32) * rr) / rr);   // the bead: a little lens of sky, and its bright point
+                    totalEmissiveRadiance += (uSkyW * 0.4 * (1.0 - d * d) + vec3(sp) * 1.25) * fade; } } } } }
+          #endif
+          ` : ''}
+        }`);
+  };
+  mat.customProgramCacheKey = () => prevKey() + 'wet' + (drops ? 'D' : ''); return mat; }
+
 /* ============================== textures ============================== */
 const grassTex = tex(512, 512, (g, w, h) => {
   g.fillStyle = '#b4b4ac'; g.fillRect(0, 0, w, h);
@@ -1529,7 +1564,7 @@ const CROWN = new V3(0, 10.5, 0);
   for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + rnd(-0.2, 0.2), cs = Math.cos(a), sn = Math.sin(a);    // buttress roots running into the ground
     tree.perchRoots.push(tube([new V3(cs * 0.25, 1.4, sn * 0.25), new V3(cs * 0.8, 0.5, sn * 0.8), new V3(cs * 1.45, 0.1, sn * 1.45), new V3(cs * 2.1, -0.18, sn * 2.1)], [0.32, 0.3, 0.19, 0.08],
       { radial: 12, steps: 4, uRep: 2, v0: i * 0.21, thick: 0.4 })); geos.push(tree.perchRoots[i]); }
-  const barkM = new THREE.MeshStandardMaterial({ map: CB.color, normalMap: CB.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.95 });
+  const barkM = new THREE.MeshStandardMaterial({ map: CB.color, normalMap: CB.normal, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.95 }); tree.barkMat = barkM;
   const wood = new THREE.Mesh(mergeGeometries(geos), mossify(snowify(barkM, 1.3)));
   wood.castShadow = wood.receiveShadow = true; treeG.add(wood);
 }
@@ -1579,7 +1614,7 @@ const LEAF = (() => {
       for (let rI = 0; rI < 2; rI++) for (let cI = 0; cI < 2; cI++){ const q = base + rI * 3 + cI; I.push(q, q + 1, q + 3, q + 1, q + 4, q + 3); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); g.computeVertexNormals(); return g; };
   const geos = [build(7, 0.16, 0.2, 11), build(7, 0.34, 0.26, 12), build(7, 0.55, 0.28, 13), build(5, 0.36, 0.24, 14)];
-  const mat = leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafletTex, normalMap: leafletNrm, normalScale: new THREE.Vector2(1.1, 1.1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.62 }), 0.09, 0.22));
+  const mat = leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafletTex, normalMap: leafletNrm, normalScale: new THREE.Vector2(1.1, 1.1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.62 }), 0.09, 0.22)));
   const by = [[], [], [], []], map = LEAVES.map((L) => { const vI = lr() < 0.18 ? 3 : lr() < 0.3 ? 0 : lr() < 0.55 ? 1 : 2; by[vI].push(L); return [vI, by[vI].length - 1]; });
   const meshes = geos.map((g, vI) => { const m = new THREE.InstancedMesh(g, mat, Math.max(1, by[vI].length)); m.castShadow = m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); treeG.add(m); return m; });
   return { meshes, tris: geos.map(g => g.index.count / 3), tex: leafletTex, nrm: leafletNrm, geos, variant: i => map[i][0],
@@ -1771,7 +1806,7 @@ for (let i = 0; i < 1500; i++){ const a = rng() * TAU, r = 1.3 + 13 * Math.sqrt(
   LITTER.push({ p: new V3(TREE.x + Math.cos(a) * r, 0.03 + rng() * 0.02, TREE.z + Math.sin(a) * r), rot: rng() * TAU, s: rnd(0.4, 0.75), r: rng() * 0.9 + (r / 14) * 0.1,
     c: C(pick(['#c9952e', '#b8702a', '#8a5a2a', '#d8b040', '#a0602a', '#6e4a2a'])) }); }
 const litter = (() => {   // the same leaves as on the tree, at the same size, lying flat (three shapes); laid out with the stalk-to-tip axis along the ground
-  const mat = snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide })), by = [[], [], []];
+  const mat = leafWet(snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide }))), by = [[], [], []];
   LITTER.forEach((L, i) => { L.v = i % 7 === 3 ? 2 : i % 2; L.j = by[L.v].length; by[L.v].push(L); });
   const meshes = LEAF.flatGeos.map((g, v) => { const m = new THREE.InstancedMesh(g.clone().rotateX(-Math.PI / 2), mat, Math.max(1, by[v].length)); m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
   return { meshes, setMatrixAt(i, M){ const L = LITTER[i]; meshes[L.v].setMatrixAt(L.j, M); }, setColorAt(i, c){ const L = LITTER[i]; meshes[L.v].setColorAt(L.j, c); },
@@ -2745,7 +2780,7 @@ const ffMat = new THREE.PointsMaterial({ size: 0.16, map: dotTex, vertexColors: 
 const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = false; scene.add(fireflies);
 /* falling leaves */
 const FL_N = 320, FL_V = FL_N / 4, FLs = [];
-const fallMat = leafGlow(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(1, 1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 }));
+const fallMat = leafWet(leafGlow(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(1, 1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 })));
 const fallAir = LEAF.geos.map(g => { const m = new THREE.InstancedMesh(g, fallMat, FL_V); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; });   // in the air: the tree's four shapes
 const fallDown = new THREE.InstancedMesh(LEAF.flatGeos[1].clone().rotateX(-Math.PI / 2), fallMat, FL_N); fallDown.frustumCulled = false; fallDown.receiveShadow = true; scene.add(fallDown);   // landed: lying flat
 for (let i = 0; i < FL_N; i++){ FLs.push({ on: false, p: new V3(), rot: new THREE.Euler(), spin: new V3(), ph: rng() * TAU, land: 0, c: C('#c9952e'), v: Math.floor(i / FL_V), j: i % FL_V, s: 1.2 });
@@ -3542,6 +3577,8 @@ function updateEnv(sp){
   roomLight.intensity = lampOn ? 0.5 + lit * 2.2 : 0; deskLamp.spot.intensity = lampOn ? 1.2 + lit * 3.5 : 0;
   deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
   groundMat.color.copy(cyc(S, groundKeys, tmpC)).multiplyScalar(1 - 0.28 * W.wet); groundMat.roughness = 1 - 0.35 * W.wet;
+  { const wt = W.wet * (1 - sp.snow); wetU.wet.value = wt; wetU.sky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.4);   // the chestnut in the rain
+    tree.barkMat.color.setScalar(1 - 0.38 * wt); tree.barkMat.roughness = 0.95 - 0.5 * wt; }
   roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
   snowU.value = sp.snow; snowLayer.visible = sp.snow > 0.02;
   liftU.value = 0.03 + 0.2 * env.day;
@@ -4215,7 +4252,7 @@ function frame(){
       cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }
     if (q.get('fall')){ for (let i = 0; i < +q.get('fall'); i++){ const li = Math.floor(Math.random() * LEAVES.length), L = LEAVES[li]; spawnLeaf(L.p.clone().add(TREE), C(['#d8a83a', '#c47a2a', '#e2b42e', '#8a5a2a'][i % 4]), li); FLs.forEach(F => { if (F.on && F.land <= 0) F.p.y -= Math.random() * 6; }); }
       if (q.get('fallhold')){ const c = new V3(...q.get('fallhold').split(',').map(Number)); FLs.filter(F => F.on).forEach((F, k) => { F.p.set(c.x + (k % 6 - 2.5) * 0.9, c.y + Math.floor(k / 6) % 3 * 0.9, c.z + Math.floor(k / 18) * 0.6); F.spin.set(0, 0, 0); }); window.__fallHold = true; } }   // debug: a shower of leaves (or a still rack of them)
-    if (q.get('glowk')) window.__glowk = +q.get('glowk');
+    if (q.get('glowk')) window.__glowk = +q.get('glowk'); if (q.has('wet')) W.wet = +q.get('wet');
     if (q.get('husklog')){ const e = PERCH[1].p.clone().sub(TREE); HUSKS.map(h => [h, h.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 2).forEach(([h, d]) => console.log('HUSK', d.toFixed(2), h.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','))); }
     if (q.get('sunlog')) setTimeout(() => console.log('SUN', sunDir.toArray().map(v => v.toFixed(2)).join(','), 'e', env.e.toFixed(2), 'I', sun.intensity.toFixed(2)), 500);
     if (q.get('bulblog')) console.log('LEAVES', LEAVES.length, 'tris per leaf', LEAF.tris.join('/'));
