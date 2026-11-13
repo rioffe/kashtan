@@ -198,6 +198,20 @@ function bendify(mat, amp, lift){ mat.onBeforeCompile = (sh) => {
 // each instance carries its plant's base and its own phase: [x, y, z, phase] per instance
 function bendBases(m, list){ const a = new Float32Array(Math.max(1, list.length) * 4); list.forEach((b, i) => a.set(b, i * 4)); m.geometry.setAttribute('aBase', new THREE.InstancedBufferAttribute(a, 4)); }
 
+// sunlight through a leaf: when the sun is on the far side of the leaf from us, it glows (its own colour, so the pale veins glow
+// brightest), the more the nearer we look towards the sun; a chained onBeforeCompile on top of whatever the material already has
+const leafU = { sunV: { value: new V3(0, 1, 0) }, sunC: { value: new THREE.Color(1, 1, 1) }, tr: { value: 0 } };
+function leafGlow(mat){ const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); Object.assign(sh.uniforms, { uSunV: leafU.sunV, uSunC: leafU.sunC, uTr: leafU.tr });
+    sh.fragmentShader = 'uniform vec3 uSunV; uniform vec3 uSunC; uniform float uTr;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      { float behind = max(0.0, -dot(normal, uSunV)), look = pow(max(0.0, dot(normalize(-vViewPosition), uSunV)), 3.0);
+        float vn = 1.0;
+        #ifdef USE_MAP
+        vn = pow(dot(sampledDiffuseColor.rgb, vec3(0.3, 0.55, 0.15)), 7.0) * 3.4;   // the pale veins and midrib let more light through
+        #endif
+        totalEmissiveRadiance += diffuseColor.rgb * uSunC * uTr * behind * (1.0 + 4.6 * look) * vn; }`); };
+  mat.customProgramCacheKey = () => 'leafGlow' + (prev ? 'S' : ''); return mat; }
+
 /* ============================== textures ============================== */
 const grassTex = tex(512, 512, (g, w, h) => {
   g.fillStyle = '#b4b4ac'; g.fillRect(0, 0, w, h);
@@ -292,27 +306,36 @@ function mossify(mat){
 
 // one horse-chestnut leaflet pointing up from (cx, by): obovate with a drawn-out tip, doubly toothed (the teeth pointing to the tip),
 // a pale midrib and straight paired veins running out towards the tip, each a fine groove with a light edge
-function drawLeaflet(g, cx, by, hw0, L, seed){
+function drawLeaflet(g, cx, by, hw0, L, seed, mode = 'color'){   // mode 'height': the relief, grey, for the normal map (veins and midrib as grooves)
   const hw = t => (t < 0.68 ? 0.05 + 0.95 * Math.pow(Math.sin(t / 0.68 * Math.PI / 2), 1.9) : Math.pow(Math.max(0, Math.cos((t - 0.68) / 0.32 * Math.PI / 2)), 1.5)) * hw0;   // obovate: a narrow wedge at the base, widest two-thirds out, a drawn-out point
   const saw = x => x - Math.floor(x), tooth = t => t < 0.12 ? 1 : 1 + 0.06 * (1 - saw(t * 42)) + 0.025 * (1 - saw(t * 84 + 0.5));
+  // the veins: some twenty pairs, straight, from the midrib out to the teeth, at about 40 degrees, bending a little towards the tip
+  const veins = []; for (let k = 0; k < 24; k++){ const t0 = 0.05 + k * 0.04; if (t0 > 0.94) break; const y0 = by - t0 * L, len = hw(Math.min(1, t0 + 0.1)) * 1.12;
+    for (const s of [-1, 1]) veins.push([s, cx, y0, cx + s * len * 0.55, y0 - len * 0.5, cx + s * len, y0 - len * 1.12]); }
+  const vein = (v, dx = 0, dy = 0) => { g.beginPath(); g.moveTo(v[1] + dx, v[2] + dy); g.quadraticCurveTo(v[3] + dx, v[4] + dy, v[5] + dx, v[6] + dy); g.stroke(); };
   g.save(); g.beginPath(); const N = 160;
   for (let i = 0; i <= N; i++){ const t = i / N; g.lineTo(cx - hw(t) * tooth(t), by - t * L); }
   for (let i = N; i >= 0; i--){ const t = i / N; g.lineTo(cx + hw(t) * tooth(t + 0.013), by - t * L); }
   g.closePath();
-  const gr = g.createLinearGradient(cx - hw0, 0, cx + hw0, 0); gr.addColorStop(0, '#e6ecd8'); gr.addColorStop(0.5, '#fafcf2'); gr.addColorStop(1, '#e6ecd8');
-  g.fillStyle = gr; g.fill(); g.save(); g.clip();
-  for (let k = 0; k < 24; k++){ const t0 = 0.05 + k * 0.04; if (t0 > 0.94) break; const y0 = by - t0 * L, len = hw(Math.min(1, t0 + 0.1)) * 1.15;
-    for (const s of [-1, 1]){ const x1 = cx + s * len, y1 = y0 - len * 1.05;
-      g.strokeStyle = 'rgba(118,136,98,0.4)'; g.lineWidth = Math.max(0.8, hw0 / 50); g.beginPath(); g.moveTo(cx, y0); g.lineTo(x1, y1); g.stroke();
-      g.strokeStyle = 'rgba(255,255,244,0.38)'; g.lineWidth = Math.max(0.6, hw0 / 70); g.beginPath(); g.moveTo(cx + s, y0 - 1.5); g.lineTo(x1 + s, y1 - 1.5); g.stroke(); } }
-  g.strokeStyle = 'rgba(250,250,226,0.92)'; g.lineWidth = Math.max(1.4, hw0 / 22); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.97); g.stroke();
+  if (mode === 'height'){ g.clip(); g.lineCap = 'round'; g.filter = `blur(${Math.max(1, hw0 / 34)}px)`;
+    g.strokeStyle = 'rgb(84,84,84)'; g.lineWidth = Math.max(2, hw0 / 13); for (const v of veins) vein(v);
+    g.strokeStyle = 'rgb(56,56,56)'; g.lineWidth = Math.max(3, hw0 / 8); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.97); g.stroke();
+    g.filter = 'none'; g.restore(); return; }
+  const gr = g.createLinearGradient(cx - hw0, 0, cx + hw0, 0); gr.addColorStop(0, '#dce4c8'); gr.addColorStop(0.5, '#eef3e0'); gr.addColorStop(1, '#dce4c8');
+  g.fillStyle = gr; g.fill(); g.save(); g.clip(); g.lineCap = 'round';
+  g.strokeStyle = 'rgba(132,150,104,0.22)'; g.lineWidth = Math.max(1.5, hw0 / 9); for (const v of veins) vein(v, 0, -hw0 / 16);   // the blade bulging between the veins: shaded on their tip side
+  g.strokeStyle = 'rgba(255,253,226,0.95)'; g.lineWidth = Math.max(0.9, hw0 / 36); for (const v of veins) vein(v);              // the veins, pale and a touch yellow
+  g.strokeStyle = 'rgba(176,188,138,0.55)'; g.lineWidth = Math.max(2.4, hw0 / 11); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.97); g.stroke();
+  g.strokeStyle = 'rgba(255,252,218,1)'; g.lineWidth = Math.max(1.6, hw0 / 17); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.97); g.stroke();   // the midrib, cream
   g.restore(); g.strokeStyle = 'rgba(146,162,124,0.6)'; g.lineWidth = 1.1; g.stroke(); g.restore();
 }
-const leafTex = tex(256, 256, (g, w, h) => {   // a whole leaf, for the fallen and falling ones: seven leaflets fanned from the stalk
-  const bx = w / 2, by = h * 0.64, ang = [-1.58, 1.58, -1.0, 1.0, -0.5, 0.5, 0], len = [0.56, 0.56, 0.78, 0.78, 0.93, 0.93, 1];
-  g.strokeStyle = '#aab298'; g.lineWidth = 4; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx, h); g.stroke();
-  ang.forEach((a, i) => { g.save(); g.translate(bx, by); g.rotate(a); drawLeaflet(g, 0, -3, h * 0.085 * Math.sqrt(len[i]), h * 0.58 * len[i], 20 + i); g.restore(); });
-});
+// a tangent-space normal map from a grey relief drawn by draw(g, w, h): (darker is lower)
+function reliefNormals(w, h, draw, k = 2.2){ return tex(w, h, (g) => { g.fillStyle = 'rgb(150,150,150)'; g.fillRect(0, 0, w, h); draw(g, w, h);
+    const im = g.getImageData(0, 0, w, h), d = im.data, H = new Float32Array(w * h); for (let i = 0; i < w * h; i++) H[i] = d[i * 4] / 255;
+    const at = (x, y) => H[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){ const nx = -(at(x + 1, y) - at(x - 1, y)) * k, ny = (at(x, y + 1) - at(x, y - 1)) * k, l = Math.hypot(nx, ny, 1), o = (y * w + x) * 4;   // (canvas y runs down; v runs up)
+      d[o] = (nx / l * 0.5 + 0.5) * 255; d[o + 1] = (ny / l * 0.5 + 0.5) * 255; d[o + 2] = (1 / l * 0.5 + 0.5) * 255; d[o + 3] = 255; }
+    g.putImageData(im, 0, 0); }, { srgb: false }); }
 
 const candleTex = tex(128, 256, (g, w, h) => {   // (no longer shown — the candles are modelled now — but still drawn, to keep the world's random sequence)
   g.strokeStyle = '#8a9a60'; g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2, h * 0.1); g.stroke();
@@ -1538,7 +1561,8 @@ const LEAF = (() => {
   const leafletTex = tex(320, 512, (g, w, h) => { g.clearRect(0, 0, w, h); drawLeaflet(g, 192, h - 3, 124, h - 10, 3);
     g.fillStyle = '#c8cfa4'; g.fillRect(0, 0, 24, h); }, {});   // the leaflet in x 64-320; a strip of stalk colour at x 0-24, for the stalks
   const U0 = 64 / 320, US = 256 / 320;
-  leafletTex.wrapS = leafletTex.wrapT = THREE.ClampToEdgeWrapping;
+  const leafletNrm = reliefNormals(320, 512, (g, w, h) => drawLeaflet(g, 192, h - 3, 124, h - 10, 3, 'height'));
+  leafletTex.wrapS = leafletTex.wrapT = leafletNrm.wrapS = leafletNrm.wrapT = THREE.ClampToEdgeWrapping;
   const P = 0.2, LC = 0.4, WC = LC * 0.3;
   // one leaf: [stalk + leaflets], leaflets fanned in the blade plane (x, y) round the stalk's end; z is the blade's normal (up)
   const build = (nLeaflets, droop, fold, seed, flat = false) => { const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), Pp = [], U = [], I = [];
@@ -1555,10 +1579,10 @@ const LEAF = (() => {
       for (let rI = 0; rI < 2; rI++) for (let cI = 0; cI < 2; cI++){ const q = base + rI * 3 + cI; I.push(q, q + 1, q + 3, q + 1, q + 4, q + 3); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); g.computeVertexNormals(); return g; };
   const geos = [build(7, 0.16, 0.2, 11), build(7, 0.34, 0.26, 12), build(7, 0.55, 0.28, 13), build(5, 0.36, 0.24, 14)];
-  const mat = swayify(new THREE.MeshStandardMaterial({ map: leafletTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.66 }), 0.09, 0.22);
+  const mat = leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafletTex, normalMap: leafletNrm, normalScale: new THREE.Vector2(1.1, 1.1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.62 }), 0.09, 0.22));
   const by = [[], [], [], []], map = LEAVES.map((L) => { const vI = lr() < 0.18 ? 3 : lr() < 0.3 ? 0 : lr() < 0.55 ? 1 : 2; by[vI].push(L); return [vI, by[vI].length - 1]; });
   const meshes = geos.map((g, vI) => { const m = new THREE.InstancedMesh(g, mat, Math.max(1, by[vI].length)); m.castShadow = m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); treeG.add(m); return m; });
-  return { meshes, tris: geos.map(g => g.index.count / 3), tex: leafletTex, geos, variant: i => map[i][0],
+  return { meshes, tris: geos.map(g => g.index.count / 3), tex: leafletTex, nrm: leafletNrm, geos, variant: i => map[i][0],
     flatGeos: [build(7, 0.07, 0.34, 21, true), build(7, 0.12, 0.42, 22, true), build(5, 0.09, 0.38, 23, true)],   // fallen leaves: lying flat, the leaflets' edges and tips curling up as they dry
     setMatrixAt(i, M){ const [vI, j] = map[i]; meshes[vI].setMatrixAt(j, M); }, setColorAt(i, c){ const [vI, j] = map[i]; meshes[vI].setColorAt(j, c); },
     touch(){ for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } } };
@@ -1733,7 +1757,7 @@ for (let i = 0; i < 1500; i++){ const a = rng() * TAU, r = 1.3 + 13 * Math.sqrt(
   LITTER.push({ p: new V3(TREE.x + Math.cos(a) * r, 0.03 + rng() * 0.02, TREE.z + Math.sin(a) * r), rot: rng() * TAU, s: rnd(0.4, 0.75), r: rng() * 0.9 + (r / 14) * 0.1,
     c: C(pick(['#c9952e', '#b8702a', '#8a5a2a', '#d8b040', '#a0602a', '#6e4a2a'])) }); }
 const litter = (() => {   // the same leaves as on the tree, at the same size, lying flat (three shapes); laid out with the stalk-to-tip axis along the ground
-  const mat = snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide })), by = [[], [], []];
+  const mat = snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide })), by = [[], [], []];
   LITTER.forEach((L, i) => { L.v = i % 7 === 3 ? 2 : i % 2; L.j = by[L.v].length; by[L.v].push(L); });
   const meshes = LEAF.flatGeos.map((g, v) => { const m = new THREE.InstancedMesh(g.clone().rotateX(-Math.PI / 2), mat, Math.max(1, by[v].length)); m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
   return { meshes, setMatrixAt(i, M){ const L = LITTER[i]; meshes[L.v].setMatrixAt(L.j, M); }, setColorAt(i, c){ const L = LITTER[i]; meshes[L.v].setColorAt(L.j, c); },
@@ -2707,7 +2731,7 @@ const ffMat = new THREE.PointsMaterial({ size: 0.16, map: dotTex, vertexColors: 
 const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = false; scene.add(fireflies);
 /* falling leaves */
 const FL_N = 320, FL_V = FL_N / 4, FLs = [];
-const fallMat = new THREE.MeshStandardMaterial({ map: LEAF.tex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 });
+const fallMat = leafGlow(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(1, 1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 }));
 const fallAir = LEAF.geos.map(g => { const m = new THREE.InstancedMesh(g, fallMat, FL_V); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; });   // in the air: the tree's four shapes
 const fallDown = new THREE.InstancedMesh(LEAF.flatGeos[1].clone().rotateX(-Math.PI / 2), fallMat, FL_N); fallDown.frustumCulled = false; fallDown.receiveShadow = true; scene.add(fallDown);   // landed: lying flat
 for (let i = 0; i < FL_N; i++){ FLs.push({ on: false, p: new V3(), rot: new THREE.Euler(), spin: new V3(), ph: rng() * TAU, land: 0, c: C('#c9952e'), v: Math.floor(i / FL_V), j: i % FL_V, s: 1.2 });
@@ -4145,6 +4169,7 @@ function frame(){
   if (started) syncCtx();
   if (window.__lookcam){ const v = window.__lookcam; camera.position.set(v[0], v[1], v[2]); camera.lookAt(v[3], v[4], v[5]); }   // debug: ?lookcam=x,y,z,tx,ty,tz
   if (window.__figcam && mode === 'window'){ const [d, an, hh, f] = window.__figcam; camera.position.set(f.x + Math.sin(f.ry + an) * d, f.y + hh, f.z + Math.cos(f.ry + an) * d); camera.lookAt(f.x, f.y + (window.__figcam[4] ?? 0.085), f.z); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }   // debug: ?figcam=dist,angle,height[,lookY]
+  leafU.sunV.value.copy(sunDir).transformDirection(camera.matrixWorldInverse); leafU.sunC.value.copy(sun.color); leafU.tr.value = (env.e > 0 ? sun.intensity / 3.2 : 0) * (window.__glowk ?? 1);   // (for the leaves' glow)
   if (window.__wk != null) windU.value = window.__wk; if (window.__wt != null) timeU.value = window.__wt;
   if (window.__studio){ if (!window.__studioP){ const p = new THREE.Mesh(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#80838a', roughness: 0.95 }));
       p.position.copy(cat.root.position); p.position.y += 0.0005; p.receiveShadow = true; scene.add(p); window.__studioP = p; }
@@ -4176,6 +4201,8 @@ function frame(){
       cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }
     if (q.get('fall')){ for (let i = 0; i < +q.get('fall'); i++){ const li = Math.floor(Math.random() * LEAVES.length), L = LEAVES[li]; spawnLeaf(L.p.clone().add(TREE), C(['#d8a83a', '#c47a2a', '#e2b42e', '#8a5a2a'][i % 4]), li); FLs.forEach(F => { if (F.on && F.land <= 0) F.p.y -= Math.random() * 6; }); }
       if (q.get('fallhold')){ const c = new V3(...q.get('fallhold').split(',').map(Number)); FLs.filter(F => F.on).forEach((F, k) => { F.p.set(c.x + (k % 6 - 2.5) * 0.9, c.y + Math.floor(k / 6) % 3 * 0.9, c.z + Math.floor(k / 18) * 0.6); F.spin.set(0, 0, 0); }); window.__fallHold = true; } }   // debug: a shower of leaves (or a still rack of them)
+    if (q.get('glowk')) window.__glowk = +q.get('glowk');
+    if (q.get('sunlog')) setTimeout(() => console.log('SUN', sunDir.toArray().map(v => v.toFixed(2)).join(','), 'e', env.e.toFixed(2), 'I', sun.intensity.toFixed(2)), 500);
     if (q.get('bulblog')) console.log('LEAVES', LEAVES.length, 'tris per leaf', LEAF.tris.join('/'));
     if (q.get('bulblog')){ const e = new V3(11.94, 9.14, -134.18).sub(TREE); LEAVES.map(L => [L, L.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 3).forEach(([L, d]) => console.log('NEARLEAF', d.toFixed(2), L.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'n', new V3(0, 0, 1).applyQuaternion(L.q).toArray().map(v => v.toFixed(2)).join(','), 's', L.s.toFixed(2))); }
     if (q.get('bulblog')) console.log('CANDLES', CANDLES.length, 'tris near/far per candle', CANDLE.tris.join('/'));
