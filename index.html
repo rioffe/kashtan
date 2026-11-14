@@ -1447,9 +1447,9 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       put(soft(0.022, 0.2, 0.3, 0.018, 0, 6), fabric, x, 0.37, 0.0);                                         // the upholstered side panel
     }
     /* ---------- Dad's chess set, in the middle of the sofa: the Latvian pieces of the fifties, turned in boxwood, the black ones ebonized;
-       all of them lacquered; the king crowned with a flame-shaped finial and the queen with a ball, both in the other colour; the rook's
+       all of them lacquered, the boxwood glowing honey-amber, the black glassy; the king crowned with a flame-shaped finial and the queen with a ball, both in the other colour; the rook's
        hollowed top ringed by a rim with four notches; the knight carved, his mane in six grooves; green baize under every piece. They stand on the folding board: two shallow trays that close into a box with the pieces
-       inside, the squares stained on birch, a line round them, letters and numbers along the edges, worn by years of games.
+       inside, the squares stained on birch, a line round them, letters and numbers along the edges, lacquered, and scratched by years of games.
        (The pieces' profiles were measured off a photograph, in its pixels: one is 0.236 mm, so the king stands 9.4 cm) ---------- */
     {
       const PX = 0.000236, SQ = 0.046, FELT = 5.2, TH = 0.022, UP = new V3(0, 1, 0);
@@ -1539,7 +1539,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
         float chN(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(mix(chH(i), chH(i + vec3(1, 0, 0)), f.x), mix(chH(i + vec3(0, 1, 0)), chH(i + vec3(1, 1, 0)), f.x), f.y),
                      mix(mix(chH(i + vec3(0, 0, 1)), chH(i + vec3(1, 0, 1)), f.x), mix(chH(i + vec3(0, 1, 1)), chH(i + vec3(1, 1, 1)), f.x), f.y), f.z); }`;
-      const wood = (light) => { const m = new THREE.MeshPhysicalMaterial(light ? { color: '#ffffff', roughness: 0.4, clearcoat: 1, clearcoatRoughness: 0.09, envMap: roomEnv, envMapIntensity: 0.6 } : { color: '#ffffff', roughness: 0.45, clearcoat: 1, clearcoatRoughness: 0.06, envMap: roomEnv, envMapIntensity: 0.6 });
+      const wood = (light) => { const m = new THREE.MeshPhysicalMaterial(light ? { color: '#ffffff', roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.06, envMap: roomEnv, envMapIntensity: 0.6 } : { color: '#ffffff', roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.035, envMap: roomEnv, envMapIntensity: 0.9 });
         m.onBeforeCompile = (sh) => {
           sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vObj; varying float vSeed;')
             .replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position;\n#ifdef USE_INSTANCING\nvSeed = fract(sin(dot(instanceMatrix[3].xz, vec2(127.1, 311.7)) * 31.7) * 43758.5);\n#else\nvSeed = 0.3;\n#endif');
@@ -1547,17 +1547,23 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
             .replace('#include <color_fragment>', '#include <color_fragment>\n' + (light ? `{ vec3 q = vObj * 4237.0; vec2 off = (vec2(vSeed, fract(vSeed * 7.31)) - 0.5) * 34.0;   // (the pith a little off the turning axis)
               float rr = length(q.xz - off) + 2.0 * chN(q * vec3(0.05, 0.012, 0.05)) + 0.8 * chN(q * 0.2);
               float ring = smoothstep(0.6, 1.0, abs(fract(rr / 4.0) * 2.0 - 1.0)), fib = chN(q * vec3(0.9, 0.035, 0.9)), fl = chN(q * vec3(0.02, 0.006, 0.02) + vSeed * 9.0);
-              diffuseColor.rgb = mix(vec3(0.78, 0.50, 0.16), vec3(0.84, 0.59, 0.22), 0.3 + 0.7 * vSeed) * (1.0 - 0.035 * ring - 0.035 * fib - 0.06 * fl); }`
+              diffuseColor.rgb = mix(vec3(0.60, 0.25, 0.021), vec3(0.78, 0.38, 0.045), 0.3 + 0.7 * vSeed) * (1.0 - 0.04 * ring - 0.05 * fib - 0.09 * fl); }`
             : `{ vec3 q = vObj * 4237.0; float fib = chN(q * vec3(0.7, 0.03, 0.7)), rr = length(q.xz) + 3.0 * chN(q * 0.04), ring = smoothstep(0.6, 1.0, abs(fract(rr / 6.0) * 2.0 - 1.0));
-              diffuseColor.rgb = vec3(0.0075, 0.0060, 0.0052) * (1.0 + 0.9 * fib + 0.6 * ring); }`)); };
+              diffuseColor.rgb = vec3(0.0032, 0.0029, 0.0027) * (1.0 + 0.3 * fib + 0.15 * ring); }`)); };
         m.customProgramCacheKey = () => 'chesswood' + light; return m; };
-      const roomEnv = tex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#d8d4cc'); gr.addColorStop(0.45, '#a8a8a4'); gr.addColorStop(0.55, '#7a3a2c'); gr.addColorStop(0.7, '#4a2a1c'); gr.addColorStop(1, '#2a1a12'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-        g.fillStyle = '#fff6e6'; g.fillRect(w * 0.7, h * 0.18, w * 0.1, h * 0.3); g.fillStyle = '#c8d8e8'; g.fillRect(w * 0.705, h * 0.2, w * 0.09, h * 0.12); g.fillStyle = 'rgba(255,240,215,0.6)'; g.fillRect(w * 0.2, h * 0.05, w * 0.06, h * 0.1); });
+      const roomEnv = tex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8e8a82'); gr.addColorStop(0.45, '#5c5852'); gr.addColorStop(0.55, '#3c1c14'); gr.addColorStop(0.7, '#26140c'); gr.addColorStop(1, '#140c08'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#fffaf0'; g.fillRect(w * 0.7, h * 0.18, w * 0.1, h * 0.3); g.fillStyle = '#d4e2f0'; g.fillRect(w * 0.705, h * 0.2, w * 0.09, h * 0.12); g.fillStyle = '#3a3630'; g.fillRect(w * 0.748, h * 0.18, w * 0.004, h * 0.3); g.fillRect(w * 0.7, h * 0.33, w * 0.1, h * 0.006);
+        const lg = g.createRadialGradient(w * 0.23, h * 0.1, 0, w * 0.23, h * 0.1, h * 0.08); lg.addColorStop(0, '#fff4dc'); lg.addColorStop(1, 'rgba(255,244,220,0)'); g.fillStyle = lg; g.fillRect(0, 0, w, h * 0.3); });
       roomEnv.mapping = THREE.EquirectangularReflectionMapping;
       const BOX = wood(true), EBO = wood(false), baize = new THREE.MeshStandardMaterial({ color: '#2c5a22', roughness: 1 });
       // the board: two trays of birch ply hinged in the middle, each half of the board and a margin; the dark squares stained over the grain
       const MS = 0.53 * SQ, ME = 0.86 * SQ, BW = 8 * SQ + 2 * MS, HL = 4 * SQ + ME, GAP = 0.0009, BL = 2 * HL + GAP, pps = 200, br = mkRng(1951);
       const sqX = r => (r - 3.5) * SQ + (r >= 4 ? GAP / 2 : -GAP / 2), sqZ = f => (f - 3.5) * SQ;   // (ranks run along x, white's end at -x; the a-file at -z)
+      const SCR = [];   // (where pieces were dragged and the board was knocked about: mostly short and along the files and ranks, some anywhere)
+      for (let i = 0; i < 520; i++){ const along = br() < 0.6, a = along ? (br() < 0.5 ? 0 : Math.PI / 2) + (br() - 0.5) * 0.5 : br() * TAU, deep = br() < 0.12;
+        SCR.push({ x: br(), y: br(), a, l: (deep ? 0.02 + br() * 0.08 : 0.005 + br() * 0.04) * (br() < 0.1 ? 3 : 1), bend: (br() - 0.5) * 0.3, w: deep ? 1.4 : 0.5 + br() * 0.7, k: 0.1 + br() * 0.25, deep }); }
+      const scratch = (g, w, h, col) => { for (const c of SCR){ const x = c.x * w, y = c.y * h, l = c.l * w; g.strokeStyle = col(c); g.lineWidth = c.w * w / 1800 * 1.4;
+        g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(c.a + c.bend) * l * 0.5, y + Math.sin(c.a + c.bend) * l * 0.5, x + Math.cos(c.a) * l, y + Math.sin(c.a) * l); g.stroke(); } };
       const boardTex = tex(Math.round(BW / SQ * pps), Math.round(BL / SQ * pps), (g, w, h) => {
         const cx = Z => (Z + BW / 2) / SQ * pps, cy = X => (BL / 2 - X) / SQ * pps;   // (black's end at the top of the canvas)
         for (const half of [0, 1]){ const ya = half ? cy(-GAP / 2) : 0, yb = half ? h : cy(GAP / 2);
@@ -1568,7 +1574,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
             g.strokeStyle = br() < 0.75 ? `rgba(122,76,30,${a})` : `rgba(255,236,198,${a})`; g.lineWidth = 0.6 + br() * 1.6; g.beginPath();
             for (let x = x0; x <= x1; x += 24){ const yy = y + Math.sin(x * 0.0035 + ph) * 6 + Math.sin(x * 0.017 + ph * 2) * 1.2; x === x0 ? g.moveTo(x, yy) : g.lineTo(x, yy); } g.stroke(); }
           g.restore(); }
-        g.globalCompositeOperation = 'multiply'; g.fillStyle = '#c8935e';
+        g.globalCompositeOperation = 'multiply'; g.fillStyle = '#c0915c';
         for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) if ((r + f) % 2 === 0){ const X = sqX(r), Z = sqZ(f); g.fillRect(cx(Z - SQ / 2), cy(X + SQ / 2), SQ / SQ * pps, pps); }   // (a1 is dark)
         g.globalCompositeOperation = 'source-over';
         const ink = 'rgba(74,40,17,0.86)', o = 0.07 * pps, sx0 = cx(-4 * SQ) - o, sx1 = cx(4 * SQ) + o, sy0 = cy(sqX(7) + SQ / 2) - o, sy1 = cy(sqX(0) - SQ / 2) + o;
@@ -1580,8 +1586,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
           gr.addColorStop(0, `rgba(70,40,15,${0.03 + br() * 0.06})`); gr.addColorStop(1, 'rgba(70,40,15,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
         for (let i = 0; i < 40; i++){ const x = br() * w, y = br() * h, rr = 10 + br() * 50, gr = g.createRadialGradient(x, y, 0, x, y, rr);   // the stain rubbed thin in places,
           gr.addColorStop(0, `rgba(240,212,160,${0.05 + br() * 0.08})`); gr.addColorStop(1, 'rgba(240,212,160,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
-        for (let i = 0; i < 110; i++){ const x = br() * w, y = br() * h, a = br() * TAU, l = 8 + br() * 70; g.strokeStyle = br() < 0.6 ? `rgba(255,240,210,${0.05 + br() * 0.12})` : `rgba(80,45,20,${0.05 + br() * 0.08})`;   // scratches,
-          g.lineWidth = 0.6 + br() * 0.9; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + 0.2) * l * 0.5, y + Math.sin(a + 0.2) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+        scratch(g, w, h, c => c.deep ? `rgba(90,52,22,${c.k + 0.1})` : `rgba(255,246,226,${c.k})`);   // scratches through the lacquer,
         for (const [x0, y0, x1, y1] of [[0, 0, 0, 60], [0, h, 0, h - 60], [0, 0, 60, 0], [w, 0, w - 60, 0]]){ const gr = g.createLinearGradient(x0, y0, x1, y1);   // and the edges darkened where it was held
           gr.addColorStop(0, 'rgba(80,46,18,0.22)'); gr.addColorStop(1, 'rgba(80,46,18,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } });
       boardTex.wrapS = boardTex.wrapT = THREE.ClampToEdgeWrapping; boardTex.anisotropy = 16;
@@ -1609,7 +1614,13 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       const board = new THREE.Group(), bz = 0.07; let yb = 0, nyb = 0;
       for (let i = 0; i < 16; i++){ const a = i / 16 * TAU, x = clamp(Math.cos(a) * 0.7, -0.5, 0.5) * BL, z = bz + clamp(Math.sin(a) * 0.7, -0.5, 0.5) * BW; yb += seatTop(x, z); nyb++; }
       board.position.set(0.004, yb / nyb - 0.0016, bz); board.rotation.y = 0.035; sofa.add(board);
-      const trayM = new THREE.Mesh(trays(), [new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.5 }), new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.62 })]);
+      const lacq = tex(1024, 1100, (g, w, h) => { g.fillStyle = 'rgb(30,30,30)'; g.fillRect(0, 0, w, h);   // the lacquer's sheen: glassy, dulled where hands went, broken along every scratch
+        for (let i = 0; i < 50; i++){ const x = br() * w, y = br() * h, rr = 30 + br() * 120, gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, `rgba(110,110,110,${0.15 + br() * 0.3})`); gr.addColorStop(1, 'rgba(110,110,110,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+        scratch(g, w, h, c => `rgba(200,200,200,${0.5 + c.k})`); }, { srgb: false });
+      lacq.wrapS = lacq.wrapT = THREE.ClampToEdgeWrapping;
+      const boardTop = new THREE.MeshPhysicalMaterial({ map: boardTex, roughness: 0.55, clearcoat: 1, clearcoatRoughness: 1, clearcoatRoughnessMap: lacq, envMap: roomEnv, envMapIntensity: 0.55 }),
+        boardSide = new THREE.MeshPhysicalMaterial({ map: sideTex, roughness: 0.55, clearcoat: 0.8, clearcoatRoughness: 0.18, envMap: roomEnv, envMapIntensity: 0.45 });
+      const trayM = new THREE.Mesh(trays(), [boardTop, boardSide]);
       trayM.receiveShadow = true; trayM.userData.desk = 'chess'; board.add(trayM); desk.pick.push(trayM);
       { const iron = new THREE.MeshStandardMaterial({ color: '#3a2f28', metalness: 0.55, roughness: 0.55 });   // the hook and its eye, the box's only catch
         const eye = new THREE.Mesh(new THREE.TorusGeometry(0.0023, 0.00055, 6, 16), iron); eye.position.set(BL / 2 + 0.0008, 0.0062, 0.002); eye.rotation.y = Math.PI / 2; board.add(eye);
@@ -1641,7 +1652,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       let cur = -1;
       const dbg = (new URLSearchParams(location.search).get('chesscam') || '').split(',').filter(Boolean).map(Number);   // debug: ?chesscam=x,y,z,tx,ty,tz in the board's frame (metres)
       const only = new URLSearchParams(location.search).get('chessonly'); if (only) meshes.forEach(e => e.m.visible = e.type === only);
-      CHESS = { ctr, board, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = EBO.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
+      CHESS = { ctr, board, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = 0.4 * kd; boardSide.envMapIntensity = 0.45 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
         const d = camera.position.distanceTo(ctr), l = d < 1.15 ? 0 : d < 3.4 ? 1 : 2; board.visible = d < 18; if (l === cur) return; cur = l; for (const { m, geos } of meshes) m.geometry = geos[l]; } };
       if (new URLSearchParams(location.search).has('chesslog')) console.log('CHESS tris per LOD', [0, 1, 2].map(l => meshes.reduce((a, { m, geos }) => a + geos[l].index.count / 3 * m.count, 0)).join('/'), 'board', (BL * 100).toFixed(1) + 'x' + (BW * 100).toFixed(1) + ' cm', 'at', ctr.toArray().map(v => v.toFixed(3)).join(','));
     }
