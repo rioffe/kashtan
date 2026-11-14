@@ -217,14 +217,14 @@ function leafGlow(mat){ const prev = mat.onBeforeCompile;
    as the rain goes on. Chained on top of whatever the material already does */
 const wetU = { wet: { value: 0 }, ground: { value: 0 }, sky: { value: new THREE.Color(0.6, 0.65, 0.7) } };
 function leafWet(mat, drops = true, onGround = false, ds = [1, 1]){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
-  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uWet = onGround ? wetU.ground : wetU.wet; sh.uniforms.uSkyW = wetU.sky;
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uWet = onGround ? wetU.ground : wetU.wet; sh.uniforms.uSkyW = wetU.sky; sh.uniforms.uDs = { value: new THREE.Vector2(ds[0], ds[1]) };
     sh.vertexShader = 'varying vec3 vDrop;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       #ifdef USE_INSTANCING
       vDrop = fract(instanceMatrix[3].xyz * vec3(3.17, 5.31, 2.73));
       #else
       vDrop = vec3(0.0);
       #endif`);
-    sh.fragmentShader = 'uniform float uWet; uniform vec3 uSkyW; varying vec3 vDrop;\n' + sh.fragmentShader
+    sh.fragmentShader = 'uniform float uWet; uniform vec3 uSkyW; uniform vec2 uDs; varying vec3 vDrop;\n' + sh.fragmentShader
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         float wl = clamp((uWet - 0.45 * vDrop.z) / 0.55, 0.0, 1.0);   // this leaf's own wetness: they dry one by one, not all at once
         { float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 1.0 + 0.3 * wl) * (1.0 - 0.24 * wl);
@@ -236,7 +236,7 @@ function leafWet(mat, drops = true, onGround = false, ds = [1, 1]){ const prev =
           { float dist = length(vViewPosition), fade = smoothstep(7.0, 2.5, dist) * min(1.0, wl * 2.5);
             if (fade > 0.001){
               for (int L = 0; L < 2; L++){   // two scatterings: many small beads, and a few large ones
-                vec2 sc = (L == 0 ? vec2(13.0, 34.0) : vec2(5.0, 13.0)) * vec2(${ds[0].toFixed(3)}, ${ds[1].toFixed(3)}), gg = vMapUv * sc + vDrop.xy * (37.0 + float(L) * 11.0), id = floor(gg), f = fract(gg);
+                vec2 sc = (L == 0 ? vec2(13.0, 34.0) : vec2(5.0, 13.0)) * uDs, gg = vMapUv * sc + vDrop.xy * (37.0 + float(L) * 11.0), id = floor(gg), f = fract(gg);
                 float h = fract(sin(dot(id, vec2(127.1, 311.7)) + float(L) * 7.1) * 43758.5453);
                 if (h < (L == 0 ? 0.24 : 0.16) * wl){ vec2 c = vec2(0.25 + 0.5 * fract(h * 7.7), 0.25 + 0.5 * fract(h * 13.3));
                   float rr = (L == 0 ? 0.1 + 0.26 * fract(h * 29.1) : 0.14 + 0.12 * fract(h * 29.1)) * (0.45 + 0.55 * wl), d = length((f - c) * vec2(1.0, 1.0 + 0.25 * fract(h * 3.3))) / rr;
@@ -246,7 +246,7 @@ function leafWet(mat, drops = true, onGround = false, ds = [1, 1]){ const prev =
           ` : ''}
         }`);
   };
-  mat.customProgramCacheKey = () => prevKey() + 'wet' + (drops ? 'D' : '') + ds.join(); return mat; }
+  mat.customProgramCacheKey = () => prevKey() + 'wet' + (drops ? 'D' : ''); return mat; }
 
 /* ============================== textures ============================== */
 const grassTex = tex(512, 512, (g, w, h) => {
@@ -2084,7 +2084,7 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
   const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: barkTex, color: '#8a8078', roughness: 0.95 }), 1.3));
   wood.castShadow = wood.receiveShadow = true; scene.add(wood);
   for (const sh of shrubData){ const n = sh.lilac ? 9 : sh.wild ? 11 : 7, R = sh.lilac ? 0.7 : sh.wild ? 0.65 : 0.45;
-    for (let k = 0; k < n; k++){ const e = { p: sh.p.clone().add(new V3(rnd(-1, 1) * R * sh.s, rnd(-0.4, 0.6) * R * sh.s, rnd(-1, 1) * R * sh.s)), q: rq(), s: (sh.lilac ? 1.1 : sh.wild ? 1.0 : 0.75) * sh.s, r: rng(), v: rnd(sh.wild ? 0.7 : 0.85, 1.1) }; if (!sh.lilac) SHL.push(e); }   // (lilac leaves: LILAC)
+    for (let k = 0; k < n; k++){ const e = { p: sh.p.clone().add(new V3(rnd(-1, 1) * R * sh.s, rnd(-0.4, 0.6) * R * sh.s, rnd(-1, 1) * R * sh.s)), q: rq(), s: (sh.lilac ? 1.1 : sh.wild ? 1.0 : 0.75) * sh.s, r: rng(), v: rnd(sh.wild ? 0.7 : 0.85, 1.1) }; }   // (the bushes' leaves are LEAFY's now; the cards' random numbers still drawn, so the world doesn't move)
     if (!sh.lilac && !sh.wild) for (let k = 0; k < 30; k++){ const d = new V3(rnd(-1, 1), rnd(-0.5, 0.7), rnd(-1, 1)).normalize();
       const goose = sh.kind === 'goose';
       BER.push({ p: sh.p.clone().addScaledVector(d, (0.5 + rnd(0, 0.15)) * sh.s), s: goose ? rnd(0.026, 0.034) : rnd(0.014, 0.019), c0: C('#86a850'), c1: goose ? C(rng() < 0.7 ? '#b8c870' : '#a05a4a') : C('#d0142c'), r: rng() }); } }
@@ -2107,120 +2107,238 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
   orchardBloom = new THREE.InstancedMesh(clusterGeo, bloomMat, FBL.length); scene.add(orchardBloom);
   FBL.forEach((B, i) => orchardBloom.setColorAt(i, B.T.bloom));
   orchardFruit = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ roughness: 0.4 }), FFR.length); orchardFruit.castShadow = true; scene.add(orchardFruit);
-  shrubLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, SHL.length); shrubLeaves.castShadow = true; scene.add(shrubLeaves);
+  shrubLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, Math.max(1, SHL.length)); shrubLeaves.setColorAt(0, new THREE.Color()); shrubLeaves.castShadow = true; scene.add(shrubLeaves);
   berries = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ roughness: 0.25 }), BER.length); scene.add(berries);
 }
-/* lilac leaves, after the photographs: each leaf broad and heart-shaped, a shallow notch at the stalk, widest a quarter of the way up,
-   then tapering in almost straight sides to a long point; smooth-edged, a little glossy, a pale yellow-green midrib and a few faint
-   veins curving up towards the tip. They grow in opposite pairs along the shoots, each pair at right angles to the last, turned out
-   to the light and drooping at their tips, overlapping like shingles; the shoots pack each bush into a dense mound down to the
-   ground, over a dark core of deeper leaves. Own random numbers, so the rest of the world stays where it was. Instanced by shoot,
-   the bushes in a few blocks so the ones out of sight are skipped */
-const LILAC = (() => {
-  const lr = mkRng(7707), lrn = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0);
-  // texture: the leaf in x 48-304 with its stalk below it (stalk colour at x 0-20, for the stems); TB: the stalk's foot in v; LM: the square's side in metres
-  const TW = 320, U0 = 48 / TW, US = 256 / TW, TB = 4 / TW, LM = 0.21 * TW / 280, HW = LM * 128 / TW;
-  // the outline (right half; x in half-widths, y in lengths from the bottom of the lobes): stalk notch, round lobe, widest, long point
-  const CP = [[0, 0.075], [0.12, 0.03], [0.34, 0.004], [0.6, 0], [0.84, 0.045], [0.97, 0.13], [0.99, 0.24], [0.95, 0.38], [0.82, 0.53], [0.6, 0.68], [0.36, 0.8], [0.13, 0.91], [0.035, 0.965], [0, 1]];
-  const OUT = []; for (let i = 0; i < CP.length - 1; i++){ const p0 = CP[Math.max(0, i - 1)], p1 = CP[i], p2 = CP[i + 1], p3 = CP[Math.min(CP.length - 1, i + 2)];
-    for (let k = 0; k < 10; k++){ const t = k / 10, t2 = t * t, t3 = t2 * t, f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      OUT.push([Math.max(0, f(p0[0], p1[0], p2[0], p3[0])), f(p0[1], p1[1], p2[1], p3[1])]); } }
-  OUT.push([0, 1]);
-  const VEINS = [[0.09, 0.5, 0.06, 0.86, 0.27], [0.17, 0.45, 0.24, 0.72, 0.48], [0.29, 0.38, 0.38, 0.56, 0.62], [0.42, 0.3, 0.52, 0.42, 0.75], [0.56, 0.22, 0.66, 0.27, 0.85], [0.7, 0.12, 0.79, 0.13, 0.93]];   // [y0 on the midrib, control x, y, end x, y]
-  function draw(g, cx, by, hw, L, sb, mode){ const X = (x, s) => cx + s * x * hw, Y = y => by - y * L;   // sb: the stalk's foot (canvas y)
-    const path = (k = 1) => { g.beginPath(); OUT.forEach(([x, y], i) => { const w = k * (1 + 0.012 * Math.sin(y * 47)); i ? g.lineTo(X(x * w, 1), Y(y)) : g.moveTo(X(x, 1), Y(y)); });
-      for (let i = OUT.length - 1; i >= 0; i--){ const [x, y] = OUT[i], w = k * (1 + 0.012 * Math.sin(y * 41 + 1)); g.lineTo(X(x * w, -1), Y(y)); } g.closePath(); };
-    const vein = (v, s, dy = 0) => { g.beginPath(); g.moveTo(cx, Y(v[0] + (s < 0 ? 0.015 : 0)) + dy); g.quadraticCurveTo(X(v[1], s), Y(v[2] + (s < 0 ? 0.015 : 0)) + dy, X(v[3], s), Y(v[4]) + dy); g.stroke(); };
-    const midrib = (w0, w1) => { for (let i = 0; i < 12; i++){ const a = 0.075 + i / 12 * 0.9, b = a + 0.9 / 12; g.lineWidth = lerp(w0, w1, i / 11); g.beginPath(); g.moveTo(cx, Y(a)); g.lineTo(cx, Y(b)); g.stroke(); } };
-    g.save(); g.lineCap = 'round';
-    if (mode === 'height'){ path(); g.clip(); g.filter = `blur(${Math.max(1, hw / 50)}px)`;
-      g.strokeStyle = 'rgb(134,134,134)'; g.lineWidth = hw / 36; for (const v of VEINS) for (const s of [-1, 1]) vein(v, s);
-      g.strokeStyle = 'rgb(84,84,84)'; midrib(hw / 13, hw / 40); g.filter = 'none'; g.restore(); return; }
-    g.strokeStyle = '#c6d29a'; for (let i = 0; i < 6; i++){ const a = Y(0.075) + (sb - Y(0.075)) * i / 6, b = Y(0.075) + (sb - Y(0.075)) * (i + 1) / 6; g.lineWidth = lerp(hw / 13, hw / 18, i / 5); g.beginPath(); g.moveTo(cx, a - 2); g.lineTo(cx, b); g.stroke(); }   // the leaf stalk
-    path(); const gr = g.createLinearGradient(cx - hw, 0, cx + hw, 0); gr.addColorStop(0, '#dfe8cc'); gr.addColorStop(0.5, '#ecf2dc'); gr.addColorStop(1, '#dfe8cc');
-    g.fillStyle = gr; g.fill(); g.save(); g.clip();
-    const r = mkRng(31); for (let i = 0; i < 160; i++){ g.fillStyle = r() < 0.5 ? 'rgba(120,140,90,0.025)' : 'rgba(255,255,240,0.03)'; g.beginPath(); g.arc(cx + (r() * 2 - 1) * hw, by - r() * L, 4 + r() * 10, 0, TAU); g.fill(); }   // the faintest mottle: the blade is smooth
-    g.strokeStyle = 'rgba(250,250,224,0.42)'; g.lineWidth = Math.max(1, hw / 50); for (const v of VEINS) for (const s of [-1, 1]) vein(v, s);   // the side veins, faint
-    g.strokeStyle = 'rgba(178,190,140,0.5)'; midrib(hw / 9, hw / 30);
-    g.strokeStyle = 'rgba(255,251,212,1)'; midrib(hw / 16, hw / 48);   // the midrib, pale yellow-green
-    g.restore(); g.strokeStyle = 'rgba(140,156,116,0.55)'; g.lineWidth = 1.2; g.stroke(); g.restore(); }
-  const leafTex = tex(TW, TW, (g, w, h) => { g.clearRect(0, 0, w, h); draw(g, 176, 294, 122, 280, h - 4, 'color'); g.fillStyle = '#c8d4a2'; g.fillRect(0, 0, 20, h); }, {});
-  const leafNrm = reliefNormals(TW, TW, (g, w, h) => draw(g, 176, 294, 122, 280, h - 4, 'height'));
+/* ---------- leafy bushes: the lilacs, and the wild hazel, elder and mock orange ("jasmine") gone wild in the gardens ----------
+   Each bush a mound of shoots carrying real leaves, after the photographs, over a dark core of deeper leaves. A shoot: a stem with its
+   leaves in opposite pairs (each pair at right angles to the last) or alternately left and right, turned out to the light and
+   drooping at their tips, overlapping like shingles. Near the eye every leaf is modelled; further off each is one flat card with the
+   same painted leaf, chosen per shoot in the shader (the shadows too). Instanced by shoot; the near ones in blocks, so blocks out of
+   reach are skipped. Own random numbers, so nothing else in the world moves */
+const lodU = { eye: { value: new V3() }, d: { value: 12 } };
+// near: draw only the instances nearer the eye than uLodD; far: only those beyond (the rest collapse to a point and draw nothing)
+function lodify(mat, near){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uEye = lodU.eye; sh.uniforms.uLodD = lodU.d;
+    sh.vertexShader = 'uniform vec3 uEye; uniform float uLodD;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+      #ifdef USE_INSTANCING
+      { float dc = distance((modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz, uEye); if (${near ? 'dc > uLodD' : 'dc <= uLodD'}) transformed = vec3(0.0); }
+      #endif
+      #include <project_vertex>`); };
+  mat.customProgramCacheKey = () => prevKey() + (near ? 'lodN' : 'lodF'); return mat; }
+// a leaf blade painted up the canvas from (0, 0): prof(t) its half-width (a fraction of H px) at t of its length L px; teeth(t, side)
+// its margin's teeth (a fraction of the half-width); veins [t0 on the midrib, control x, t, end x, t] (x in fractions of H); notch:
+// how far up the midrib the base is notched; pleat: the blade puckered between the veins; hair: a soft downy speckle
+function paintBlade(g, B, mode){ const { L, H, prof, teeth = () => 0, veins = [], notch = 0, col = ['#dfe8cc', '#ecf2dc'], vc = 'rgba(250,250,224,0.42)', pleat = 0, hair = 0, vh = 134, vw = H / 36 } = B;
+  const N = 140, R = [], Lf = []; for (let i = 0; i <= N; i++){ const t = i / N, x = prof(t) * H; R.push([x * (1 + teeth(t, 1)), -t * L]); Lf.push([-x * (1 + teeth(t, -1)), -t * L]); }
+  const path = () => { g.beginPath(); g.moveTo(0, -notch * L); for (const [x, y] of R) g.lineTo(x, y); for (let i = N; i >= 0; i--) g.lineTo(Lf[i][0], Lf[i][1]); g.closePath(); };
+  const vein = (v, s, dy = 0) => { g.beginPath(); g.moveTo(0, -v[0] * L + dy); g.quadraticCurveTo(s * v[1] * H, -v[2] * L + dy, s * v[3] * H, -v[4] * L + dy); g.stroke(); };
+  const midrib = (w0, w1) => { const a0 = Math.max(0, notch - 0.01); for (let i = 0; i < 12; i++){ const a = a0 + i / 12 * (0.97 - a0), b = a + (0.97 - a0) / 12; g.lineWidth = lerp(w0, w1, i / 11); g.beginPath(); g.moveTo(0, -a * L); g.lineTo(0, -b * L); g.stroke(); } };
+  g.save(); g.lineCap = 'round';
+  if (mode === 'height'){ path(); g.clip(); g.filter = `blur(${Math.max(1, H / 50)}px)`; g.strokeStyle = `rgb(${vh},${vh},${vh})`; g.lineWidth = vw; for (const v of veins) for (const s of [-1, 1]) vein(v, s);
+    g.strokeStyle = 'rgb(84,84,84)'; midrib(H / 13, H / 40); g.filter = 'none'; g.restore(); return; }
+  path(); const gr = g.createLinearGradient(-H, 0, H, 0); gr.addColorStop(0, col[0]); gr.addColorStop(0.5, col[1]); gr.addColorStop(1, col[0]); g.fillStyle = gr; g.fill();
+  g.save(); g.clip();
+  if (hair){ const r = mkRng(57); for (let i = 0; i < 1400 * hair; i++){ g.fillStyle = r() < 0.5 ? 'rgba(255,255,240,0.09)' : 'rgba(110,130,90,0.06)'; g.fillRect((r() * 2 - 1) * H, -r() * L, 1.5, 1.5); } }
+  if (pleat){ g.strokeStyle = `rgba(118,136,96,${pleat})`; g.lineWidth = H / 10; for (const v of veins) for (const s of [-1, 1]) vein(v, s, -H / 22); }
+  g.strokeStyle = vc; g.lineWidth = Math.max(1, H / 50); for (const v of veins) for (const s of [-1, 1]) vein(v, s);
+  g.strokeStyle = 'rgba(178,190,140,0.5)'; midrib(H / 9, H / 30); g.strokeStyle = 'rgba(255,251,212,1)'; midrib(H / 16, H / 48);   // the midrib, pale
+  g.restore(); path(); g.strokeStyle = 'rgba(140,156,116,0.55)'; g.lineWidth = 1.2; g.stroke(); g.restore(); }
+// pinnate veins: from the midrib at each t0, rising by `rise`, out to `ex` of the half-width
+const pinnate = (prof, t0s, rise, ex) => t0s.map(t0 => { const t1 = Math.min(0.97, t0 + rise); return [t0, 0.5 * prof(Math.min(1, t0 + rise * 0.3)), t0 + rise * 0.3, ex * prof(t1), t1]; });
+const saw = x => x - Math.floor(x);
+const stalk = (g, a, b, w0, w1, c) => { g.save(); g.strokeStyle = c; g.lineCap = 'round'; for (let i = 0; i < 6; i++){ g.lineWidth = lerp(w0, w1, i / 5); g.beginPath(); g.moveTo(0, -lerp(a, b, i / 6) + 1); g.lineTo(0, -lerp(a, b, (i + 1) / 6)); g.stroke(); } g.restore(); };
+// the shadowed leaves inside a bush, for the cores
+const leafMassTex = tex(256, 256, (g, w, h) => { g.clearRect(0, 0, w, h); const r = mkRng(77);
+  for (let i = 0; i < 300; i++){ const x = r() * w, y = r() * h, a = r() * TAU, s = 10 + r() * 10, l = 120 + r() * 125;
+    for (const [dx, dy] of [[0, 0], [w, 0], [-w, 0], [0, h], [0, -h]]){ g.save(); g.translate(x + dx, y + dy); g.rotate(a); g.fillStyle = `rgb(${l * 0.9 | 0},${l | 0},${l * 0.78 | 0})`;
+      g.beginPath(); g.moveTo(0, -s * 1.15); g.quadraticCurveTo(s * 0.95, -s * 0.3, s * 0.55, s * 0.55); g.quadraticCurveTo(0, s * 0.75, -s * 0.55, s * 0.55); g.quadraticCurveTo(-s * 0.95, -s * 0.3, 0, -s * 1.15); g.fill();
+      g.strokeStyle = 'rgba(255,255,230,0.25)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -s); g.lineTo(0, s * 0.6); g.stroke(); g.restore(); } } }, { repeat: [5, 3] });
+const leafCoreGeo = new THREE.IcosahedronGeometry(1, 3); { const p = leafCoreGeo.attributes.position, v = new V3();
+  for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); const k = 1 + 0.1 * Math.sin(v.x * 5.1 + v.y * 2.3) * Math.sin(v.z * 4.7 - v.y * 1.9) + 0.06 * Math.sin(v.x * 11 + v.z * 9); p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
+  leafCoreGeo.computeVertexNormals(); }
+
+function leafyBushes(o){
+  const lr = mkRng(o.seed), lrn = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0);
+  // the leaf texture: the leaf (with its stalk) in x 28-w, its stalk's foot 4 px off the bottom; stalk colour at x 0-14, for the stems
+  const TWd = o.tex.w, THt = o.tex.h, X0 = 28, mpp = o.tex.len / THt, U0 = X0 / TWd, US = (TWd - X0) / TWd, HW = (TWd - X0) / 2 * mpp, LM = THt * mpp, TB = 4 / THt;
+  const at0 = (g, w, h) => { g.translate((X0 + w) / 2, h - 4); };
+  const leafTex = tex(TWd, THt, (g, w, h) => { g.clearRect(0, 0, w, h); g.save(); at0(g, w, h); o.draw(g, 'color'); g.restore(); g.fillStyle = o.stemTex; g.fillRect(0, 0, 14, h); }, {});
+  const leafNrm = reliefNormals(TWd, THt, (g, w, h) => { g.save(); at0(g, w, h); o.draw(g, 'height'); g.restore(); });
   leafTex.wrapS = leafTex.wrapT = leafNrm.wrapS = leafNrm.wrapT = THREE.ClampToEdgeWrapping;
-
-  // one shoot: the stem out along +z at elevation e (y up: built the right way up, so the leaves droop the right way), three opposite
-  // pairs and a smaller pair at the tip
-  const ROWS = [0, 0.3, 0.65, 1], COLS = [-1, 0, 1];
-  function shoot(e, seed){ const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), P = [], U = [], Cc = [], I = [];
-    const vtx = (p, u, v, c) => { P.push(p.x, p.y, p.z); U.push(u, v); Cc.push(c[0], c[1], c[2]); return P.length / 3 - 1; };
-    const ribbon = (a, b, side, w0, w1, c) => { const i0 = vtx(a.clone().addScaledVector(side, -w0), 0.02, 0.2, c), i1 = vtx(a.clone().addScaledVector(side, w0), 0.05, 0.2, c),
-      i2 = vtx(b.clone().addScaledVector(side, w1), 0.05, 0.8, c), i3 = vtx(b.clone().addScaledVector(side, -w1), 0.02, 0.8, c); I.push(i0, i1, i2, i0, i2, i3); };
-    const len = rn(0.34, 0.4), bend = e < -0.1 ? 0.08 : 0.3, drift = rn(-0.12, 0.12), N = 3, pts = [new V3()], tans = [];
+  // one shoot, built the right way up (y up), the stem out along +z at elevation e, so the leaves droop the right way
+  const ROWS = [0, 0.3, 0.65, 1], COLS = [-1, 0, 1], SP = o.shoot;
+  function shoot(e, seed){ const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), A = { P: [], U: [], C: [], I: [] }, F = { P: [], U: [], C: [], I: [] };   // A near, F far (a card a leaf, no stem)
+    const vtx = (B, p, u, v, c) => { B.P.push(p.x, p.y, p.z); B.U.push(u, v); B.C.push(c[0], c[1], c[2]); return B.P.length / 3 - 1; };
+    const ribbon = (a, b, side, w0, w1, c) => { const i0 = vtx(A, a.clone().addScaledVector(side, -w0), 0.02, 0.2, c), i1 = vtx(A, a.clone().addScaledVector(side, w0), 0.04, 0.2, c),
+      i2 = vtx(A, b.clone().addScaledVector(side, w1), 0.04, 0.8, c), i3 = vtx(A, b.clone().addScaledVector(side, -w1), 0.02, 0.8, c); A.I.push(i0, i1, i2, i0, i2, i3); };
+    const len = rn(SP.len[0], SP.len[1]), bend = e < -0.1 ? 0.08 : SP.bend, drift = rn(-0.12, 0.12), N = 3, pts = [new V3()], tans = [];
     for (let i = 0; i < N; i++){ const t = (i + 0.5) / N, el = e + bend * t * t, d = new V3(Math.sin(drift * t), Math.sin(el), Math.cos(el)).normalize(); tans.push(d); pts.push(pts[i].clone().addScaledVector(d, len / N)); }
-    const stemC = [0.86, 0.84, 0.66];   // (this year's shoots are green)
-    for (let i = 0; i < N; i++){ const T = tans[i], s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T); const w0 = 0.0065 * (1 - i / N * 0.6), w1 = 0.0065 * (1 - (i + 1) / N * 0.6);
-      ribbon(pts[i], pts[i + 1], s1, w0, w1, stemC); ribbon(pts[i], pts[i + 1], s2, w0, w1, stemC); }   // the stem: two crossed ribbons
-    const at = (t) => { const f = t * N, i = Math.min(N - 1, Math.floor(f)); return [pts[i].clone().lerp(pts[i + 1], f - i), tans[i]]; };
-    const ph0 = rn(0, Math.PI / 2);
-    [0.3, 0.58, 0.84, 1].forEach((tn, k) => { const [p, T] = at(Math.min(tn, 0.999)), tip = k === 3, s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T), ph = ph0 + k * Math.PI / 2 + rn(-0.15, 0.15);
-      for (const side of [-1, 1]){
+    for (let i = 0; i < N; i++){ const T = tans[i], s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T), w0 = SP.stemW * (1 - i / N * 0.6), w1 = SP.stemW * (1 - (i + 1) / N * 0.6);
+      ribbon(pts[i], pts[i + 1], s1, w0, w1, SP.stemC); ribbon(pts[i], pts[i + 1], s2, w0, w1, SP.stemC); }   // the stem: two crossed ribbons
+    const at = (t) => { const f = Math.min(0.999, t) * N, i = Math.min(N - 1, Math.floor(f)); return [pts[i].clone().lerp(pts[i + 1], f - i), tans[i]]; };
+    const ph0 = SP.alt ? 0 : rn(0, Math.PI / 2);
+    SP.nodes.forEach(([tn, size, tip], k) => { const [p, T] = at(tn), s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T);
+      const ph = ph0 + (SP.alt ? rn(-0.3, 0.3) : k * Math.PI / 2 + rn(-0.15, 0.15));
+      for (const side of SP.alt ? [k % 2 ? 1 : -1] : [-1, 1]){
         const sd = s1.clone().multiplyScalar(Math.cos(ph) * side).addScaledVector(s2, Math.sin(ph) * side); sd.y *= 0.35; sd.normalize();   // (the leaves twist round to lie out flat, to the light)
-        const m = sd.clone().multiplyScalar(tip ? 0.7 : 1).addScaledVector(T, tip ? 0.8 : 0.42).addScaledVector(up, 0.12).add(new V3(rn(-0.15, 0.15), rn(-0.1, 0.1), rn(-0.15, 0.15))).normalize();
-        const hz = new V3(T.x, 0, T.z).normalize(), n0 = up.clone().multiplyScalar(0.7).addScaledVector(hz, 0.9).add(new V3(rn(-0.3, 0.3), rn(-0.1, 0.1), rn(-0.3, 0.3))).normalize();   // the blades face up and out, to the light
+        const m = sd.clone().multiplyScalar(tip ? 0.7 : 1).addScaledVector(T, tip ? 0.8 : SP.fwd).addScaledVector(up, 0.12).add(new V3(rn(-0.15, 0.15), rn(-0.1, 0.1), rn(-0.15, 0.15))).normalize();
+        const hz = new V3(T.x, 0, T.z).normalize(), n0 = up.clone().multiplyScalar(SP.face[0]).addScaledVector(hz, SP.face[1]).add(new V3(rn(-0.3, 0.3), rn(-0.1, 0.1), rn(-0.3, 0.3))).normalize();   // the blades face up and out
         const Z = n0.clone().addScaledVector(m, -n0.dot(m)); if (Z.lengthSq() < 0.04) Z.copy(s2); Z.normalize(); const Y = m, X = new V3().crossVectors(Y, Z);
-        const sz = (tip ? 0.72 : 1 - 0.06 * k) * rn(0.88, 1.08);
-        const dr = rn(0.14, 0.38), fold = rn(0.08, 0.24), tw = rn(-0.14, 0.14), b = rn(0.9, 1.06), c = [b * rn(0.97, 1.03), b, b * rn(0.94, 1.03)], base = P.length / 3;
-        for (const t of ROWS) for (const u of COLS){ const y = (t - TB) * LM * sz, x = u * HW * sz, tt = Math.max(0, y) / (LM * sz * (1 - TB));
+        const sz = size * rn(0.88, 1.08), dr = rn(SP.droop[0], SP.droop[1]), fold = rn(SP.fold[0], SP.fold[1]), tw = rn(-0.14, 0.14), b = rn(0.9, 1.06), c = [b * rn(0.97, 1.03), b, b * rn(0.94, 1.03)];
+        const pos = (t, u) => { const y = (t - TB) * LM * sz, x = u * HW * sz, tt = Math.max(0, y) / (LM * sz * (1 - TB));
           const z = LM * sz * (0.08 * tt - dr * tt * tt) + Math.abs(u) * HW * sz * fold * tt + u * tw * HW * sz * tt;   // rising a little from the stalk, then drooping; folded up a touch along the midrib; a slight twist
-          vtx(p.clone().addScaledVector(X, x).addScaledVector(Y, y).addScaledVector(Z, z), U0 + US * (0.5 + 0.5 * u), t, c); }
-        for (let ri = 0; ri < ROWS.length - 1; ri++) for (let ci = 0; ci < 2; ci++){ const q = base + ri * 3 + ci; I.push(q, q + 1, q + 4, q, q + 4, q + 3); } } });
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); g.setIndex(I); g.computeVertexNormals(); return g; }
-  const EL = [-0.35, 0.15, 0.6, 1.1], geos = EL.map((e, i) => shoot(e, 811 + i * 17));
-  const mat = leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafTex, normalMap: leafNrm, normalScale: new THREE.Vector2(0.6, 0.6), vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5 }), 0.13, 0.3)), true, false, [1.7, 0.62]);
-
-  // the dark core of each bush: a lumpy ball painted with leaves in shadow, so what shows between the shoots is more leaves, deeper in
-  const massTex = tex(256, 256, (g, w, h) => { g.fillStyle = '#7c8670'; g.fillRect(0, 0, w, h); const r = mkRng(77);
-    for (let i = 0; i < 340; i++){ const x = r() * w, y = r() * h, a = r() * TAU, s = 9 + r() * 9, l = 130 + r() * 115;
-      for (const [dx, dy] of [[0, 0], [w, 0], [-w, 0], [0, h], [0, -h]]){ g.save(); g.translate(x + dx, y + dy); g.rotate(a); g.fillStyle = `rgb(${l * 0.9 | 0},${l | 0},${l * 0.78 | 0})`;
-        g.beginPath(); g.moveTo(0, -s * 1.15); g.quadraticCurveTo(s * 0.95, -s * 0.3, s * 0.55, s * 0.55); g.quadraticCurveTo(0, s * 0.75, -s * 0.55, s * 0.55); g.quadraticCurveTo(-s * 0.95, -s * 0.3, 0, -s * 1.15); g.fill();
-        g.strokeStyle = 'rgba(255,255,230,0.25)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -s); g.lineTo(0, s * 0.6); g.stroke(); g.restore(); } } }, { repeat: [5, 3] });
-  const coreGeo = new THREE.IcosahedronGeometry(1, 3); { const p = coreGeo.attributes.position, v = new V3();
-    for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); const k = 1 + 0.1 * Math.sin(v.x * 5.1 + v.y * 2.3) * Math.sin(v.z * 4.7 - v.y * 1.9) + 0.06 * Math.sin(v.x * 11 + v.z * 9); p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
-    coreGeo.computeVertexNormals(); }
-  const coreMat = new THREE.MeshStandardMaterial({ map: massTex, roughness: 0.85, emissive: '#000000' });
-  const core = new THREE.InstancedMesh(coreGeo, coreMat, Math.max(1, lilacData.length)); core.castShadow = core.receiveShadow = true;
+          return p.clone().addScaledVector(X, x).addScaledVector(Y, y).addScaledVector(Z, z); };
+        const base = A.P.length / 3; for (const t of ROWS) for (const u of COLS) vtx(A, pos(t, u), U0 + US * (0.5 + 0.5 * u), t, c);
+        for (let ri = 0; ri < ROWS.length - 1; ri++) for (let ci = 0; ci < 2; ci++){ const q = base + ri * 3 + ci; A.I.push(q, q + 1, q + 4, q, q + 4, q + 3); }
+        const f0 = F.P.length / 3; for (const t of [0, 1]) for (const u of [-1, 1]) vtx(F, pos(t, u), U0 + US * (0.5 + 0.5 * u), t, c); F.I.push(f0, f0 + 1, f0 + 3, f0, f0 + 3, f0 + 2); } });
+    return [A, F].map(B => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.U, 2));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(B.C, 3)); g.setIndex(B.I); g.computeVertexNormals(); return g; }); }
+  const EL = [-0.2, 0.45, 1.1], geos = EL.map((e, i) => shoot(e, o.seed * 7 + i * 17));
+  const ds = [TWd * mpp / 0.0115 / 13, LM / 0.0115 / 34];   // (raindrops the same size as on the chestnut's leaves)
+  const mkMat = (near) => lodify(leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafTex, normalMap: leafNrm, normalScale: new THREE.Vector2(o.nScale, o.nScale), vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: o.rough }), o.sway[0], o.sway[1])), true, false, ds), near);
+  const mkDepth = (near) => lodify(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), near);   // (three copies the leaf's map and alpha test onto it)
+  const matN = mkMat(true), matF = mkMat(false), depN = mkDepth(true), depF = mkDepth(false);
+  const coreMat = new THREE.MeshStandardMaterial({ map: leafMassTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
+  const core = new THREE.InstancedMesh(leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true;
 
   // the bushes: a mound of shoots round each, pointing out and up from it, a few deeper in and darker
   const SH = [], CORES = [], blocks = new Map();
-  for (const L of lilacData){ const R = 0.84 * L.s, ph1 = lr() * TAU, ph2 = lr() * TAU, n = Math.round(78 * L.s * L.s), key = Math.floor(L.p.x / 16) + ',' + Math.floor(L.p.z / 20);
-    CORES.push({ p: new V3(L.p.x, L.p.y - 0.06 * R, L.p.z), q: new THREE.Quaternion().setFromAxisAngle(up, lr() * TAU), s: new V3(R * 0.76, R * 0.72, R * 0.76) });
-    if (!blocks.has(key)) blocks.set(key, [[], [], [], []]); const blk = blocks.get(key);
-    for (let k = 0; k < n; k++){ const inner = lr() < 0.1, el = Math.asin(lrn(-0.82, 1)), az = lr() * TAU;
+  for (const bu of o.bushes){ const R = bu.R, ph1 = lr() * TAU, ph2 = lr() * TAU, key = Math.floor(bu.p.x / 16) + ',' + Math.floor(bu.p.z / 20);
+    CORES.push({ p: new V3(bu.p.x, bu.p.y - 0.06 * R, bu.p.z), q: new THREE.Quaternion().setFromAxisAngle(up, lr() * TAU), s: new V3(R * 0.76 * bu.rx / 1.05, R * 0.72 * bu.ry / 0.95, R * 0.76 * bu.rx / 1.05) });
+    if (!blocks.has(key)) blocks.set(key, { lists: EL.map(() => []), bushes: [] }); const blk = blocks.get(key); blk.bushes.push(bu);
+    for (let k = 0; k < bu.n; k++){ const inner = lr() < 0.1, el = Math.asin(lrn(-0.82, 1)), az = lr() * TAU;
       const lump = 1 + 0.09 * Math.sin(3 * az + ph1) * Math.cos(el) + 0.07 * Math.sin(5 * az + 2 * el + ph2), rr = R * lump * (inner ? lrn(0.62, 0.8) : lrn(0.9, 1.02));
       const nrm = new V3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)), dir = nrm.clone().addScaledVector(up, 0.55).normalize();
       const de = Math.asin(dir.y), vI = EL.reduce((b, e, i) => Math.abs(e - de) < Math.abs(EL[b] - de) ? i : b, 0), yaw = Math.atan2(dir.x, dir.z) + lrn(-0.2, 0.2);
-      const p = new V3(L.p.x + nrm.x * rr * 1.05, Math.max(0.16, L.p.y + nrm.y * rr * 0.95), L.p.z + nrm.z * rr * 1.05).addScaledVector(dir, -0.2);
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(lrn(-0.12, 0.12), yaw, lrn(-0.12, 0.12), 'YXZ')), s = lrn(0.88, 1.12) * (0.92 + 0.08 * L.s);
-      const sh = { p, q, s, mx: lr() < 0.5 ? -1 : 1, r: lr(), r2: lr(), v: inner ? lrn(0.5, 0.68) : lrn(0.86, 1.08), vI }; blk[vI].push(sh); SH.push(sh); } }
-  const meshes = [], M = new THREE.Matrix4(), Sc = new V3(), cc = new THREE.Color();
-  for (const blk of blocks.values()) blk.forEach((list, vI) => { if (!list.length) return; const m = new THREE.InstancedMesh(geos[vI], mat, list.length); m.castShadow = m.receiveShadow = true;
-    list.forEach((sh, j) => { sh.m = m; sh.j = j; M.compose(sh.p, sh.q, Sc.set(sh.s * sh.mx, sh.s, sh.s)); m.setMatrixAt(j, M); m.setColorAt(j, cc.setRGB(1, 1, 1)); });
-    m.computeBoundingSphere(); meshes.push(m); scene.add(m); });   // (the bounds at full size, for culling: kept while the leaves come and go)
+      const p = new V3(bu.p.x + nrm.x * rr * bu.rx, Math.max(0.16, bu.p.y + nrm.y * rr * bu.ry), bu.p.z + nrm.z * rr * bu.rx).addScaledVector(dir, -0.2);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-clamp(de - EL[vI], -0.5, 0.5) + lrn(-0.12, 0.12), yaw, lrn(-0.12, 0.12), 'YXZ')), s = lrn(0.88, 1.12) * bu.k;   // (tilted to the elevation it wants)
+      const sh = { p, q, s, mx: lr() < 0.5 ? -1 : 1, r: lr(), r2: lr(), v: inner ? lrn(0.5, 0.68) : lrn(0.86, 1.08), vI }; blk.lists[vI].push(sh); SH.push(sh); } }
+  const M = new THREE.Matrix4(), Sc = new V3(), cc = new THREE.Color(), meshes = [], near = [];
+  const mk = (geo, mat, dep, list, key) => { const m = new THREE.InstancedMesh(geo, mat, list.length); m.customDepthMaterial = dep; m.castShadow = m.receiveShadow = true;
+    list.forEach((sh, j) => { sh[key] = m; sh[key + 'j'] = j; M.compose(sh.p, sh.q, Sc.set(sh.s * sh.mx, sh.s, sh.s)); m.setMatrixAt(j, M); m.setColorAt(j, cc.setRGB(1, 1, 1)); });
+    m.computeBoundingSphere(); meshes.push(m); scene.add(m); return m; };   // (the bounds at full size, for culling: kept while the leaves come and go)
+  for (const blk of blocks.values()){ blk.meshes = []; blk.lists.forEach((list, vI) => { if (list.length) blk.meshes.push(mk(geos[vI][0], matN, depN, list, 'n')); });
+    blk.c = blk.bushes.reduce((a, b) => a.add(b.p), new V3()).multiplyScalar(1 / blk.bushes.length); blk.r = Math.max(...blk.bushes.map(b => b.p.distanceTo(blk.c) + b.R * 1.3 + 0.5)); near.push(blk); }
+  const far = EL.map((e, vI) => { const list = SH.filter(sh => sh.vI === vI); return list.length ? mk(geos[vI][1], matF, depF, list, 'f') : null; }).filter(Boolean);
   CORES.forEach((c, i) => { M.compose(c.p, c.q, c.s); core.setMatrixAt(i, M); }); core.computeBoundingSphere(); scene.add(core);
-  const KEYS = [[0.5, C('#5e6046')], [1.3, C('#8a9a4e')], [1.62, C('#78aa4c')], [2.1, C('#5c8e44')], [2.9, C('#547f3e')], [3.35, C('#5e7e3e')], [3.7, C('#7a7a40')], [3.92, C('#6a5a38')]];
-  const col = new THREE.Color(), last = { amt: -1, s: -1 }, yel = C('#b0a040'), brn = C('#7a6038');
-  return { meshes, core, geos, tris: geos.map(g => g.index.count / 3), shoots: SH, tex: leafTex,
-    update(S){ const amt = bump(S, 1.3, 1.68, 3.5, 3.92);
+  const col = new THREE.Color(), last = { amt: -1, s: -1 }, yel = C(o.turn.yel), brn = C(o.turn.brn), on = { v: false };
+  return { name: o.name, meshes, core, geos, tris: geos.map(g => g.map(x => x.index.count / 3)), shoots: SH, tex: leafTex, blocks: near,
+    update(S){ const amt = bump(S, ...o.amt);
       if (Math.abs(amt - last.amt) < 0.002 && Math.abs(S - last.s) < 0.004 && (amt === 0) === (last.amt === 0)) return; last.amt = amt; last.s = S;
-      cyc(S, KEYS, col); const grow = 0.55 + 0.45 * smooth((S - 1.3) / 0.45), turnA = clamp((S - 3.35) / 0.5);   // (lilacs stay green late, then go a dull yellow-brown)   // the young leaves open small and grow
-      for (const sh of SH){ const vis = smooth(clamp((amt * 1.2 - sh.r) / 0.2)), s = sh.s * vis * grow; M.compose(sh.p, sh.q, Sc.set(s * sh.mx, s, s)); sh.m.setMatrixAt(sh.j, M);
-        cc.copy(col); const turn = clamp(turnA * 1.6 - sh.r2 * 0.6); if (turn > 0){ cc.lerp(yel, smooth(turn * 2) * 0.5); if (turn > 0.5) cc.lerp(brn, smooth((turn - 0.5) * 2) * 0.6); }
-        sh.m.setColorAt(sh.j, cc.multiplyScalar(sh.v)); }
-      for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.visible = amt > 0.001; }
+      cyc(S, o.keys, col); const grow = 0.55 + 0.45 * smooth((S - o.amt[0]) / 0.45), turnA = clamp((S - o.turn.at) / o.turn.span);   // the young leaves open small and grow
+      for (const sh of SH){ const vis = smooth(clamp((amt * 1.2 - sh.r) / 0.2)), s = sh.s * vis * grow; M.compose(sh.p, sh.q, Sc.set(s * sh.mx, s, s)); sh.n.setMatrixAt(sh.nj, M); sh.f.setMatrixAt(sh.fj, M);
+        cc.copy(col); const turn = clamp(turnA * 1.6 - sh.r2 * 0.6); if (turn > 0){ cc.lerp(yel, smooth(turn * 2) * o.turn.k); if (turn > 0.5) cc.lerp(brn, smooth((turn - 0.5) * 2) * 0.6); }
+        cc.multiplyScalar(sh.v); sh.n.setColorAt(sh.nj, cc); sh.f.setColorAt(sh.fj, cc); }
+      for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } on.v = amt > 0.001 && (!window.__bushonly || window.__bushonly === o.name); for (const m of far) m.visible = on.v;
       const ck = smooth(clamp((amt - 0.25) / 0.6)); CORES.forEach((c, i) => { M.compose(c.p, c.q, Sc.copy(c.s).multiplyScalar(ck)); core.setMatrixAt(i, M); });   // (the core fills in once the bush is leafy, and goes before the last leaves)
-      core.instanceMatrix.needsUpdate = true; core.visible = ck > 0.001; coreMat.color.copy(col); coreMat.emissive.copy(col).multiplyScalar(0.1); } };
-})();
+      core.instanceMatrix.needsUpdate = true; core.visible = ck > 0.001 && on.v; coreMat.color.copy(col); },   // (lit like everything else: dark in the shade, darker at night)
+    lod(){ const eye = lodU.eye.value, d = lodU.d.value; for (const b of near){ const v = on.v && b.c.distanceTo(eye) - b.r < d; for (const m of b.meshes) m.visible = v; } } };
+}
+
+/* lilac: each leaf broad and heart-shaped, a shallow notch at the stalk, widest a quarter of the way up, tapering in almost straight
+   sides to a long point; smooth-edged, a little glossy, a pale yellow-green midrib and faint veins curving up towards the tip */
+const LILAC_OUT = (() => { const CP = [[0, 0.075], [0.12, 0.03], [0.34, 0.004], [0.6, 0], [0.84, 0.045], [0.97, 0.13], [0.99, 0.24], [0.95, 0.38], [0.82, 0.53], [0.6, 0.68], [0.36, 0.8], [0.13, 0.91], [0.035, 0.965], [0, 1]], OUT = [];
+  for (let i = 0; i < CP.length - 1; i++){ const p0 = CP[Math.max(0, i - 1)], p1 = CP[i], p2 = CP[i + 1], p3 = CP[Math.min(CP.length - 1, i + 2)];
+    for (let k = 0; k < 10; k++){ const t = k / 10, t2 = t * t, t3 = t2 * t, f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      OUT.push([Math.max(0, f(p0[0], p1[0], p2[0], p3[0])), f(p0[1], p1[1], p2[1], p3[1])]); } }
+  OUT.push([0, 1]); return OUT; })();
+function drawLilacLeaf(g, mode){ const hw = 122, L = 280, by = -22, X = (x, s) => s * x * hw, Y = y => by - y * L;   // (the outline: stalk notch, round lobes below it, widest, long point)
+  const VEINS = [[0.09, 0.5, 0.06, 0.86, 0.27], [0.17, 0.45, 0.24, 0.72, 0.48], [0.29, 0.38, 0.38, 0.56, 0.62], [0.42, 0.3, 0.52, 0.42, 0.75], [0.56, 0.22, 0.66, 0.27, 0.85], [0.7, 0.12, 0.79, 0.13, 0.93]];
+  const path = () => { g.beginPath(); LILAC_OUT.forEach(([x, y], i) => { const w = 1 + 0.012 * Math.sin(y * 47); i ? g.lineTo(X(x * w, 1), Y(y)) : g.moveTo(X(x, 1), Y(y)); });
+    for (let i = LILAC_OUT.length - 1; i >= 0; i--){ const [x, y] = LILAC_OUT[i], w = 1 + 0.012 * Math.sin(y * 41 + 1); g.lineTo(X(x * w, -1), Y(y)); } g.closePath(); };
+  const vein = (v, s) => { const o = s < 0 ? 0.015 : 0; g.beginPath(); g.moveTo(0, Y(v[0] + o)); g.quadraticCurveTo(X(v[1], s), Y(v[2] + o), X(v[3], s), Y(v[4])); g.stroke(); };
+  const midrib = (w0, w1) => { for (let i = 0; i < 12; i++){ const a = 0.075 + i / 12 * 0.9, b = a + 0.9 / 12; g.lineWidth = lerp(w0, w1, i / 11); g.beginPath(); g.moveTo(0, Y(a)); g.lineTo(0, Y(b)); g.stroke(); } };
+  g.save(); g.lineCap = 'round';
+  if (mode === 'height'){ path(); g.clip(); g.filter = `blur(${Math.max(1, hw / 50)}px)`;
+    g.strokeStyle = 'rgb(134,134,134)'; g.lineWidth = hw / 36; for (const v of VEINS) for (const s of [-1, 1]) vein(v, s);
+    g.strokeStyle = 'rgb(84,84,84)'; midrib(hw / 13, hw / 40); g.filter = 'none'; g.restore(); return; }
+  stalk(g, 0, -Y(0.075) + 2, hw / 13, hw / 18, '#c6d29a');   // the leaf stalk
+  path(); const gr = g.createLinearGradient(-hw, 0, hw, 0); gr.addColorStop(0, '#dfe8cc'); gr.addColorStop(0.5, '#ecf2dc'); gr.addColorStop(1, '#dfe8cc');
+  g.fillStyle = gr; g.fill(); g.save(); g.clip();
+  const r = mkRng(31); for (let i = 0; i < 160; i++){ g.fillStyle = r() < 0.5 ? 'rgba(120,140,90,0.025)' : 'rgba(255,255,240,0.03)'; g.beginPath(); g.arc((r() * 2 - 1) * hw, by - r() * L, 4 + r() * 10, 0, TAU); g.fill(); }   // the faintest mottle: the blade is smooth
+  g.strokeStyle = 'rgba(250,250,224,0.42)'; g.lineWidth = Math.max(1, hw / 50); for (const v of VEINS) for (const s of [-1, 1]) vein(v, s);   // the side veins, faint
+  g.strokeStyle = 'rgba(178,190,140,0.5)'; midrib(hw / 9, hw / 30); g.strokeStyle = 'rgba(255,251,212,1)'; midrib(hw / 16, hw / 48);   // the midrib, pale yellow-green
+  g.restore(); path(); g.strokeStyle = 'rgba(140,156,116,0.55)'; g.lineWidth = 1.2; g.stroke(); g.restore(); }
+const LILAC = leafyBushes({ name: 'lilac', seed: 7707, tex: { w: 300, h: 320, len: 0.24 }, draw: drawLilacLeaf, stemTex: '#c8d4a2',
+  shoot: { nodes: [[0.3, 1], [0.58, 0.94], [0.84, 0.88], [1, 0.72, true]], len: [0.34, 0.4], bend: 0.3, fwd: 0.42, face: [0.7, 0.9], droop: [0.14, 0.38], fold: [0.08, 0.24], stemW: 0.0065, stemC: [0.86, 0.84, 0.66] },
+  bushes: lilacData.map(L => ({ p: L.p, R: 0.84 * L.s, rx: 1.05, ry: 0.95, n: Math.round(78 * L.s * L.s), k: 0.92 + 0.08 * L.s })),
+  amt: [1.3, 1.68, 3.5, 3.92], keys: [[0.5, C('#5e6046')], [1.3, C('#8a9a4e')], [1.62, C('#78aa4c')], [2.1, C('#5c8e44')], [2.9, C('#547f3e')], [3.35, C('#5e7e3e')], [3.7, C('#7a7a40')], [3.92, C('#6a5a38')]],
+  turn: { at: 3.35, span: 0.5, k: 0.5, yel: '#b0a040', brn: '#7a6038' }, rough: 0.5, nScale: 0.6, sway: [0.13, 0.3] });   // (lilacs stay green late, then go a dull yellow-brown)
+
+/* the wild bushes, each one of three */
+const WILD = (() => { const wr = mkRng(9901), by = { hazel: [], elder: [], mock: [] };
+  for (const sh of shrubData) if (sh.wild){ const x = wr(), kind = x < 0.36 ? 'hazel' : x < 0.7 ? 'elder' : 'mock', R = 0.68 * sh.s;
+    by[kind].push({ p: sh.p, R, rx: kind === 'mock' ? 1.12 : 1.05, ry: kind === 'hazel' ? 1.1 : kind === 'mock' ? 0.88 : 1.0, s: sh.s, k: 0.95 + 0.05 * sh.s }); }
+  return by; })();
+/* hazel: round leaves, broader above the middle, with a short sudden point and a little notch at the base; doubly toothed; soft and
+   downy, matt, puckered between seven pairs of straight veins running out to the teeth. Alternate, in flat sprays either side of the
+   twig. Butter yellow in autumn */
+const hazelProf = t => (t < 0.55 ? 0.3 + 0.7 * Math.sin(t / 0.55 * Math.PI / 2) ** 0.8 : Math.pow(Math.max(0, 1 - ((t - 0.55) / 0.45) ** 2), 0.85)) * (1 - 0.4 * smooth((t - 0.85) / 0.15));
+const HAZEL = leafyBushes({ name: 'hazel', seed: 6101, tex: { w: 280, h: 300, len: 0.25 }, stemTex: '#a89878',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 26, 9, 7, '#b4a27c');
+    g.save(); g.translate(0, -20); paintBlade(g, { L: 270, H: 112, prof: hazelProf, notch: 0.06, teeth: (t, s) => t < 0.06 ? 0 : 0.04 * saw(t * 9 + (s > 0 ? 0 : 0.5)) ** 2 + 0.016 * saw(t * 30 + (s > 0 ? 0.2 : 0.7)),
+      veins: pinnate(hazelProf, [0.07, 0.17, 0.27, 0.37, 0.47, 0.57, 0.67], 0.2, 0.95), pleat: 0.06, hair: 1, vh: 108, vw: 112 / 24, col: ['#d4dec0', '#e0e8cc'], vc: 'rgba(244,246,218,0.5)' }, mode); g.restore(); },
+  shoot: { alt: true, nodes: [[0.14, 0.85], [0.3, 0.95], [0.46, 1], [0.62, 1], [0.78, 0.92], [0.96, 0.78, true]], len: [0.46, 0.56], bend: 0.2, fwd: 0.3, face: [0.8, 0.8], droop: [0.08, 0.26], fold: [0.04, 0.14], stemW: 0.005, stemC: [0.74, 0.62, 0.5] },
+  bushes: WILD.hazel.map(b => ({ ...b, n: Math.round(115 * b.R * b.R) })),
+  amt: [1.35, 1.72, 3.42, 3.88], keys: [[0.5, C('#5e6046')], [1.35, C('#9ab858')], [1.65, C('#80b050')], [2.1, C('#5a8a40')], [2.9, C('#56803c')], [3.25, C('#7a8a3c')], [3.5, C('#c0ac40')], [3.85, C('#a07a38')]],
+  turn: { at: 3.2, span: 0.4, k: 0.85, yel: '#dcc44a', brn: '#9a7038' }, rough: 0.8, nScale: 1.0, sway: [0.12, 0.35] });
+/* elder: large compound leaves, a leaflet at the tip and two pairs below it, each leaflet narrow and pointed, finely toothed, on a pale
+   stalk; dark green and a little glossy, hanging from stout green shoots in opposite pairs */
+const elderProf = t => t < 0.3 ? 0.3 + 0.7 * Math.sin(t / 0.3 * Math.PI / 2) : Math.pow(Math.cos((t - 0.3) / 0.7 * Math.PI / 2), 1.15);
+const elderLeaflet = (L, H) => ({ L, H, prof: elderProf, teeth: (t, s) => t < 0.06 || t > 0.94 ? 0 : 0.07 * saw(t * 18 + (s > 0 ? 0 : 0.5)) ** 1.5, veins: pinnate(elderProf, [0.07, 0.17, 0.27, 0.37, 0.47, 0.57, 0.67, 0.77], 0.15, 0.86), col: ['#d8e4c4', '#e8f0d6'], vc: 'rgba(246,248,220,0.4)' });
+const ELDER = leafyBushes({ name: 'elder', seed: 6203, tex: { w: 320, h: 400, len: 0.38 }, stemTex: '#c4d0a0',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 236, 9, 5, '#c8d2a0');   // the stalk and its midrib
+    for (const [y, a, L] of [[-92, 1.0, 148], [-168, 0.86, 152]]) for (const s of [-1, 1]){ g.save(); g.translate(0, y); g.rotate(s * a); g.translate(0, -6); paintBlade(g, elderLeaflet(L, 27), mode); g.restore(); }
+    g.save(); g.translate(0, -230); paintBlade(g, elderLeaflet(160, 29), mode); g.restore(); },
+  shoot: { nodes: [[0.35, 1], [0.72, 0.95], [1, 0.78, true]], len: [0.4, 0.5], bend: 0.25, fwd: 0.35, face: [0.8, 0.7], droop: [0.2, 0.45], fold: [0.04, 0.14], stemW: 0.009, stemC: [0.82, 0.84, 0.64] },
+  bushes: WILD.elder.map(b => ({ ...b, n: Math.round(125 * b.R * b.R) })),
+  amt: [1.18, 1.58, 3.45, 3.9], keys: [[0.5, C('#5e6046')], [1.18, C('#8aa850')], [1.55, C('#6a9a44')], [2.1, C('#467236')], [2.9, C('#467034')], [3.35, C('#6a7a3a')], [3.7, C('#8a7a46')], [3.9, C('#6a5040')]],
+  turn: { at: 3.3, span: 0.5, k: 0.55, yel: '#a8a048', brn: '#6a4a4a' }, rough: 0.55, nScale: 0.6, sway: [0.1, 0.25] });
+/* mock orange (the gardens' "jasmine"): opposite oval leaves drawn out to a point, a few small teeth, three main veins curving up from
+   the base to the tip; fresh green, a little glossy, on arching shoots */
+const mockProf = t => (t < 0.35 ? 0.28 + 0.72 * Math.sin(t / 0.35 * Math.PI / 2) ** 0.8 : Math.pow(Math.cos((t - 0.35) / 0.65 * Math.PI / 2), 0.85)) * (1 - 0.22 * smooth((t - 0.72) / 0.28));
+const MOCK = leafyBushes({ name: 'mock orange', seed: 6307, tex: { w: 200, h: 320, len: 0.19 }, stemTex: '#b8b088',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 18, 7, 6, '#c0c896');
+    g.save(); g.translate(0, -14); paintBlade(g, { L: 296, H: 80, prof: mockProf, teeth: (t, s) => t < 0.15 || t > 0.9 ? 0 : 0.045 * saw(t * 8 + (s > 0 ? 0 : 0.5)) ** 4,
+      veins: [[0.05, 0.95, 0.35, 0.12, 0.9], [0.03, 1.2, 0.18, 0.55, 0.6], [0.55, 0.28, 0.62, 0.32, 0.76], [0.68, 0.2, 0.75, 0.2, 0.86]], col: ['#dce8c8', '#eaf2da'], vh: 128, vw: 80 / 26 }, mode); g.restore(); },
+  shoot: { nodes: [[0.24, 0.95], [0.46, 1], [0.66, 0.95], [0.84, 0.86], [1, 0.7, true]], len: [0.36, 0.44], bend: 0.35, fwd: 0.5, face: [0.7, 0.9], droop: [0.1, 0.3], fold: [0.1, 0.25], stemW: 0.005, stemC: [0.8, 0.72, 0.56] },
+  bushes: WILD.mock.map(b => ({ ...b, n: Math.round(150 * b.R * b.R) })),
+  amt: [1.32, 1.7, 3.45, 3.9], keys: [[0.5, C('#5e6046')], [1.32, C('#94b458')], [1.65, C('#7aaa4c')], [2.1, C('#5a8c42')], [2.9, C('#56843e')], [3.3, C('#7a8a40')], [3.6, C('#b8a444')], [3.88, C('#8a7038')]],
+  turn: { at: 3.25, span: 0.5, k: 0.75, yel: '#d0b848', brn: '#8a6a3a' }, rough: 0.55, nScale: 0.6, sway: [0.13, 0.3] });
+/* the berry bushes in the beds: red currant and gooseberry. Their leaves are palmate, lobed like a little maple's: the outline drawn
+   round the top of the stalk, the lobes at given angles from the tip, a notch where the stalk joins, main veins out to each lobe */
+function paintPalmate(g, P, mode){ const { R, lobes, sinus, teeth, notch = 0.55, col, hair = 0, vh = 116 } = P, N = 260, pts = [];
+  const f = a => { let r = sinus; for (const [c, l, w] of lobes) for (const s of c ? [-1, 1] : [1]) r = Math.max(r, l * Math.exp(-Math.abs(a - s * c) / w)); return r * smooth((Math.PI - Math.abs(a)) / notch); };
+  for (let i = 0; i <= N; i++){ const a = -Math.PI + i / N * TAU, r = f(a) * (1 + teeth(a)) * R; pts.push([Math.sin(a) * r, -Math.cos(a) * r]); }
+  const path = () => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+  const veins = (w0) => { for (const [c, l] of lobes) for (const s of c ? [-1, 1] : [1]){ const a = s * c, e = f(a) * R * 0.9; g.lineWidth = w0; g.beginPath(); g.moveTo(0, 0);
+      g.quadraticCurveTo(Math.sin(a - s * 0.08) * e * 0.5, -Math.cos(a - s * 0.08) * e * 0.5, Math.sin(a) * e, -Math.cos(a) * e); g.stroke();
+      for (const k of [0.35, 0.6]) for (const t of [-1, 1]){ const b = a + t * 0.55, q = e * k, ee = e * (k + 0.25); g.lineWidth = w0 * 0.5; g.beginPath(); g.moveTo(Math.sin(a) * q, -Math.cos(a) * q); g.lineTo(Math.sin(b) * ee * 0.8, -Math.cos(b) * ee * 0.8); g.stroke(); } } };
+  g.save(); g.lineCap = 'round';
+  if (mode === 'height'){ path(); g.clip(); g.filter = `blur(${Math.max(1, R / 60)}px)`; g.strokeStyle = `rgb(${vh},${vh},${vh})`; veins(R / 26); g.filter = 'none'; g.restore(); return; }
+  path(); const gr = g.createRadialGradient(0, 0, R * 0.1, 0, -R * 0.3, R); gr.addColorStop(0, col[1]); gr.addColorStop(1, col[0]); g.fillStyle = gr; g.fill();
+  g.save(); g.clip(); if (hair){ const r = mkRng(58); for (let i = 0; i < 1200 * hair; i++){ g.fillStyle = r() < 0.5 ? 'rgba(255,255,240,0.09)' : 'rgba(110,130,90,0.06)'; g.fillRect((r() * 2 - 1) * R, (r() * 1.3 - 1.05) * R, 1.5, 1.5); } }
+  g.strokeStyle = 'rgba(252,250,222,0.6)'; veins(Math.max(1.2, R / 40)); g.restore();
+  path(); g.strokeStyle = 'rgba(140,156,116,0.55)'; g.lineWidth = 1.2; g.stroke(); g.restore(); }
+const BERRYB = (() => { const by = { currant: [], goose: [] }; for (const sh of shrubData) if (sh.kind) by[sh.kind].push({ p: sh.p, R: 0.5 * sh.s, rx: 1.1, ry: 0.95, k: 1 }); return by; })();
+/* red currant: broad leaves of three to five lobes, coarsely toothed, fresh green and a little glossy, on long stalks */
+const CURRANT = leafyBushes({ name: 'currant', seed: 6409, tex: { w: 290, h: 240, len: 0.15 }, stemTex: '#b0a080',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 62, 6, 5, '#c0b088'); g.save(); g.translate(0, -60);
+    paintPalmate(g, { R: 150, lobes: [[0, 1, 0.85], [1.0, 0.9, 0.8], [1.9, 0.64, 0.7]], sinus: 0.58, teeth: a => 0.07 * saw(a * 6.6 + 0.3) ** 1.5, col: ['#d8e4c4', '#e8f0d8'] }, mode); g.restore(); },
+  shoot: { alt: true, nodes: [[0.15, 0.8], [0.32, 0.9], [0.5, 1], [0.68, 1], [0.85, 0.9], [1, 0.75, true]], len: [0.26, 0.32], bend: 0.25, fwd: 0.3, face: [0.85, 0.75], droop: [0.05, 0.2], fold: [0.05, 0.18], stemW: 0.004, stemC: [0.78, 0.68, 0.55] },
+  bushes: BERRYB.currant.map(b => ({ ...b, n: Math.round(250 * b.R * b.R) })),
+  amt: [1.22, 1.58, 3.4, 3.85], keys: [[0.5, C('#5e6046')], [1.22, C('#90b058')], [1.55, C('#76a84a')], [2.1, C('#5a8c42')], [2.9, C('#5a8640')], [3.25, C('#7a8a40')], [3.55, C('#b09040')], [3.85, C('#8a5a3a')]],
+  turn: { at: 3.15, span: 0.45, k: 0.7, yel: '#c8a040', brn: '#9a4a3a' }, rough: 0.55, nScale: 0.7, sway: [0.14, 0.35] });
+/* gooseberry: small, rounded leaves, three to five shallow lobes with blunt teeth, downy and dull green */
+const GOOSE = leafyBushes({ name: 'gooseberry', seed: 6511, tex: { w: 260, h: 200, len: 0.11 }, stemTex: '#a89c80',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 42, 5, 4, '#b8b088'); g.save(); g.translate(0, -40);
+    paintPalmate(g, { R: 124, lobes: [[0, 1, 1.1], [1.05, 0.9, 1.0], [1.95, 0.66, 0.85]], sinus: 0.7, teeth: a => 0.07 * (1 - (2 * saw(a * 5.5) - 1) ** 2), col: ['#d4dec2', '#e0e8d0'], hair: 1 }, mode); g.restore(); },
+  shoot: { alt: true, nodes: [[0.12, 0.8], [0.26, 0.9], [0.4, 1], [0.54, 1], [0.68, 0.95], [0.82, 0.88], [0.98, 0.72, true]], len: [0.22, 0.28], bend: 0.2, fwd: 0.3, face: [0.85, 0.75], droop: [0.04, 0.16], fold: [0.06, 0.2], stemW: 0.0035, stemC: [0.74, 0.66, 0.54] },
+  bushes: BERRYB.goose.map(b => ({ ...b, n: Math.round(260 * b.R * b.R) })),
+  amt: [1.2, 1.55, 3.4, 3.85], keys: [[0.5, C('#5e6046')], [1.2, C('#94b05a')], [1.52, C('#7aa44c')], [2.1, C('#62884a')], [2.9, C('#5e8446')], [3.25, C('#7e8a42')], [3.55, C('#c09040')], [3.85, C('#9a5038')]],
+  turn: { at: 3.15, span: 0.45, k: 0.75, yel: '#d0a040', brn: '#b04a30' }, rough: 0.75, nScale: 0.7, sway: [0.14, 0.35] });
+const LEAFY = [LILAC, HAZEL, ELDER, MOCK, CURRANT, GOOSE];
 function updateOrchard(){
   const leafAmt = bump(S, 1.42, 1.85, 3.38, 3.93), young = 1 - smooth((S - 1.5) / 0.6), turnA = clamp((S - 3.0) / 0.5);
   FLV.forEach((L, i) => { const vis = clamp((leafAmt * 1.2 - L.r) / 0.2); SC.setScalar(L.s * vis); M4.compose(L.p, L.q, SC); orchardLeaves.setMatrixAt(i, M4);
@@ -2238,8 +2356,8 @@ function updateOrchard(){
   orchardFruit.instanceMatrix.needsUpdate = orchardFruit.instanceColor.needsUpdate = true; orchardFruit.visible = anyF;
   const shAmt = bump(S, 1.3, 1.7, 3.45, 3.9), shCol = cyc(S, shrubKeys, tmpC2).clone();
   SHL.forEach((L, i) => { const vis = clamp((shAmt * 1.2 - L.r) / 0.2); SC.setScalar(L.s * vis); M4.compose(L.p, L.q, SC); shrubLeaves.setMatrixAt(i, M4); shrubLeaves.setColorAt(i, tmpC.copy(shCol).multiplyScalar(L.v)); });
-  shrubLeaves.instanceMatrix.needsUpdate = shrubLeaves.instanceColor.needsUpdate = true; shrubLeaves.visible = shAmt > 0.001;
-  LILAC.update(S);
+  shrubLeaves.instanceMatrix.needsUpdate = shrubLeaves.instanceColor.needsUpdate = true; shrubLeaves.visible = shAmt > 0.001 && SHL.length > 0;
+  lodU.eye.value.copy(camera.position); for (const B of LEAFY){ B.update(S); B.lod(); }   // (the leafy bushes)
   const ber = bump(S, 2.1, 2.3, 2.8, 3.0), ripe = smooth((S - 2.2) / 0.3);
   BER.forEach((B, i) => { const vis = clamp((ber * 1.2 - B.r * 0.3) / 0.3); SC.setScalar(B.s * vis); Q.identity(); M4.compose(B.p, Q, SC); berries.setMatrixAt(i, M4); berries.setColorAt(i, tmpC.copy(B.c0).lerp(B.c1, ripe)); });
   berries.instanceMatrix.needsUpdate = berries.instanceColor.needsUpdate = true; berries.visible = ber > 0.001;
@@ -4349,6 +4467,8 @@ function frame(){
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
     S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
+    if (q.get('bushat')){ const [k, i] = q.get('bushat').split(','), b = ({ lilac: lilacData, ...WILD, ...BERRYB })[k][+i || 0], d = +(q.get('bushd') || 4), az = +(q.get('bushaz') || 0);   // debug: look at a bush
+      const e = new V3(b.p.x + Math.cos(az) * d, 1.6, b.p.z + Math.sin(az) * d); place(e, yawTo(e, b.p), -0.08); }
     body.feet = surf(camera.position.x, camera.position.z); camera.position.y = body.feet + 1.6;
     if (q.get('sm')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('smd') || 3)); P.y = 0;
       const sm = makeSnowman(P, Math.atan2(camera.position.x - P.x, camera.position.z - P.z)); sm.build = +q.get('sm'); if (q.get('smm')) sm.melt = +q.get('smm'); }
@@ -4370,7 +4490,11 @@ function frame(){
     if (q.get('fall')){ for (let i = 0; i < +q.get('fall'); i++){ const li = Math.floor(Math.random() * LEAVES.length), L = LEAVES[li]; spawnLeaf(L.p.clone().add(TREE), C(['#d8a83a', '#c47a2a', '#e2b42e', '#8a5a2a'][i % 4]), li); FLs.forEach(F => { if (F.on && F.land <= 0) F.p.y -= Math.random() * 6; }); }
       if (q.get('fallhold')){ const c = new V3(...q.get('fallhold').split(',').map(Number)); FLs.filter(F => F.on).forEach((F, k) => { F.p.set(c.x + (k % 6 - 2.5) * 0.9, c.y + Math.floor(k / 6) % 3 * 0.9, c.z + Math.floor(k / 18) * 0.6); F.spin.set(0, 0, 0); }); window.__fallHold = true; } }   // debug: a shower of leaves (or a still rack of them)
     if (q.get('glowk')) window.__glowk = +q.get('glowk');
-    if (q.has('lillog')) console.log('LILAC bushes', lilacData.length, 'shoots', LILAC.shoots.length, 'meshes', LILAC.meshes.length, 'tris/shoot', LILAC.tris.join('/'), 'total tris', LILAC.shoots.reduce((a, sh) => a + LILAC.tris[sh.vI], 0)); if (q.has('wet')) W.wet = W.leafWet = +q.get('wet');
+    if (q.get('lodd')) lodU.d.value = +q.get('lodd');
+    if (q.has('bushpos')) for (const [k, L] of Object.entries({ ...WILD, ...BERRYB })) console.log('WILD', k, L.map((b, i) => i + ':' + b.p.x.toFixed(1) + ',' + b.p.z.toFixed(1) + ',R' + b.R.toFixed(2)).join(' '));
+    if (q.get('bushonly')) window.__bushonly = q.get('bushonly');
+    if (q.has('texdump')) LEAFY.forEach((B, i) => { const c = B.tex.image; c.style.cssText = `position:fixed;top:0;left:${(i % 4) * 300}px;top:${Math.floor(i / 4) * 310}px;width:${c.width * 300 / Math.max(c.width, c.height)}px;z-index:99;background:#456`; document.body.appendChild(c); });
+    if (q.has('bushlog')) for (const B of LEAFY) console.log('BUSH', B.name, 'bushes', B.core.count, 'shoots', B.shoots.length, 'blocks', B.blocks.length, 'tris/shoot near/far', B.tris.map(t => t.join('/')).join(' '), 'all near', B.shoots.reduce((a, sh) => a + B.tris[sh.vI][0], 0), 'all far', B.shoots.reduce((a, sh) => a + B.tris[sh.vI][1], 0));
     if (q.get('drylog')){ const sp = SP(S); let t = 0; setWeather('fair');   // debug: rain, then fair; step the weather 0.05 s at a time and log how things dry
       for (let i = 0; i <= 200 * 20; i++){ if (i % 200 === 0) console.log('DRY', (i / 20).toFixed(0) + 's', 'rain', W.rain.toFixed(2), 'wet', W.wet.toFixed(2), 'leaves', (W.leafWet ?? W.wet).toFixed(2));
         updateEnv(sp); updateWeather(0.05, t += 0.05, sp); } }
