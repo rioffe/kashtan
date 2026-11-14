@@ -2072,7 +2072,7 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
   }
   const rq = () => new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd(-0.4, 0.4), rng() * TAU, rnd(-0.4, 0.4)));
   for (const f of fruitSpots) if (f.x > 9 && Math.abs(f.z + 93.5) < 4) f.x = 8.2;   // keep the way into the bench nook open
-  for (const f of fruitSpots){ const T = FRUIT_TYPES[f.type], tips = [];
+  for (const f of fruitSpots){ const T = FRUIT_TYPES[f.type], tips = f.tips = [];
     growSmall(new V3(f.x, 0, f.z), new V3(rnd(-0.15, 0.15), 1, rnd(-0.15, 0.15)).normalize(), rnd(1.2, 1.5), 0.13, 0, T, tips);
     for (const t of tips){
       for (let k = 0; k < 3; k++) FLV.push({ p: t.p.clone().add(new V3(rnd(-0.35, 0.35), rnd(-0.2, 0.35), rnd(-0.35, 0.35))), q: rq(), s: rnd(0.75, 1.05), r: rng(), r2: rng(), v: rnd(0.85, 1.12), T });
@@ -2103,9 +2103,7 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
     twigs.material.color.set('#6a5a4c'); twigs.castShadow = twigs.receiveShadow = true; scene.add(twigs); }
   flowers.geometry = clusterGeo; flowers.material = new THREE.MeshStandardMaterial({ map: bloomClusterTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.6 });
   flowerLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, flowerData.length); flowerData.forEach((f, i) => flowerLeaves.setColorAt(i, C(pick(['#4f8a3a', '#5a9a40', '#46803a'])))); scene.add(flowerLeaves);
-  orchardLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, FLV.length); orchardLeaves.castShadow = true; scene.add(orchardLeaves);
-  orchardBloom = new THREE.InstancedMesh(clusterGeo, bloomMat, FBL.length); scene.add(orchardBloom);
-  FBL.forEach((B, i) => orchardBloom.setColorAt(i, B.T.bloom));
+  // (the trees' leaves and blossom: APPLE_L ... PLUM_B)
   orchardFruit = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ roughness: 0.4 }), FFR.length); orchardFruit.castShadow = true; scene.add(orchardFruit);
   shrubLeaves = new THREE.InstancedMesh(clusterGeo, smallLeafMat, Math.max(1, SHL.length)); shrubLeaves.setColorAt(0, new THREE.Color()); shrubLeaves.castShadow = true; scene.add(shrubLeaves);
   berries = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ roughness: 0.25 }), BER.length); scene.add(berries);
@@ -2177,10 +2175,10 @@ function leafyBushes(o){
     for (let i = 0; i < N; i++){ const T = tans[i], s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T), w0 = SP.stemW * (1 - i / N * 0.6), w1 = SP.stemW * (1 - (i + 1) / N * 0.6);
       ribbon(pts[i], pts[i + 1], s1, w0, w1, SP.stemC); ribbon(pts[i], pts[i + 1], s2, w0, w1, SP.stemC); }   // the stem: two crossed ribbons
     const at = (t) => { const f = Math.min(0.999, t) * N, i = Math.min(N - 1, Math.floor(f)); return [pts[i].clone().lerp(pts[i + 1], f - i), tans[i]]; };
-    const ph0 = SP.alt ? 0 : rn(0, Math.PI / 2);
+    const ph0 = SP.spiral ? rn(0, TAU) : SP.alt ? 0 : rn(0, Math.PI / 2);
     SP.nodes.forEach(([tn, size, tip], k) => { const [p, T] = at(tn), s1 = new V3().crossVectors(T, up).normalize(), s2 = new V3().crossVectors(s1, T);
-      const ph = ph0 + (SP.alt ? rn(-0.3, 0.3) : k * Math.PI / 2 + rn(-0.15, 0.15));
-      for (const side of SP.alt ? [k % 2 ? 1 : -1] : [-1, 1]){
+      const ph = ph0 + (SP.spiral ? k * 2.4 : SP.alt ? rn(-0.3, 0.3) : k * Math.PI / 2 + rn(-0.15, 0.15));
+      for (const side of SP.spiral ? [1] : SP.alt ? [k % 2 ? 1 : -1] : [-1, 1]){
         const sd = s1.clone().multiplyScalar(Math.cos(ph) * side).addScaledVector(s2, Math.sin(ph) * side); sd.y *= 0.35; sd.normalize();   // (the leaves twist round to lie out flat, to the light)
         const m = sd.clone().multiplyScalar(tip ? 0.7 : 1).addScaledVector(T, tip ? 0.8 : SP.fwd).addScaledVector(up, 0.12).add(new V3(rn(-0.15, 0.15), rn(-0.1, 0.1), rn(-0.15, 0.15))).normalize();
         const hz = new V3(T.x, 0, T.z).normalize(), n0 = up.clone().multiplyScalar(SP.face[0]).addScaledVector(hz, SP.face[1]).add(new V3(rn(-0.3, 0.3), rn(-0.1, 0.1), rn(-0.3, 0.3))).normalize();   // the blades face up and out
@@ -2200,7 +2198,7 @@ function leafyBushes(o){
   const mkDepth = (near) => lodify(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), near);   // (three copies the leaf's map and alpha test onto it)
   const matN = mkMat(true), matF = mkMat(false), depN = mkDepth(true), depF = mkDepth(false);
   const coreMat = new THREE.MeshStandardMaterial({ map: leafMassTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
-  const core = new THREE.InstancedMesh(leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true;
+  o.bushes = o.bushes || []; const core = new THREE.InstancedMesh(leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true; core.count = o.bushes.length;
 
   // the bushes: a mound of shoots round each, pointing out and up from it, a few deeper in and darker
   const SH = [], CORES = [], blocks = new Map();
@@ -2214,6 +2212,11 @@ function leafyBushes(o){
       const p = new V3(bu.p.x + nrm.x * rr * bu.rx, Math.max(0.16, bu.p.y + nrm.y * rr * bu.ry), bu.p.z + nrm.z * rr * bu.rx).addScaledVector(dir, -0.2);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-clamp(de - EL[vI], -0.5, 0.5) + lrn(-0.12, 0.12), yaw, lrn(-0.12, 0.12), 'YXZ')), s = lrn(0.88, 1.12) * bu.k;   // (tilted to the elevation it wants)
       const sh = { p, q, s, mx: lr() < 0.5 ? -1 : 1, r: lr(), r2: lr(), v: inner ? lrn(0.5, 0.68) : lrn(0.86, 1.08), vI }; blk.lists[vI].push(sh); SH.push(sh); } }
+  for (const sp of o.spots || []){ const key = Math.floor(sp.p.x / 16) + ',' + Math.floor(sp.p.z / 20);   // shoots at given places, pointing given ways (the fruit trees)
+    if (!blocks.has(key)) blocks.set(key, { lists: EL.map(() => []), bushes: [] }); const blk = blocks.get(key); blk.bushes.push({ p: sp.p, R: 0.3 });
+    const de = Math.asin(clamp(sp.dir.y, -1, 1)), vI = EL.reduce((b, e, i) => Math.abs(e - de) < Math.abs(EL[b] - de) ? i : b, 0), yaw = Math.atan2(sp.dir.x, sp.dir.z) + lrn(-0.2, 0.2);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-clamp(de - EL[vI], -0.5, 0.5) + lrn(-0.12, 0.12), yaw, lrn(-0.12, 0.12), 'YXZ'));
+    const sh = { p: sp.p, q, s: lrn(0.88, 1.12) * sp.k, mx: lr() < 0.5 ? -1 : 1, r: lr(), r2: lr(), v: lrn(0.86, 1.08), vI }; blk.lists[vI].push(sh); SH.push(sh); }
   const M = new THREE.Matrix4(), Sc = new V3(), cc = new THREE.Color(), meshes = [], near = [];
   const mk = (geo, mat, dep, list, key) => { const m = new THREE.InstancedMesh(geo, mat, list.length); m.customDepthMaterial = dep; m.castShadow = m.receiveShadow = true;
     list.forEach((sh, j) => { sh[key] = m; sh[key + 'j'] = j; M.compose(sh.p, sh.q, Sc.set(sh.s * sh.mx, sh.s, sh.s)); m.setMatrixAt(j, M); m.setColorAt(j, cc.setRGB(1, 1, 1)); });
@@ -2232,7 +2235,7 @@ function leafyBushes(o){
         cc.multiplyScalar(sh.v); sh.n.setColorAt(sh.nj, cc); sh.f.setColorAt(sh.fj, cc); }
       for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } on.v = amt > 0.001 && (!window.__bushonly || window.__bushonly === o.name); for (const m of far) m.visible = on.v;
       const ck = smooth(clamp((amt - 0.25) / 0.6)); CORES.forEach((c, i) => { M.compose(c.p, c.q, Sc.copy(c.s).multiplyScalar(ck)); core.setMatrixAt(i, M); });   // (the core fills in once the bush is leafy, and goes before the last leaves)
-      core.instanceMatrix.needsUpdate = true; core.visible = ck > 0.001 && on.v; coreMat.color.copy(col); },   // (lit like everything else: dark in the shade, darker at night)
+      core.instanceMatrix.needsUpdate = true; core.visible = ck > 0.001 && on.v && CORES.length > 0; coreMat.color.copy(col); },   // (lit like everything else: dark in the shade, darker at night)
     lod(){ const eye = lodU.eye.value, d = lodU.d.value; for (const b of near){ const v = on.v && b.c.distanceTo(eye) - b.r < d; for (const m of b.meshes) m.visible = v; } } };
 }
 
@@ -2338,17 +2341,125 @@ const GOOSE = leafyBushes({ name: 'gooseberry', seed: 6511, tex: { w: 260, h: 20
   bushes: BERRYB.goose.map(b => ({ ...b, n: Math.round(260 * b.R * b.R) })),
   amt: [1.2, 1.55, 3.4, 3.85], keys: [[0.5, C('#5e6046')], [1.2, C('#94b05a')], [1.52, C('#7aa44c')], [2.1, C('#62884a')], [2.9, C('#5e8446')], [3.25, C('#7e8a42')], [3.55, C('#c09040')], [3.85, C('#9a5038')]],
   turn: { at: 3.15, span: 0.45, k: 0.75, yel: '#d0a040', brn: '#b04a30' }, rough: 0.75, nScale: 0.7, sway: [0.14, 0.35] });
-const LEAFY = [LILAC, HAZEL, ELDER, MOCK, CURRANT, GOOSE];
+/* ---------- the fruit trees: apple, pear and plum ----------
+   Their leaves on shoots round the ends of the branches (the leafy bushes' make-up, without the core: you see into a tree), and the
+   blossom modelled flower by flower, after the photographs: clusters of five-petalled flowers on slender stalks, each petal cupped,
+   a ring of stamens in the middle. Apple: white flushed with pink, yellow anthers, deep pink buds among them; pear: pure white, more
+   flowers to a cluster, dark red anthers; plum: small, white, two or three together, greenish at the heart. Near the eye every petal
+   is there; further off each flower is one painted card, chosen per cluster in the shader. Own random numbers */
+const ORCH = (() => { const orr = mkRng(5521), orn = (a, b) => a + (b - a) * orr(), up = new V3(0, 1, 0), by = {}, NB = { apple: 16, pear: 13, plum: 18 };
+  for (const t of ['apple', 'pear', 'plum']) by[t] = { leaves: [], bloom: [] };
+  for (const f of fruitSpots){ if (!f.tips || !f.tips.length) continue; const c = f.tips.reduce((a, t) => a.add(t.p), new V3()).multiplyScalar(1 / f.tips.length), B = by[f.type];
+    for (const t of f.tips){ const out = t.p.clone().sub(c); out.y *= 0.5; if (out.lengthSq() < 1e-4) out.set(orn(-1, 1), 0, orn(-1, 1)); out.normalize();
+      for (let k = 0; k < 11; k++){ const off = new V3(orn(-1, 1), orn(-0.6, 0.9), orn(-1, 1)).normalize().multiplyScalar(orn(0.08, 0.55));   // shoots all round each branch end, turned outward and up
+        const dir = out.clone().multiplyScalar(0.7).addScaledVector(t.d, 0.5).addScaledVector(off.clone().normalize(), 0.6).addScaledVector(up, 0.3).normalize();
+        B.leaves.push({ p: t.p.clone().add(off).addScaledVector(dir, -0.12), dir, k: orn(0.9, 1.1) }); }
+      for (let k = 0; k < NB[f.type]; k++){ const off = new V3(orn(-1, 1), orn(-0.4, 0.9), orn(-1, 1)).normalize().multiplyScalar(orn(0.05, 0.55));   // the blossom on the spurs round them, facing out and up
+        B.bloom.push({ p: t.p.clone().add(off), dir: up.clone().multiplyScalar(0.8).addScaledVector(out, 0.6).add(new V3(orn(-0.4, 0.4), 0, orn(-0.4, 0.4))).normalize(), T: f.type }); } } }
+  return by; })();
+
+/* the leaves. Apple: oval with a short point, finely toothed, dark green and a little downy; pear: broader, glossy, finely toothed, on
+   long stalks, red and orange in autumn; plum: broadest above the middle, blunt-toothed, wrinkled between the veins, dull */
+const appleProf = t => (t < 0.4 ? 0.35 + 0.65 * Math.sin(t / 0.4 * Math.PI / 2) ** 0.85 : Math.pow(Math.cos((t - 0.4) / 0.6 * Math.PI / 2), 0.8)) * (1 - 0.3 * smooth((t - 0.8) / 0.2));
+const pearProf = t => (t < 0.38 ? 0.42 + 0.58 * Math.sin(t / 0.38 * Math.PI / 2) ** 0.8 : Math.pow(Math.cos((t - 0.38) / 0.62 * Math.PI / 2), 0.75)) * (1 - 0.3 * smooth((t - 0.82) / 0.18));
+const plumProf = t => t < 0.6 ? 0.3 + 0.7 * Math.sin(t / 0.6 * Math.PI / 2) : Math.pow(Math.cos((t - 0.6) / 0.4 * Math.PI / 2), 0.7);
+const fruitShoot = { spiral: true, nodes: [[0.2, 0.85], [0.33, 0.95], [0.46, 1], [0.59, 1], [0.72, 0.95], [0.85, 0.85], [0.97, 0.7, true]], len: [0.3, 0.36], bend: 0.25, fwd: 0.45, face: [0.8, 0.6], droop: [0.1, 0.3], fold: [0.1, 0.3], stemW: 0.0045, stemC: [0.8, 0.7, 0.56] };
+const APPLE_L = leafyBushes({ name: 'apple', seed: 6613, tex: { w: 220, h: 320, len: 0.17 }, stemTex: '#a89878',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 28, 6, 5, '#b8b888'); g.save(); g.translate(0, -24);
+    paintBlade(g, { L: 290, H: 88, prof: appleProf, teeth: (t, s) => t < 0.08 || t > 0.95 ? 0 : 0.035 * saw(t * 22 + (s > 0 ? 0 : 0.5)) ** 1.5, veins: pinnate(appleProf, [0.06, 0.16, 0.26, 0.36, 0.46, 0.56, 0.66], 0.18, 0.9),
+      col: ['#d2dcbe', '#e0e8cc'], hair: 0.5, vc: 'rgba(244,246,220,0.45)' }, mode); g.restore(); },
+  shoot: fruitShoot, spots: ORCH.apple.leaves,
+  amt: [1.42, 1.85, 3.38, 3.93], keys: [[0.5, C('#5e6046')], [1.42, C('#9ab860')], [1.75, C('#7aa64c')], [2.2, C('#517f38')], [2.9, C('#4e7a36')], [3.25, C('#7a8a3c')], [3.55, C('#c0a040')], [3.9, C('#8a6a38')]],
+  turn: { at: 3.2, span: 0.5, k: 0.8, yel: '#d0b040', brn: '#8a6038' }, rough: 0.6, nScale: 0.7, sway: [0.12, 0.3] });
+const PEAR_L = leafyBushes({ name: 'pear', seed: 6717, tex: { w: 252, h: 320, len: 0.17 }, stemTex: '#a89878',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 46, 6, 5, '#b8b888'); g.save(); g.translate(0, -42);
+    paintBlade(g, { L: 272, H: 106, prof: pearProf, teeth: (t, s) => t < 0.1 || t > 0.95 ? 0 : 0.022 * saw(t * 30 + (s > 0 ? 0 : 0.5)), veins: pinnate(pearProf, [0.06, 0.15, 0.24, 0.33, 0.42, 0.51, 0.6, 0.69], 0.17, 0.88),
+      col: ['#d6e2c2', '#e6eed4'], vc: 'rgba(246,248,222,0.32)' }, mode); g.restore(); },
+  shoot: fruitShoot, spots: ORCH.pear.leaves,
+  amt: [1.4, 1.82, 3.38, 3.93], keys: [[0.5, C('#5e6046')], [1.4, C('#94b85c')], [1.72, C('#6e9e48')], [2.2, C('#437a36')], [2.9, C('#427634')], [3.25, C('#7a8438')], [3.55, C('#c87a38')], [3.9, C('#8a4a30')]],
+  turn: { at: 3.15, span: 0.5, k: 0.85, yel: '#d89a3a', brn: '#a04a30' }, rough: 0.4, nScale: 0.6, sway: [0.12, 0.3] });
+const PLUM_L = leafyBushes({ name: 'plum', seed: 6821, tex: { w: 196, h: 320, len: 0.15 }, stemTex: '#a08870',
+  draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 22, 5, 4, '#b0a880'); g.save(); g.translate(0, -18);
+    paintBlade(g, { L: 296, H: 80, prof: plumProf, teeth: (t, s) => t < 0.1 || t > 0.94 ? 0 : 0.045 * (1 - (2 * saw(t * 18 + (s > 0 ? 0 : 0.5)) - 1) ** 2), veins: pinnate(plumProf, [0.08, 0.2, 0.32, 0.44, 0.56, 0.68], 0.2, 0.9),
+      col: ['#d0dabc', '#dee6ca'], pleat: 0.06, vc: 'rgba(240,244,216,0.42)' }, mode); g.restore(); },
+  shoot: fruitShoot, spots: ORCH.plum.leaves,
+  amt: [1.42, 1.85, 3.38, 3.93], keys: [[0.5, C('#5e6046')], [1.42, C('#98b45c')], [1.75, C('#76a24a')], [2.2, C('#4c7a3a')], [2.9, C('#4a7638')], [3.25, C('#7a8440')], [3.55, C('#b0943e')], [3.9, C('#7a5a38')]],
+  turn: { at: 3.2, span: 0.5, k: 0.7, yel: '#c0a03a', brn: '#7a5038' }, rough: 0.7, nScale: 0.8, sway: [0.12, 0.3] });
+
+/* the blossom */
+const petalPath = (g, wk) => { g.beginPath(); g.moveTo(64, 124); g.bezierCurveTo(64 + 12 * wk, 112, 64 + 60 * wk, 80, 64 + 55 * wk, 36); g.bezierCurveTo(64 + 50 * wk, 4, 64 - 50 * wk, 4, 64 - 55 * wk, 36);
+  g.bezierCurveTo(64 - 60 * wk, 80, 64 - 12 * wk, 112, 64, 124); g.closePath(); };
+function paintPetal(g, { wk = 1, flush = 0 }){ petalPath(g, wk); g.save(); g.clip();   // (in a 128 square: the base at the bottom, the tip at the top)
+  const gr = g.createLinearGradient(0, 124, 0, 6); gr.addColorStop(0, '#eef2dc'); gr.addColorStop(0.22, '#ffffff'); gr.addColorStop(1, '#fffbfc'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  if (flush){ g.filter = 'blur(7px)'; g.strokeStyle = `rgba(234,140,174,${flush})`; g.lineWidth = 26; petalPath(g, wk); g.stroke();   // pink at the rim and the tip
+    const rg = g.createRadialGradient(64, 8, 4, 64, 20, 60); rg.addColorStop(0, `rgba(236,150,182,${flush * 0.8})`); rg.addColorStop(1, 'rgba(236,150,182,0)'); g.fillStyle = rg; g.fillRect(0, 0, 128, 128); g.filter = 'none'; }
+  g.strokeStyle = 'rgba(214,200,206,0.32)'; g.lineWidth = 1; for (let i = -4; i <= 4; i++){ g.beginPath(); g.moveTo(64, 120); g.quadraticCurveTo(64 + i * 6 * wk, 70, 64 + i * 11 * wk, 14 + Math.abs(i) * 5); g.stroke(); }   // faint veins
+  g.restore(); petalPath(g, wk); g.strokeStyle = 'rgba(220,214,214,0.6)'; g.lineWidth = 1; g.stroke(); }
+function paintCentre(g, { anther, disc = '#c4c874', n = 22 }){ const r = mkRng(91);   // (round (64, 64): the green heart, the styles, a ring of stamens)
+  g.fillStyle = disc; g.beginPath(); g.arc(64, 64, 15, 0, TAU); g.fill();
+  for (let k = 0; k < n; k++){ const a = k / n * TAU + r() * 0.25, rr = 38 * (0.78 + 0.3 * r()), x = 64 + Math.cos(a) * rr, y = 64 + Math.sin(a) * rr;
+    g.strokeStyle = 'rgba(255,255,240,0.95)'; g.lineWidth = 2; g.beginPath(); g.moveTo(64 + Math.cos(a) * 9, 64 + Math.sin(a) * 9); g.lineTo(x, y); g.stroke();
+    g.fillStyle = anther; g.beginPath(); g.arc(x, y, 4.2, 0, TAU); g.fill(); }
+  g.strokeStyle = '#d8e0a0'; g.lineWidth = 2.6; for (let k = 0; k < 5; k++){ const a = k / 5 * TAU; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * 10, 64 + Math.sin(a) * 10); g.stroke(); } }
+function paintBud(g, { c0, c1 }){ const gr = g.createRadialGradient(56, 54, 4, 64, 66, 40); gr.addColorStop(0, c0); gr.addColorStop(1, c1); g.fillStyle = gr;   // (upright, its base at the bottom)
+  g.beginPath(); g.ellipse(64, 66, 27, 36, 0, 0, TAU); g.fill(); g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 2;
+  for (const s of [-1, 1]){ g.beginPath(); g.moveTo(64 + s * 4, 100); g.quadraticCurveTo(64 + s * 30, 66, 64 - s * 6, 32); g.stroke(); }
+  g.fillStyle = '#7a9a48'; for (const s of [-1, 0, 1]){ g.beginPath(); g.moveTo(64 + s * 14 - 9, 112); g.lineTo(64 + s * 18, 86); g.lineTo(64 + s * 14 + 9, 112); g.fill(); } }
+function blossomTrees(o){
+  const br = mkRng(o.seed), brn = (a, b) => a + (b - a) * br(), up = new V3(0, 1, 0), RW = 128, NR = 5;
+  const atlas = tex(RW * NR, RW, (g) => { g.clearRect(0, 0, RW * NR, RW);   // petal | centre | bud | the whole flower (far) | stalk green
+    g.save(); paintPetal(g, o.petal); g.restore(); g.save(); g.translate(RW, 0); paintCentre(g, o.centre); g.restore(); g.save(); g.translate(RW * 2, 0); paintBud(g, o.bud); g.restore();
+    g.save(); g.translate(RW * 3 + 64, 64); for (let k = 0; k < 5; k++){ g.save(); g.rotate(k * TAU / 5 + 0.3); g.scale(0.5, 0.5); g.translate(-64, -124); paintPetal(g, o.petal); g.restore(); }
+    g.translate(-64 * 0.42, -64 * 0.42); g.scale(0.42, 0.42); paintCentre(g, o.centre); g.restore();
+    g.fillStyle = '#86a050'; g.fillRect(RW * 4, 0, RW, RW); }, {});
+  atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping;
+  function cluster(seed){ const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), A = { P: [], U: [], I: [] }, F = { P: [], U: [], I: [] };
+    const vtx = (B, p, u, v) => { B.P.push(p.x, p.y, p.z); B.U.push(u, v); return B.P.length / 3 - 1; };
+    const quad = (B, ps, reg, uv = [[0, 0], [1, 0], [1, 1], [0, 1]]) => { const i = ps.map((p, k) => vtx(B, p, (reg + uv[k][0]) / NR, uv[k][1])); B.I.push(i[0], i[1], i[2], i[0], i[2], i[3]); };
+    const basis = f => { const a = new V3().crossVectors(f, Math.abs(f.y) > 0.95 ? new V3(1, 0, 0) : up).normalize(); return [a, new V3().crossVectors(f, a)]; };
+    const stem = (a, b, w) => { const d = b.clone().sub(a).normalize(), s = basis(d)[0].multiplyScalar(w); quad(A, [a.clone().sub(s), a.clone().add(s), b.clone().add(s), b.clone().sub(s)], 4, [[0.3, 0.2], [0.7, 0.2], [0.7, 0.8], [0.3, 0.8]]); };
+    for (let k = 0; k < o.flowers; k++){ const king = k === 0, phi = king ? rn(0, 0.15) : rn(o.spread[0], o.spread[1]), az = k / Math.max(1, o.flowers - 1) * TAU + rn(-0.3, 0.3);
+      const pd = new V3(Math.sin(phi) * Math.cos(az), Math.cos(phi), Math.sin(phi) * Math.sin(az)), c = pd.clone().multiplyScalar(rn(o.ped[0], o.ped[1]) * (king ? 0.75 : 1));
+      const f = pd.clone().addScaledVector(up, 0.4).add(new V3(rn(-0.3, 0.3), 0, rn(-0.3, 0.3))).normalize(), [a, b] = basis(f), rf = o.rf * rn(0.88, 1.1), rot = rn(0, TAU);
+      stem(new V3(), c.clone().addScaledVector(f, -0.004), 0.0016);
+      for (let j = 0; j < 5; j++){ const th = rot + j * TAU / 5 + rn(-0.08, 0.08), d = a.clone().multiplyScalar(Math.cos(th)).addScaledVector(b, Math.sin(th)), e = a.clone().multiplyScalar(-Math.sin(th)).addScaledVector(b, Math.cos(th));
+        const cup = rf * rn(0.18, 0.36), w = rf * 0.5, P = (rr, u, lift) => c.clone().addScaledVector(d, rr).addScaledVector(e, u).addScaledVector(f, lift), base = A.P.length / 3;   // each petal cupped: rising towards its tip
+        for (const [rr, hw, lift] of [[0.06, 0.28, 0], [0.55, 1, 0.35], [1, 0.86, 1]]) for (const s of [-1, 1]) vtx(A, P(rr * rf, s * hw * w, lift * cup), (0.5 + 0.5 * s * hw) / NR, 0.03 + 0.92 * rr);
+        A.I.push(base, base + 1, base + 3, base, base + 3, base + 2, base + 2, base + 3, base + 5, base + 2, base + 5, base + 4); }
+      const cc = c.clone().addScaledVector(f, rf * 0.06), hs = rf * 0.45; quad(A, [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => cc.clone().addScaledVector(a, x * hs).addScaledVector(b, y * hs)), 1);   // the heart of the flower
+      const fc = c.clone().addScaledVector(f, rf * 0.15), fs = rf * 1.08; quad(F, [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => fc.clone().addScaledVector(a, x * fs).addScaledVector(b, y * fs)), 3); }   // (far: the painted flower)
+    for (let k = 0; k < o.buds; k++){ const phi = rn(0.25, 0.75), az = rn(0, TAU), pd = new V3(Math.sin(phi) * Math.cos(az), Math.cos(phi), Math.sin(phi) * Math.sin(az)), c = pd.clone().multiplyScalar(rn(o.ped[0], o.ped[1]) * 0.7);
+      stem(new V3(), c, 0.0016); const bs = o.rf * 0.62 * rn(0.85, 1.15), [a, b] = basis(pd), base = c.clone().addScaledVector(pd, -bs * 0.25);
+      [a, b].forEach((s, i) => { const ps = [base.clone().addScaledVector(s, -bs * 0.5), base.clone().addScaledVector(s, bs * 0.5), base.clone().addScaledVector(s, bs * 0.5).addScaledVector(pd, bs), base.clone().addScaledVector(s, -bs * 0.5).addScaledVector(pd, bs)];
+        quad(A, ps, 2); if (!i) quad(F, ps, 2); }); }   // a bud: two crossed cards (far: one)
+    return [A, F].map(B => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.U, 2)); g.setIndex(B.I); g.computeVertexNormals(); return g; }); }
+  const geos = [0, 1, 2].map(i => cluster(o.seed * 5 + i * 13));
+  const mkMat = near => lodify(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.6 }), 0.6, 0.3)), near);
+  const matN = mkMat(true), matF = mkMat(false), items = [], blocks = new Map(), meshes = [], near = [], M = new THREE.Matrix4(), Sc = new V3();
+  for (const sp of o.spots){ const q = new THREE.Quaternion().setFromUnitVectors(up, sp.dir).multiply(new THREE.Quaternion().setFromAxisAngle(up, br() * TAU)), it = { p: sp.p, q, s: brn(0.85, 1.15), r: br(), vI: Math.floor(br() * 3) };
+    const key = Math.floor(sp.p.x / 16) + ',' + Math.floor(sp.p.z / 20); if (!blocks.has(key)) blocks.set(key, { lists: [[], [], []], ps: [] }); const blk = blocks.get(key); blk.lists[it.vI].push(it); blk.ps.push(sp.p); items.push(it); }
+  const mk = (geo, mat, list, key) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((it, j) => { it[key] = m; it[key + 'j'] = j; M.compose(it.p, it.q, Sc.setScalar(it.s)); m.setMatrixAt(j, M); });
+    m.computeBoundingSphere(); meshes.push(m); scene.add(m); return m; };
+  for (const blk of blocks.values()){ blk.meshes = []; blk.lists.forEach((list, vI) => { if (list.length) blk.meshes.push(mk(geos[vI][0], matN, list, 'n')); });
+    blk.c = blk.ps.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / blk.ps.length); blk.r = Math.max(...blk.ps.map(p => p.distanceTo(blk.c))) + 0.5; near.push(blk); }
+  const far = [0, 1, 2].map(vI => { const list = items.filter(it => it.vI === vI); return list.length ? mk(geos[vI][1], matF, list, 'f') : null; }).filter(Boolean);
+  const last = { s: -1 }, on = { v: false };
+  return { name: o.name + ' blossom', meshes, items, geos, tris: geos.map(g => g.map(x => x.index.count / 3)), tex: atlas, blocks: near, shoots: items, core: { count: 0 },
+    update(S){ const b = bump(S, ...o.bloom); if (Math.abs(S - last.s) < 0.002 && !(b === 0 && on.v)) return; last.s = S;
+      on.v = b > 0 && (!window.__bushonly || window.__bushonly === o.name); for (const m of far) m.visible = on.v; if (!on.v) return;
+      for (const it of items){ const vis = smooth(clamp((b * 1.25 - it.r) / 0.25)), s = it.s * vis; M.compose(it.p, it.q, Sc.setScalar(s)); it.n.setMatrixAt(it.nj, M); it.f.setMatrixAt(it.fj, M); }
+      for (const m of meshes) m.instanceMatrix.needsUpdate = true; },
+    lod(){ const eye = lodU.eye.value, d = lodU.d.value; for (const b of near){ const v = on.v && b.c.distanceTo(eye) - b.r < d; for (const m of b.meshes) m.visible = v; } } };
+}
+const APPLE_B = blossomTrees({ name: 'apple', seed: 7101, spots: ORCH.apple.bloom, bloom: FRUIT_TYPES.apple.bloomS, flowers: 5, buds: 3, rf: 0.05, ped: [0.05, 0.075], spread: [0.45, 0.85],
+  petal: { wk: 1, flush: 0.5 }, centre: { anther: '#f2d040' }, bud: { c0: '#f89ab8', c1: '#c83c6a' } });
+const PEAR_B = blossomTrees({ name: 'pear', seed: 7203, spots: ORCH.pear.bloom, bloom: FRUIT_TYPES.pear.bloomS, flowers: 7, buds: 1, rf: 0.038, ped: [0.06, 0.09], spread: [0.5, 0.95],
+  petal: { wk: 1.08, flush: 0 }, centre: { anther: '#8a1e3c' }, bud: { c0: '#ffffff', c1: '#f0d8dc' } });
+const PLUM_B = blossomTrees({ name: 'plum', seed: 7307, spots: ORCH.plum.bloom, bloom: FRUIT_TYPES.plum.bloomS, flowers: 3, buds: 1, rf: 0.033, ped: [0.06, 0.09], spread: [0.3, 0.9],
+  petal: { wk: 0.86, flush: 0 }, centre: { anther: '#e8d048', disc: '#b4bc5c' }, bud: { c0: '#ffffff', c1: '#e4ecd0' } });
+const LEAFY = [LILAC, HAZEL, ELDER, MOCK, CURRANT, GOOSE, APPLE_L, PEAR_L, PLUM_L, APPLE_B, PEAR_B, PLUM_B];
 function updateOrchard(){
   const leafAmt = bump(S, 1.42, 1.85, 3.38, 3.93), young = 1 - smooth((S - 1.5) / 0.6), turnA = clamp((S - 3.0) / 0.5);
-  FLV.forEach((L, i) => { const vis = clamp((leafAmt * 1.2 - L.r) / 0.2); SC.setScalar(L.s * vis); M4.compose(L.p, L.q, SC); orchardLeaves.setMatrixAt(i, M4);
-    tmpC.copy(L.T.leafC).lerp(youngC, young * 0.8); const turn = clamp(turnA * 1.5 - L.r2 * 0.5);
-    if (turn > 0){ tmpC.lerp(tmpC2.set('#d0b040'), smooth(turn * 2)); if (turn > 0.5) tmpC.lerp(brownC, smooth((turn - 0.5) * 2) * 0.7); }
-    tmpC.multiplyScalar(L.v); orchardLeaves.setColorAt(i, tmpC); });
-  orchardLeaves.instanceMatrix.needsUpdate = orchardLeaves.instanceColor.needsUpdate = true; orchardLeaves.visible = leafAmt > 0.001;
-  let anyB = false;
-  FBL.forEach((B, i) => { const b = bump(S, ...B.T.bloomS), vis = clamp((b * 1.25 - B.r) / 0.25); anyB = anyB || vis > 0; SC.setScalar(B.s * vis); M4.compose(B.p, B.q, SC); orchardBloom.setMatrixAt(i, M4); });
-  orchardBloom.instanceMatrix.needsUpdate = true; orchardBloom.visible = anyB;
   let anyF = false;
   FFR.forEach((F, i) => { const [a, b] = F.T.fruitS, on = S > a && S < F.drop ? 1 : 0, grow = smooth((S - a) / (b - a)); anyF = anyF || on > 0;
     SC.set(F.T.fr, F.T.fr * F.T.fy, F.T.fr).multiplyScalar(F.s * (0.35 + 0.65 * grow) * on); Q.identity(); M4.compose(F.p, Q, SC); orchardFruit.setMatrixAt(i, M4);
@@ -4467,7 +4578,7 @@ function frame(){
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
     S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
-    if (q.get('bushat')){ const [k, i] = q.get('bushat').split(','), b = ({ lilac: lilacData, ...WILD, ...BERRYB })[k][+i || 0], d = +(q.get('bushd') || 4), az = +(q.get('bushaz') || 0);   // debug: look at a bush
+    if (q.get('bushat')){ const [k, i] = q.get('bushat').split(','), b = ({ lilac: lilacData, ...WILD, ...BERRYB, ...Object.fromEntries(['apple', 'pear', 'plum'].map(t => [t, fruitSpots.filter(f => f.type === t).map(f => ({ p: new V3(f.x, 2.2, f.z) }))])) })[k][+i || 0], d = +(q.get('bushd') || 4), az = +(q.get('bushaz') || 0);   // debug: look at a bush
       const e = new V3(b.p.x + Math.cos(az) * d, 1.6, b.p.z + Math.sin(az) * d); place(e, yawTo(e, b.p), -0.08); }
     body.feet = surf(camera.position.x, camera.position.z); camera.position.y = body.feet + 1.6;
     if (q.get('sm')){ const f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), P = camera.position.clone().addScaledVector(f, +(q.get('smd') || 3)); P.y = 0;
@@ -4491,7 +4602,7 @@ function frame(){
       if (q.get('fallhold')){ const c = new V3(...q.get('fallhold').split(',').map(Number)); FLs.filter(F => F.on).forEach((F, k) => { F.p.set(c.x + (k % 6 - 2.5) * 0.9, c.y + Math.floor(k / 6) % 3 * 0.9, c.z + Math.floor(k / 18) * 0.6); F.spin.set(0, 0, 0); }); window.__fallHold = true; } }   // debug: a shower of leaves (or a still rack of them)
     if (q.get('glowk')) window.__glowk = +q.get('glowk');
     if (q.get('lodd')) lodU.d.value = +q.get('lodd');
-    if (q.has('bushpos')) for (const [k, L] of Object.entries({ ...WILD, ...BERRYB })) console.log('WILD', k, L.map((b, i) => i + ':' + b.p.x.toFixed(1) + ',' + b.p.z.toFixed(1) + ',R' + b.R.toFixed(2)).join(' '));
+    if (q.has('bushpos')) for (const [k, L] of Object.entries({ ...WILD, ...BERRYB, ...Object.fromEntries(['apple', 'pear', 'plum'].map(t => [t, fruitSpots.filter(f => f.type === t).map(f => ({ p: new V3(f.x, 0, f.z), R: f.tips.length }))])) })) console.log('WILD', k, L.map((b, i) => i + ':' + b.p.x.toFixed(1) + ',' + b.p.z.toFixed(1) + ',R' + b.R.toFixed(2)).join(' '));
     if (q.get('bushonly')) window.__bushonly = q.get('bushonly');
     if (q.has('texdump')) LEAFY.forEach((B, i) => { const c = B.tex.image; c.style.cssText = `position:fixed;top:0;left:${(i % 4) * 300}px;top:${Math.floor(i / 4) * 310}px;width:${c.width * 300 / Math.max(c.width, c.height)}px;z-index:99;background:#456`; document.body.appendChild(c); });
     if (q.has('bushlog')) for (const B of LEAFY) console.log('BUSH', B.name, 'bushes', B.core.count, 'shoots', B.shoots.length, 'blocks', B.blocks.length, 'tris/shoot near/far', B.tris.map(t => t.join('/')).join(' '), 'all near', B.shoots.reduce((a, sh) => a + B.tris[sh.vI][0], 0), 'all far', B.shoots.reduce((a, sh) => a + B.tris[sh.vI][1], 0));
