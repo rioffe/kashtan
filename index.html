@@ -783,7 +783,7 @@ function sitDesk(on, k = null){ if (on === desk.on || mode !== 'window') return;
     if (was === 'chess'){ const t = desk.views.chess.t; camera.position.set(t.x + 1.0, WIN_POS.y, t.z + 0.2); cam.yaw = Math.PI / 2 + 0.15; cam.pitch = -0.55; }   // standing up from the sofa
     else { camera.position.set(HOME.x + 0.45, WIN_POS.y, v.t.z + 0.1); cam.yaw = Math.PI / 2 + 0.2; cam.pitch = -0.35; } } }
 function deskClick(b){ const k = b && b.userData.desk;
-  if (k){ if (desk.f === k){ if (k === 'book') window.open(POST_URL, '_blank', 'noopener'); else if (k === 'calc') toggleCalc(); } else { desk.home = k === 'chess' ? 'chess' : desk.home === 'chess' ? null : desk.home; deskView(k); } return; }
+  if (k){ if (desk.f === k){ if (k === 'book') window.open(POST_URL, '_blank', 'noopener'); else if (k === 'calc') toggleCalc(); else if (k === 'chess') CHESS.tap(); } else { desk.home = k === 'chess' ? 'chess' : desk.home === 'chess' ? null : desk.home; deskView(k); } return; }
   if (b && b.userData.lamp){ toggleLamp(); return; } if (b && b.userData.win){ toggleWindow(); return; }
   if (desk.f && desk.f !== desk.home) deskView(desk.home); }
 function toggleCalc(){ calc.on = !calc.on; sfx.click(); calc.update && calc.update(); }
@@ -1636,7 +1636,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       for (const p of list){ p.x = sqX(p.r) + prn(-1.3, 1.3) * 0.001; p.z = sqZ(p.f) + prn(-1.3, 1.3) * 0.001; p.ry = p.type === 'knight' ? (p.white ? Math.PI : 0) + prn(-0.15, 0.15) : pr() * TAU; }
       const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), ONE = new V3(1, 1, 1), meshes = [];
       const add = (geos, mat, items) => { const m = new THREE.InstancedMesh(geos[0], mat, items.length);
-        items.forEach((p, i) => m.setMatrixAt(i, M4.compose(new V3(p.x, TH + FELT * PX, p.z), Q.setFromAxisAngle(UP, p.ry), ONE)));
+        items.forEach((p, i) => { m.setMatrixAt(i, M4.compose(new V3(p.x, TH + FELT * PX, p.z), Q.setFromAxisAngle(UP, p.ry), ONE)); (p.parts = p.parts || []).push([m, i]); });
         m.frustumCulled = false; m.receiveShadow = true; m.userData.desk = 'chess'; board.add(m); desk.pick.push(m); meshes.push({ m, geos, type: items[0].type }); };
       for (const type of Object.keys(GEO)) for (const white of [true, false]){ const items = list.filter(p => p.type === type && p.white === white);
         add(GEO[type], white ? BOX : EBO, items); if (CON[type]) add(CON[type], white ? EBO : BOX, items); }   // (the king's finial and the queen's ball in the other wood)
@@ -1646,6 +1646,51 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       list.forEach((p, i) => { const r = RB[p.type] * PX; felt.setMatrixAt(i, M4.compose(new V3(p.x, TH, p.z), Q.identity(), new V3(r - 0.7 * PX, FELT * PX, r - 0.7 * PX)));
         cshadow.setMatrixAt(i, M4.compose(new V3(p.x, TH + 0.0002, p.z), Q.identity(), new V3(r * 2.7, 1, r * 2.7))); });
       felt.frustumCulled = cshadow.frustumCulled = false; cshadow.renderOrder = 1; board.add(felt, cshadow);
+      // ---- a secret: sitting by the board, tap it three times and it plays itself the sixth game of the 1972 match in Reykjavík, Fischer with
+      // white, Spassky with black (a Tartakower Queen's Gambit; Spassky resigned after 41. Qf4, and stood with the audience to applaud).
+      // Each piece is lifted clear of whatever stands in its way and set down with a click; what is taken goes off to the taker's end of the
+      // sofa; Esc sets the pieces back
+      const GAME6 = 'c2c4 e7e6 g1f3 d7d5 d2d4 g8f6 b1c3 f8e7 c1g5 e8g8 e2e3 h7h6 g5h4 b7b6 c4d5 f6d5 h4e7 d8e7 c3d5 e6d5 a1c1 c8e6 d1a4 c7c5 a4a3 f8c8 f1b5 a7a6 d4c5 b6c5 e1g1 a8a7 b5e2 b8d7 f3d4 e7f8 d4e6 f7e6 e3e4 d5d4 f2f4 f8e7 e4e5 c8b8 e2c4 g8h8 a3h3 d7f8 b2b3 a6a5 f4f5 e6f5 f1f5 f8h7 c1f1 e7d8 h3g3 a7e7 h2h4 b8b7 e5e6 b7c7 g3e5 d8e8 a2a4 e8d8 f1f2 d8e8 f2f3 e8d8 c4d3 d8e8 e5e4 h7f6 f5f6 g7f6 f3f6 h8g8 d3c4 g8h8 e4f4'.split(' ');
+      const HGT = { pawn: 197.3, rook: 228.5, knight: 271, bishop: 284.4, queen: 324, king: 394.5 }, G = { on: false, i: 0, wait: 0, tracks: [], at: new Map(), taps: [], cap: [0, 0], moved: false, clock: 0 };
+      list.forEach((p, i) => { p.li = i; p.x0 = p.x; p.z0 = p.z; p.ry0 = p.ry; p.h = (HGT[p.type] + FELT) * PX; p.rb = RB[p.type] * PX; });
+      const onBoard = (x, z) => Math.abs(x) < BL / 2 && Math.abs(z) < BW / 2, gv = new V3();
+      const ground = (x, z) => onBoard(x, z) ? TH : (gv.set(x, 0, z).applyAxisAngle(UP, board.rotation.y).add(board.position), seatTop(gv.x, gv.z) - board.position.y - 0.002);   // (the board, or the cushion beside it)
+      const place = (p, x, y, z) => { p.x = x; p.y = y; p.z = z; const g = ground(x, z), k = Math.max(0, 1 - (y - g) / 0.012), r = p.rb;
+        Q.setFromAxisAngle(UP, p.ry); for (const [m, i] of p.parts){ m.setMatrixAt(i, M4.compose(gv.set(x, y + FELT * PX, z), Q, ONE)); m.instanceMatrix.needsUpdate = true; }
+        felt.setMatrixAt(p.li, M4.compose(gv.set(x, y, z), Q, new V3(r - 0.7 * PX, FELT * PX, r - 0.7 * PX)));
+        cshadow.setMatrixAt(p.li, M4.compose(gv.set(x, g + 0.0002, z), Q.identity(), new V3(r * 2.7 * k + 1e-5, 1, r * 2.7 * k + 1e-5))); felt.instanceMatrix.needsUpdate = cshadow.instanceMatrix.needsUpdate = true; };
+      const resetBoard = () => { G.on = false; G.tracks = []; G.at.clear(); G.cap = [0, 0]; G.moved = false; G.i = 0;
+        for (const p of list){ p.ry = p.ry0; G.at.set(p.f + p.r * 8, p); place(p, p.x0, TH, p.z0); } };
+      const sqOf = s => s.charCodeAt(0) - 97 + (s.charCodeAt(1) - 49) * 8;
+      const tock = (onCushion) => { const d = camera.position.distanceTo(ctr); if (d > 6) return; const v = clamp(1.4 / Math.max(0.6, d), 0.15, 1); onCushion ? sfx.thunk(0.03 * v) : sfx.tock(v); };
+      // a move: up, across (high enough to clear whatever is near its way), and down
+      const track = (p, x1, z1, t0, ry1) => { const y0 = p.y, y1 = ground(x1, z1), dx = x1 - p.x, dz = z1 - p.z, L2 = dx * dx + dz * dz; let top = Math.max(y0, y1) + 0.022;
+        for (const q of list){ if (q === p || q.gone) continue; const t = clamp(((q.x - p.x) * dx + (q.z - p.z) * dz) / (L2 || 1)), d = Math.hypot(p.x + dx * t - q.x, p.z + dz * t - q.z);
+          if (d < p.rb + q.rb - 0.004 && Math.hypot(q.x - p.x, q.z - p.z) > 0.012) top = Math.max(top, q.y + q.h + 0.012); }
+        const dur = 0.5 + 0.9 * Math.sqrt(L2) + (top - Math.max(y0, y1)) * 3; G.tracks.push({ p, x0: p.x, z0: p.z, y0, x1, y1, z1, top, t0, dur, ry0: p.ry, ry1 }); return t0 + dur; };
+      const ply = () => { const mv = GAME6[G.i++], from = sqOf(mv), to = sqOf(mv.slice(2)), p = G.at.get(from), f1 = to % 8, r1 = to / 8 | 0; let t = 0;
+        const v = G.at.get(to); G.at.delete(from);
+        if (v){ const side = v.white ? 1 : 0, k = G.cap[side]++; v.gone = true; G.at.delete(to);   // taken off to the taker's end, in a row
+          t = track(v, (v.white ? 1 : -1) * (BL / 2 + 0.042), 0.165 - k * 0.046, 0, v.ry) - 0.15; }
+        const jit = () => (pr() - 0.5) * 0.0024, ry1 = p.type === 'knight' ? (p.white ? Math.PI : 0) + (pr() - 0.5) * 0.3 : p.ry + (pr() - 0.5) * 0.6;
+        t = track(p, sqX(r1) + jit(), sqZ(f1) + jit(), t, ry1); G.at.set(to, p);
+        if (p.type === 'king' && Math.abs(f1 - from % 8) === 2){ const rf = f1 > 4 ? 7 : 0, rt = f1 > 4 ? 5 : 3, rk = G.at.get(rf + r1 * 8);   // castling: the rook comes round after the king
+          G.at.delete(rf + r1 * 8); G.at.set(rt + r1 * 8, rk); p.x = sqX(r1); p.z = sqZ(f1); p.y = TH; t = track(rk, sqX(r1) + jit(), sqZ(rt) + jit(), t - 0.1, rk.ry); }
+        G.moved = true; return t; };
+      const start = () => { resetBoard(); G.on = true; G.wait = 1.4; caption('Reykjavík, 1972: Fischer – Spassky, the sixth game. Esc sets the pieces back.', 6); };
+      const play = (dt) => { if (!G.on && !G.tracks.length) return; G.clock += dt;
+        for (const tk of G.tracks){ if (G.clock < tk.t0) continue; const u = clamp((G.clock - tk.t0) / tk.dur), s = smooth((u - 0.2) / 0.6), hu = smooth(u / 0.22) * smooth((1 - u) / 0.22), p = tk.p;
+          p.ry = lerp(tk.ry0, tk.ry1, s); const yb = lerp(tk.y0, tk.y1, s); place(p, lerp(tk.x0, tk.x1, s), yb + (tk.top - Math.max(tk.y0, tk.y1)) * hu + (Math.max(tk.y0, tk.y1) - yb) * hu, lerp(tk.z0, tk.z1, s));
+          if (u >= 1){ tk.done = true; tock(!onBoard(tk.x1, tk.z1)); } }
+        G.tracks = G.tracks.filter(tk => !tk.done);
+        if (!G.on || G.tracks.length) return;
+        if ((G.wait -= dt) > 0) return;
+        if (G.i >= GAME6.length){ G.on = false; caption('Spassky resigned, and stood up with the audience to applaud Fischer.', 7); return; }
+        G.clock = 0; ply(); G.wait = 0.7 + pr() * 0.9; };   // (and a moment's thought before the next)
+      const tap = () => { const t = performance.now() / 1000; G.taps = G.taps.filter(x => t - x < 1.1); G.taps.push(t); if (G.taps.length >= 3){ G.taps = []; start(); } };
+      const reset = () => { if (!G.on && !G.moved && !G.tracks.length) return false; resetBoard(); return true; };
+      resetBoard();
+      { const qs = new URLSearchParams(location.search); if (qs.has('chessgo')) setTimeout(() => { start(); for (let i = 0, n = +(qs.get('chessff') || 0) * 20; i < n; i++) play(0.05); console.log('CHESSGAME ply', G.i, 'of', GAME6.length, 'moving', G.tracks.length, 'taken', G.cap.join('/')); }, 400); }   // debug: ?chessgo[&chessff=seconds]
       // to look at it: click, and sit down on the sofa beside it
       sofa.updateMatrixWorld(true); const ctr = board.localToWorld(new V3(0, TH + 0.03, 0));
       desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.12, y1: 3.02,   // (low along the seat the eye stops at the sofa's arms; higher, it may lean out over them)
@@ -1684,7 +1729,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
         renderer.setRenderTarget(prevT); renderer.setClearColor(rv.cc, pa); renderer.shadowMap.autoUpdate = au; rU.uReflK.value = RK; };
       const dbg = (new URLSearchParams(location.search).get('chesscam') || '').split(',').filter(Boolean).map(Number);   // debug: ?chesscam=x,y,z,tx,ty,tz in the board's frame (metres)
       const only = new URLSearchParams(location.search).get('chessonly'); if (only) meshes.forEach(e => e.m.visible = e.type === only);
-      CHESS = { ctr, board, reflect, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
+      CHESS = { ctr, board, reflect, tap, reset, play, G, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
         const d = camera.position.distanceTo(ctr), l = d < 1.15 ? 0 : d < 3.4 ? 1 : 2; board.visible = d < 18; if (l === cur) return; cur = l; for (const { m, geos } of meshes) m.geometry = geos[l]; } };
       if (new URLSearchParams(location.search).has('chesslog')) console.log('CHESS tris per LOD', [0, 1, 2].map(l => meshes.reduce((a, { m, geos }) => a + geos[l].index.count / 3 * m.count, 0)).join('/'), 'board', (BL * 100).toFixed(1) + 'x' + (BW * 100).toFixed(1) + ' cm', 'at', ctr.toArray().map(v => v.toFixed(3)).join(','));
     }
@@ -5508,7 +5553,8 @@ addEventListener('keydown', e => {
   if (k === 'KeyL') setMode('lie');
   if (k === 'KeyC') setMode('climb');
   if (k === 'KeyX' && mode === 'window'){ sitDesk(!desk.on); return; }
-  if (desk.on && (k === 'Escape' || k === 'KeyG')){ if (desk.f && desk.f !== desk.home) deskView(desk.home); else sitDesk(false); return; }
+  if (desk.on && (k === 'Escape' || k === 'KeyG')){ if (k === 'Escape' && desk.f === 'chess' && CHESS.reset()) return;   // (Esc by the chessboard first sets the pieces back)
+    if (desk.f && desk.f !== desk.home) deskView(desk.home); else sitDesk(false); return; }
   if (k === 'Escape' || k === 'KeyG') setMode('walk');
   if (k === 'KeyE'){ if (mode === 'climb') climb(1); else if (mode === 'walk' && distTree() < 5) setMode('climb'); }
   if (k === 'KeyQ' && mode === 'climb') climb(-1);
@@ -5702,6 +5748,7 @@ const sfx = (() => {
       if (kind === 'tin'){ tone(t, 120 + Math.random() * 30, 80, 0.07 * v, 0.35, 'triangle'); noiseHit(t, 'bandpass', 900 + Math.random() * 400, 0.06 * v, 0.12); }
       else if (kind === 'tar') noiseHit(t, 'lowpass', 600, 0.08 * v, 0.07); else noiseHit(t, 'lowpass', 900, 0.1 * v, 0.06); },
     crunch(){ if (!ctx) return; const t = ctx.currentTime; for (let i = 0; i < 4; i++) noiseHit(t + i * 0.035 + Math.random() * 0.02, 'bandpass', 1200 + Math.random() * 1500, 0.07, 0.05); },
+    tock(v = 1){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 2600, 0.09 * v, 0.018); tone(ctx.currentTime, 1150, 700, 0.035 * v, 0.045, 'sine'); tone(ctx.currentTime, 260, 170, 0.05 * v, 0.07, 'sine'); } },   // a lacquered piece set down on a lacquered board
     click(){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 3500, 0.12, 0.015); tone(ctx.currentTime, 1800, 900, 0.03, 0.03, 'square'); } },
     flutter(){ if (ctx) for (let i = 0; i < 14; i++) noiseHit(ctx.currentTime + i * 0.03 + Math.random() * 0.2, 'bandpass', 600 + Math.random() * 500, 0.06, 0.05); },
   };
@@ -5763,6 +5810,8 @@ const I18N = {   // English → [Russian, Latvian]
   'From my window on the third floor, the tree was the whole world.': ['Из моего окна на третьем этаже дерево было целым миром.', 'No mana loga trešajā stāvā koks bija visa pasaule.'],
   'I would sit here for hours, and the tree would sit there with me.': ['Я мог сидеть здесь часами, и дерево было там, со мной.', 'Es te varēju sēdēt stundām, un koks bija tur, kopā ar mani.'],
   'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.': ['Папины шахматы: фигуры расставлены для партии. Тяни, чтобы осмотреться; Esc — встать.', 'Tēta šahs: figūras saliktas spēlei. Velc, lai paskatītos apkārt; Esc — piecelties.'],
+  'Reykjavík, 1972: Fischer – Spassky, the sixth game. Esc sets the pieces back.': ['Рейкьявик, 1972: Фишер — Спасский, шестая партия. Esc — расставить фигуры заново.', 'Reikjavīka, 1972: Fišers — Spaskis, sestā partija. Esc — salikt figūras atpakaļ.'],
+  'Spassky resigned, and stood up with the audience to applaud Fischer.': ['Спасский сдался — и вместе со зрителями встал аплодировать Фишеру.', 'Spaskis padevās — un kopā ar skatītājiem piecēlās, lai aplaudētu Fišeram.'],
   'I sat down at my table. Click anything on it to look closer; Esc to get up.': ['Я сел за свой стол. Кликни по любой вещи, чтобы рассмотреть; Esc — встать.', 'Es apsēdos pie sava galda. Noklikšķini uz jebkuras lietas, lai to aplūkotu tuvāk; Esc — piecelties.'],
   'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.': ['Мой стол: тетрадь, калькулятор, книга, купальщица. Кликни, чтобы рассмотреть; Esc — встать.', 'Mans galds: burtnīca, kalkulators, grāmata, peldētāja. Noklikšķini, lai aplūkotu tuvāk; Esc — piecelties.'],
   'Some evenings I wrote poems to it in a school notebook.': ['Иногда по вечерам я писал ему стихи в школьной тетради.', 'Dažos vakaros es tam rakstīju dzejoļus skolas burtnīcā.'],
@@ -6005,7 +6054,7 @@ function frame(){
   lastLeaf = sp.leaf;
   if (sp.nutfall > 0 && rng() < dt * 0.45 * sp.nutfall){ const t_ = pick(tree.tips); spawnNut(t_.p.clone().add(TREE)); }
   if (sp.petals > 0 && rng() < dt * 40 * sp.petals){ const t_ = pick(tree.tips); petals.spawn(TREE.x + t_.p.x + rnd(-0.8, 0.8), t_.p.y + rnd(0, 0.8), TREE.z + t_.p.z + rnd(-0.8, 0.8)); }
-  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod(); PANSY.lod(); MARIGOLD.lod(); CHESS.lod();   // (near and far follow the eye as it moves)
+  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod(); PANSY.lod(); MARIGOLD.lod(); CHESS.lod(); CHESS.play(dt);   // (near and far follow the eye as it moves)
   PETALFALL.update(dt, t, wind); CHSMOKE.update(dt, t, wind);
 
   // snowfall
@@ -6140,7 +6189,10 @@ function frame(){
       const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
       for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
       console.log('CHESSCT click', el && (el.id || el.tagName), 'on', desk.on, 'view', desk.f, 'home', desk.home, 'dist', camera.position.distanceTo(wp).toFixed(2));
-      setTimeout(() => { console.log('CHESSCT seated at', camera.position.distanceTo(wp).toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc', 'on', desk.on, 'view', desk.f, camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode); }, +(q.get('chessctt') || 3000)); }, 50); }
+      const clk = () => { const v2 = wp.clone().project(camera), x2 = (v2.x + 1) / 2 * innerWidth, y2 = (1 - v2.y) / 2 * innerHeight, e2 = document.elementFromPoint(x2, y2); for (const t of ['pointerdown', 'pointerup']) e2.dispatchEvent(new PointerEvent(t, { clientX: x2, clientY: y2, pointerId: 1, bubbles: true })); };
+      if (q.has('chesstap')) setTimeout(() => { clk(); setTimeout(clk, 150); setTimeout(() => { clk(); console.log('CHESSCT tapped thrice: playing', CHESS.G.on); }, 300);
+        setTimeout(() => { console.log('CHESSCT after 8s: ply', CHESS.G.i, 'moved', CHESS.G.moved, 'wait', CHESS.G.wait.toFixed(2), 'clock', CHESS.G.clock.toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc: playing', CHESS.G.on, 'moved', CHESS.G.moved, 'still seated', desk.on, desk.f); }, 8300); }, 2500);
+      else setTimeout(() => { console.log('CHESSCT seated at', camera.position.distanceTo(wp).toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc', 'on', desk.on, 'view', desk.f, camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode); }, +(q.get('chessctt') || 3000)); }, 50); }
     if (q.has('smokelog')) console.log('SMOKE chimneys', CHIMNEYS.length, 'smoking', CHSMOKE.CH.filter(c => c.k > 0.3).length, 'puffs', CHSMOKE.mesh.geometry.instanceCount);
     if (q.get('mariat')){ const it = MARIGOLD.items[+q.get('mariat') || 0], d = +(q.get('marid') || 1.0), e = new V3(it.p.x + d * 0.8, 1.6, it.p.z + d * 0.6); const cy = +(q.get('maricamy') || 0.9); place(e, yawTo(e, it.p), -Math.atan2(cy - it.p.y - 0.15, d)); setTimeout(() => { mode = 'free'; camera.position.y = cy; }, 300); }
     if (q.has('marilog')) console.log('MARIGOLD', MARIGOLD.items.length, 'tris near/far', MARIGOLD.tris.map(t => t.join('/')).join(' '), 'meshes', MARIGOLD.SET.meshes.length);
