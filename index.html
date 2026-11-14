@@ -1648,7 +1648,8 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       felt.frustumCulled = cshadow.frustumCulled = false; cshadow.renderOrder = 1; board.add(felt, cshadow);
       // to look at it: click, and sit down on the sofa beside it
       sofa.updateMatrixWorld(true); const ctr = board.localToWorld(new V3(0, TH + 0.03, 0));
-      desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.28, y1: 2.86,   // (round it from white's end to black's, always from the room side: never through the sofa's back)
+      desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.12, y1: 3.02,   // (low along the seat the eye stops at the sofa's arms; higher, it may lean out over them)
+        dmax: (D) => { const lx = Math.abs(D.z), t = 0.84 / Math.max(1e-3, lx); return D.y * t < 0.17 && bz + D.x * t < 0.43 ? t : Infinity; },   // (round it from white's end to black's, always from the room side: never through the sofa's back)
          p0: 0.1, p1: 1.45, d0: 0.16, d1: 1.3 };
       let cur = -1;
       // the board's lacquer mirrors the pieces, as the real one did: they are drawn a second time from under the board's top, and the top shows
@@ -5967,6 +5968,7 @@ function frame(){
       P3.set(Math.sin(desk.yaw) * cp, Math.sin(desk.pitch), Math.cos(desk.yaw) * cp);
       { const b = desk.box, o = v.t, D = [P3.x, P3.y, P3.z], O = [o.x, o.y, o.z]; let tm = desk.d;   // pull in rather than pass through a wall
         for (let a = 0; a < 3; a++){ if (D[a] > 1e-6) tm = Math.min(tm, (b[a * 2 + 1] - O[a]) / D[a]); else if (D[a] < -1e-6) tm = Math.min(tm, (b[a * 2] - O[a]) / D[a]); }
+        if (v.dmax) tm = Math.min(tm, v.dmax(P3));   // (and short of anything the view says is in the way)
         P3.multiplyScalar(Math.max(0.06, tm)).add(o); }
       desk.cp.lerp(P3, k); desk.ct.lerp(v.t, k); camera.position.copy(desk.cp); camera.lookAt(desk.ct);
     } else if (mode === 'window'){
