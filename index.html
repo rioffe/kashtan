@@ -1651,9 +1651,39 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.45, y1: 2.7,   // (round it from white's end to black's, always from the room side: never through the sofa's back)
          p0: 0.1, p1: 1.45, d0: 0.16, d1: 1.3 };
       let cur = -1;
+      // the board's lacquer mirrors the pieces, as the real one did: they are drawn a second time from under the board's top, and the top shows
+      // that picture where its lacquer is glassy (not along the scratches), faintly from above and more and more towards a low angle
+      const RK = +(new URLSearchParams(location.search).get('chessrefl') || 1);   // (debug: ?chessrefl=k strengthens the reflections)
+      const RL = 5, rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType }), vcam = new THREE.PerspectiveCamera();
+      const rU = { tRefl: { value: rt.texture }, uReflM: { value: new THREE.Matrix4() }, uReflK: { value: 0 }, uReflTexel: { value: new THREE.Vector2(1 / 16, 1 / 16) } };
+      boardTop.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, rU);
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 uReflM; varying vec4 vReflUv;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvReflUv = uReflM * modelMatrix * vec4(transformed, 1.0);');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tRefl; uniform float uReflK; uniform vec2 uReflTexel; varying vec4 vReflUv;')
+          .replace('#include <opaque_fragment>', `if (uReflK > 0.0){ vec2 ruv = vReflUv.xy / vReflUv.w, o = uReflTexel * 1.6;
+              vec4 rc = texture2D(tRefl, ruv) * 0.4 + (texture2D(tRefl, ruv + vec2(o.x, 0.0)) + texture2D(tRefl, ruv - vec2(o.x, 0.0)) + texture2D(tRefl, ruv + vec2(0.0, o.y)) + texture2D(tRefl, ruv - vec2(0.0, o.y))) * 0.15;
+              float nv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), F = (0.14 + 0.86 * pow(1.0 - nv, 3.0)) * uReflK * (1.0 - smoothstep(0.1, 0.45, material.clearcoatRoughness));
+              outgoingLight = outgoingLight * (1.0 - F * rc.a * 0.75) + rc.rgb * F; }
+            #include <opaque_fragment>`); };
+      boardTop.customProgramCacheKey = () => 'chessboardtop';
+      for (const { m } of meshes) m.layers.enable(RL); felt.layers.enable(RL);
+      let litRL = false; const rv = { n: new V3(0, 1, 0), p: new V3(), c: new V3(), view: new V3(), look: new V3(), tgt: new V3(), rot: new THREE.Matrix4(), cc: new THREE.Color(), sz: new THREE.Vector2() };
+      const reflect = () => { rU.uReflK.value = 0; if (!board.visible || cur > 1 || mode !== 'window') return;
+        camera.updateMatrixWorld(); board.localToWorld(rv.p.set(0, TH, 0)); rv.c.setFromMatrixPosition(camera.matrixWorld);
+        rv.view.subVectors(rv.p, rv.c); if (rv.view.dot(rv.n) > 0) return;   // (from below the board: nothing to see)
+        if (!litRL){ scene.traverse(o => { if (o.isLight) o.layers.enable(RL); }); litRL = true; }   // (the lights light the second drawing too)
+        renderer.getDrawingBufferSize(rv.sz); const w = Math.max(16, rv.sz.x >> 1), h = Math.max(16, rv.sz.y >> 1); if (rt.width !== w || rt.height !== h){ rt.setSize(w, h); rU.uReflTexel.value.set(1 / w, 1 / h); }
+        rv.view.reflect(rv.n).negate().add(rv.p);
+        rv.rot.extractRotation(camera.matrixWorld); rv.look.set(0, 0, -1).applyMatrix4(rv.rot).add(rv.c); rv.tgt.subVectors(rv.p, rv.look).reflect(rv.n).negate().add(rv.p);
+        vcam.position.copy(rv.view); vcam.up.set(0, 1, 0).applyMatrix4(rv.rot).reflect(rv.n); vcam.lookAt(rv.tgt); vcam.far = camera.far; vcam.updateMatrixWorld();
+        vcam.projectionMatrix.copy(camera.projectionMatrix); vcam.projectionMatrixInverse.copy(camera.projectionMatrixInverse); vcam.layers.set(RL);
+        rU.uReflM.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(vcam.projectionMatrix).multiply(vcam.matrixWorldInverse);
+        const prevT = renderer.getRenderTarget(), pa = renderer.getClearAlpha(), au = renderer.shadowMap.autoUpdate; renderer.getClearColor(rv.cc);
+        renderer.shadowMap.autoUpdate = false; renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, vcam);
+        renderer.setRenderTarget(prevT); renderer.setClearColor(rv.cc, pa); renderer.shadowMap.autoUpdate = au; rU.uReflK.value = RK; };
       const dbg = (new URLSearchParams(location.search).get('chesscam') || '').split(',').filter(Boolean).map(Number);   // debug: ?chesscam=x,y,z,tx,ty,tz in the board's frame (metres)
       const only = new URLSearchParams(location.search).get('chessonly'); if (only) meshes.forEach(e => e.m.visible = e.type === only);
-      CHESS = { ctr, board, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
+      CHESS = { ctr, board, reflect, lod(){ const kd = 0.18 + 0.82 * env.day; BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
         const d = camera.position.distanceTo(ctr), l = d < 1.15 ? 0 : d < 3.4 ? 1 : 2; board.visible = d < 18; if (l === cur) return; cur = l; for (const { m, geos } of meshes) m.geometry = geos[l]; } };
       if (new URLSearchParams(location.search).has('chesslog')) console.log('CHESS tris per LOD', [0, 1, 2].map(l => meshes.reduce((a, { m, geos }) => a + geos[l].index.count / 3 * m.count, 0)).join('/'), 'board', (BL * 100).toFixed(1) + 'x' + (BW * 100).toFixed(1) + ' cm', 'at', ctr.toArray().map(v => v.toFixed(3)).join(','));
     }
@@ -6045,7 +6075,7 @@ function frame(){
       p.position.copy(cat.root.position); p.position.y += 0.0005; p.receiveShadow = true; scene.add(p); window.__studioP = p; }
     for (const o of scene.children) if (!o.isLight && o !== cat.root && o !== window.__studioP) o.visible = false;
     scene.background = new THREE.Color('#77756f'); scene.fog.density = 0; }   // debug: ?studio=1
-  renderer.render(scene, camera);
+  CHESS.reflect(); renderer.render(scene, camera);   // (the pieces in the chessboard's lacquer first)
 }
 
 { const q = new URLSearchParams(location.search);
