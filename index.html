@@ -1648,7 +1648,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
       felt.frustumCulled = cshadow.frustumCulled = false; cshadow.renderOrder = 1; board.add(felt, cshadow);
       // to look at it: click, and sit down on the sofa beside it
       sofa.updateMatrixWorld(true); const ctr = board.localToWorld(new V3(0, TH + 0.03, 0));
-      desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.45, y1: 2.7,   // (round it from white's end to black's, always from the room side: never through the sofa's back)
+      desk.views.chess = { t: ctr, yaw: 1.0, pitch: 0.66, d: 0.56, yr: 1.7, y0: 0.28, y1: 2.86,   // (round it from white's end to black's, always from the room side: never through the sofa's back)
          p0: 0.1, p1: 1.45, d0: 0.16, d1: 1.3 };
       let cur = -1;
       // the board's lacquer mirrors the pieces, as the real one did: they are drawn a second time from under the board's top, and the top shows
