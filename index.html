@@ -2130,10 +2130,10 @@ let orchardLeaves, orchardBloom, orchardFruit, shrubLeaves, berries, flowerLeave
    drooping at their tips, overlapping like shingles. Near the eye every leaf is modelled; further off each is one flat card with the
    same painted leaf, chosen per shoot in the shader (the shadows too). Instanced by shoot; the near ones in blocks, so blocks out of
    reach are skipped. Own random numbers, so nothing else in the world moves */
-const lodU = { eye: { value: new V3() }, d: { value: 12 } };
+const lodU = { eye: { value: new V3() }, d: { value: 12 }, small: { value: 7 } };
 // near: draw only the instances nearer the eye than uLodD; far: only those beyond (the rest collapse to a point and draw nothing)
-function lodify(mat, near){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
-  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uEye = lodU.eye; sh.uniforms.uLodD = lodU.d;
+function lodify(mat, near, dU = lodU.d){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uEye = lodU.eye; sh.uniforms.uLodD = dU;
     sh.vertexShader = 'uniform vec3 uEye; uniform float uLodD;\n' + sh.vertexShader.replace('#include <project_vertex>', `
       #ifdef USE_INSTANCING
       { float dc = distance((modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz, uEye); if (${near ? 'dc > uLodD' : 'dc <= uLodD'}) transformed = vec3(0.0); }
@@ -2475,9 +2475,9 @@ const PEAR_B = blossomTrees({ name: 'pear', seed: 7203, spots: ORCH.pear.bloom, 
 const PLUM_B = blossomTrees({ name: 'plum', seed: 7307, spots: ORCH.plum.bloom, bloom: FRUIT_TYPES.plum.bloomS, flowers: 3, buds: 1, rf: 0.033, ped: [0.06, 0.09], spread: [0.3, 0.9],
   petal: { wk: 0.86, flush: 0 }, centre: { anther: '#e8d048', disc: '#b4bc5c' }, bud: { c0: '#ffffff', c1: '#e4ecd0' } });
 /* near / far instancing in blocks, for the elder's flower heads and berries: items {p, q, s, vI}; geos[vI] = [near, far] */
-function lodSet(items, geos, matN, matF){
+function lodSet(items, geos, matN, matF, dU = lodU.d, bs = [16, 20]){   // (bs: the size of the blocks the near versions are drawn in)
   const blocks = new Map(), meshes = [], near = [], M = new THREE.Matrix4(), Sc = new V3(), c1 = new THREE.Color(1, 1, 1);
-  for (const it of items){ const key = Math.floor(it.p.x / 16) + ',' + Math.floor(it.p.z / 20); if (!blocks.has(key)) blocks.set(key, { lists: geos.map(() => []), ps: [] }); const b = blocks.get(key); b.lists[it.vI].push(it); b.ps.push(it.p); }
+  for (const it of items){ const key = Math.floor(it.p.x / bs[0]) + ',' + Math.floor(it.p.z / bs[1]); if (!blocks.has(key)) blocks.set(key, { lists: geos.map(() => []), ps: [] }); const b = blocks.get(key); b.lists[it.vI].push(it); b.ps.push(it.p); }
   const mk = (geo, mat, list, key) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((it, j) => { it[key] = m; it[key + 'j'] = j; M.compose(it.p, it.q, Sc.setScalar(it.s)); m.setMatrixAt(j, M); m.setColorAt(j, c1); });
     m.computeBoundingSphere(); meshes.push(m); scene.add(m); return m; };
   for (const b of blocks.values()){ b.meshes = []; b.lists.forEach((list, vI) => { if (list.length) b.meshes.push(mk(geos[vI][0], matN, list, 'n')); });
@@ -2486,7 +2486,7 @@ function lodSet(items, geos, matN, matF){
   return { meshes, far, blocks: near,
     set(it, M, col){ it.n.setMatrixAt(it.nj, M); it.f.setMatrixAt(it.fj, M); if (col){ it.n.setColorAt(it.nj, col); it.f.setColorAt(it.fj, col); } },
     touch(){ for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } },
-    lod(on){ for (const m of far) m.visible = on; const eye = lodU.eye.value, d = lodU.d.value; for (const b of near){ const v = on && b.c.distanceTo(eye) - b.r < d; for (const m of b.meshes) m.visible = v; } } };
+    lod(on){ for (const m of far) m.visible = on; const eye = lodU.eye.value, d = dU.value; for (const b of near){ const v = on && b.c.distanceTo(eye) - b.r < d; for (const m of b.meshes) m.visible = v; } } };
 }
 
 /* elder: in June, flat heads of tiny cream flowers held up at the ends of the shoots, each head five clusters round a sixth on
@@ -3075,7 +3075,7 @@ const openDepth = () => shaderChain(new THREE.MeshDepthMaterial({ depthPacking: 
    8 grassy leaf | 9 primula leaf | 10 peony leaf | 11 sunflower leaf | 12 rose leaf | 13 narrow leaf | 14 stem: green | brown-red | 15 phlox floret
    16 bract, sepal | 17 dahlia petal | 18 crocus stigma | 19 tulip petal | 20 daffodil petal | 21 daffodil trumpet | 22 bulb leaf | 23 green
    24 peony guard petal | 25 peony inner petal | 26 stamens | 27 dahlia leaf | 28 dahlia petal | 29 cactus dahlia petal | 30 tomato leaf | 31 tomato skin
-   32 gladiolus tepal | 33 the same, its throat blotched | 34 gladiolus leaf */
+   32 gladiolus tepal | 33 the same, its throat blotched | 34 gladiolus leaf | 35 marigold floret | 36 the same, mahogany edged gold | 37 marigold leaf */
 const FLA = (() => {
   const t = tex(1024, 1024, (g) => { g.clearRect(0, 0, 1024, 1024);
     const cell = (i, f) => { g.save(); const x = (i % 8) * 128, y = (i / 8 | 0) * 128; g.beginPath(); g.rect(x, y, 128, 128); g.clip(); g.translate(x, y); f(); g.restore(); };
@@ -3186,6 +3186,16 @@ const FLA = (() => {
       const gr = g.createLinearGradient(0, 0, 128, 0); gr.addColorStop(0, '#3a6632'); gr.addColorStop(0.5, '#568646'); gr.addColorStop(1, '#3a6632'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
       g.strokeStyle = 'rgba(196,222,176,0.5)'; g.lineWidth = 3; g.beginPath(); g.moveTo(64, 128); g.lineTo(64, 2); g.stroke();
       g.strokeStyle = 'rgba(30,60,20,0.3)'; g.lineWidth = 1; for (let x = 22; x < 108; x += 7){ g.beginPath(); g.moveTo(x, 128); g.lineTo(x + (64 - x) * 0.6, 0); g.stroke(); } g.restore(); });
+    // 35 marigold floret: a broad fan, the rim crinkled and nicked, faint veins (the plant's colour tints it)
+    cell(35, () => petal(t => (0.42 + 0.58 * Math.sin(Math.min(1, t / 0.55) * Math.PI / 2)) * (t > 0.82 ? Math.sqrt(Math.max(0, 1 - 0.6 * ((t - 0.82) / 0.18) ** 2)) : 1) * (1 + 0.06 * Math.sin(t * 61) * t), { notch: 0.1, veins: 11, spread: 0.85, base: '#e2d8c8', vc: 'rgba(170,150,120,0.3)', seed: 113,
+      extra: () => { const r = mkRng(115); g.strokeStyle = 'rgba(150,120,90,0.25)'; g.lineWidth = 1.2; for (let k = 0; k < 5; k++){ const y = 8 + r() * 30; g.beginPath(); g.moveTo(10, y); for (let x = 10; x < 118; x += 5) g.lineTo(x, y + Math.sin(x * 0.45 + k * 2) * 2.5); g.stroke(); } } }));
+    // 36 marigold floret, mahogany: deep red-brown, the crinkled rim gold
+    cell(36, () => petal(t => (0.42 + 0.58 * Math.sin(Math.min(1, t / 0.55) * Math.PI / 2)) * (t > 0.82 ? Math.sqrt(Math.max(0, 1 - 0.6 * ((t - 0.82) / 0.18) ** 2)) : 1) * (1 + 0.06 * Math.sin(t * 61) * t), { notch: 0.1, veins: 11, spread: 0.85, base: '#6a1208', mid: '#8a1a0c', tip: '#9a2410', vc: 'rgba(60,10,4,0.4)', seed: 117, edge: 'rgba(242,176,30,0.9)',
+      extra: () => { const r = mkRng(119); g.fillStyle = '#f0b01c'; g.beginPath(); g.moveTo(0, 0); for (let x = 0; x <= 128; x += 4) g.lineTo(x, 14 + 7 * Math.sin(x * 0.21) + r() * 5); g.lineTo(128, 0); g.fill(); g.fillStyle = 'rgba(230,140,20,0.6)'; g.fillRect(0, 0, 128, 10); } }));
+    // 37 marigold leaf: pinnate, narrow toothed leaflets, dark and finely cut
+    cell(37, () => { g.translate(64, 125); stalk(g, 0, 118, 3, 1.5, '#3a5a2a'); const pr = t => Math.pow(Math.sin(Math.PI * Math.min(1, 0.06 + t * 0.96)), 0.7), tt = (t, s) => t < 0.1 ? 0 : 0.18 * saw(t * 6 + (s > 0 ? 0 : 0.5)) ** 2;
+      const lf = (y, a, L, H) => { g.save(); g.translate(0, y); g.rotate(a); paintBlade(g, { L, H, prof: pr, teeth: tt, veins: [], col: ['#24461c', '#2e5424'], mc: 'rgba(120,150,90,0.6)' }, 'color'); g.restore(); };
+      for (let i = 0; i < 7; i++){ const y = -10 - i * 15.5, L = 36 - i * 3.6; for (const s of [-1, 1]) lf(y, s * (1.0 - i * 0.04), L, 8.5); } lf(-114, 0, 16, 7); });
   }, {});
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   const uv = (c, u, v) => [((c % 8) + 0.015 + 0.97 * u) / 8, 1 - ((c / 8 | 0) + 1) / 8 + (0.015 + 0.97 * v) / 8];   // (8 x 8 cells; 35 used)
@@ -3445,7 +3455,7 @@ const FLORA = (() => { const fr = mkRng(9707), frn = (a, b) => a + (b - a) * fr(
     const name = k !== 4 ? NAMES[k] : f.c.getHex() === orange ? 'dahlia' : f.c.getHex() === purple ? 'phlox' : (x => x < 0.4 ? 'rose' : x < 0.7 ? 'dahlia' : 'phlox')(fr());
     const inBed = RBEDS.some(b => Math.hypot(f.p.x - b.x, f.p.z - b.z) < 1.2);
     (groups[name] ||= { name, win: K.win, items: [] }).items.push({ p: new V3(f.p.x, inBed ? 0.1 : 0, f.p.z), yaw: f.yaw, s: f.p.y / ((K.h[0] + K.h[1]) / 2) * frn(0.92, 1.08), c: f.c.clone().multiplyScalar(frn(0.9, 1.06)), r: fr(), v: frn(0.85, 1.1) }); }
-  for (const G of Object.values(groups)) G.items = G.items.filter(it => !CLUMPS.some(c => Math.hypot(it.p.x - c.x, it.p.z - c.z) < c.R + 0.3) && !TBEDS.some(T => Math.abs(it.p.x - T.x) < T.hx + 0.1 && Math.abs(it.p.z - T.z) < T.hz + 0.1));   // (none under or against the big clumps, none on the tomatoes' mounds)
+  for (const G of Object.values(groups)) G.items = G.items.filter(it => !CLUMPS.some(c => Math.hypot(it.p.x - c.x, it.p.z - c.z) < c.R + 0.3) && !TBEDS.some(T => Math.abs(it.p.x - T.x) < T.hx + 0.1 && Math.abs(it.p.z - T.z) < T.hz + 0.1) && !RBEDS.some(b => { const d = Math.hypot(it.p.x - b.x, it.p.z - b.z); return d > 0.8 && d < 1.3; }));   // (and none round the round beds' edges: the pansies are there)   // (none under or against the big clumps, none on the tomatoes' mounds)
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Sc = new V3(), col = new THREE.Color(), dry = C('#b49a5c'), meshes = [];
   for (const G of Object.values(groups)){ const [H, pre, post, aut] = SPEC[G.name], amp = 0.035 / (2.8 * H * H); G.pre = pre; G.post = post; G.aut = aut; G.parts = [];
     const vars = [0, 1, 2].map(v => buildPlant(G.name, mkRng(4100 + v * 31 + G.name.length * 7)));
@@ -3680,6 +3690,208 @@ const GLAD = (() => { const gr = mkRng(9817), grn = (a, b) => a + (b - a) * gr()
       if (onF){ for (const it of fItems){ const p = it.pl; M.compose(p.p, p.q, Sc.setScalar(p.s * grow * smooth(Math.min(1, g * 2)))); FOL.set(it, M, col.setScalar(p.v).lerp(straw, yel * (0.5 + 0.5 * p.r))); } FOL.touch(); }
       if (onS){ for (const it of sItems){ const p = it.pl, gone = p.cut && S > 2.82 + p.r * 0.04; if (gone) M.copy(Z); else M.compose(p.p, p.q, Sc.setScalar(p.s * sg * smooth(Math.min(1, sp * 2)))); SPK.set(it, M, p.col); } SPK.touch(); } },
     lod(){ FOL.lod(onF); SPK.lod(onS); } };
+})();
+
+/* pansies. Garden pansies, big velvety faces in every pattern: blue with whiskers, yellow with a black face, wine over gold, red
+   with a dark face, white edged with blue, white with purple wings, magenta, clear orange, blue with a white heart, purple with a white
+   ring round a dark face, purple over yellow, wine over apricot, deep violet, lavender; round the edges of the round flower beds and
+   across the ends of some of the beds. Wild pansies, small and sprawling, violet over yellow, violet and cream, cream (the field
+   pansy), dark violet, lilac and yellow; in drifts along the fences, the edges of the beds, in the gardens' grass and the lane's verge.
+   Each flower: the two upper petals behind, the two side petals and the lower one in front, with the face, the whiskers, the yellow
+   eye. A pansy atlas of its own (laid out as the flowers' one: 8 x 8); every pattern is drawn on the same flower, the plant's pattern
+   picked in the shader (its number carried in the instance colour). Own random numbers */
+const PANSY = (() => { const pr = mkRng(9829), prn = (a, b) => a + (b - a) * pr();
+  const GARDEN = [
+    { up: '#3a46c0', lat: '#3e4ac6', low: '#4250cc', edge: '#6a78e4', wh: '#141040' },
+    { up: '#f2cc1a', lat: '#f2cc1a', low: '#f4ce1c', bl: '#24100c', br: 0.85 },
+    { up: '#6a1030', lat: '#f2b818', low: '#f4b41a', wh: '#40100c' },
+    { up: '#7e0a10', lat: '#b8141a', low: '#b8161a', bl: '#300606', br: 0.8 },
+    { up: '#f8f8fc', lat: '#fbfbff', low: '#fbfbff', edge: '#4a54cc', ew: 0.45, wh: '#1a1a50' },
+    { up: '#5a2496', lat: '#f8f6fa', low: '#fafafa', wh: '#2a1a4a' },
+    { up: '#9a2e94', lat: '#a83aa0', low: '#b040a6', bl: '#2a0626', br: 0.6 },
+    { up: '#ee7e10', lat: '#f08a18', low: '#f2901c', wh: '#8a4a10' },
+    { up: '#4654d4', lat: '#f6f6ff', low: '#f6f6ff', edge: '#4654d4', ew: 0.6, bl: '#1a1050', br: 0.32 },
+    { up: '#5418a0', lat: '#5a1ea6', low: '#5c20a8', ring: '#ffffff', bl: '#220846', br: 0.55 },
+    { up: '#4a2290', lat: '#f2d42a', low: '#f4d62c', wh: '#2a1810' },
+    { up: '#5a1440', lat: '#f2a030', low: '#f4a432', wh: '#4a1a10' },
+    { up: '#3a1270', lat: '#40147a', low: '#44167e', bl: '#140428', br: 0.7 },
+    { up: '#9c9ce8', lat: '#a4a4ec', low: '#aaaaf0', wh: '#2a2a70' } ];
+  const WILDP = [
+    { up: '#4a2a90', lat: '#ece4f4', low: '#f2d23a', wh: '#2a1a40' },
+    { up: '#5a3aa6', lat: '#6a48b0', low: '#f4e6a0', wh: '#2a1a40' },
+    { up: '#f2ead0', lat: '#f6f0dc', low: '#f4e070', wh: '#5a4a30' },
+    { up: '#3a1a78', lat: '#4a2488', low: '#5a2a90', wh: '#1a0a30' },
+    { up: '#8a7ad8', lat: '#d8d0f0', low: '#f0d040', wh: '#2a1a50' } ];
+  // a flower's two layers, each in its cell (the flower's centre at the bottom of the cell): the upper petals; the face
+  const wavy = (cx, cy, rx, ry, rot, ph, amp = 0.04) => { g_.beginPath(); for (let i = 0; i <= 48; i++){ const a = i / 48 * TAU, r = 1 + amp * Math.sin(a * 9 + ph) + amp * 0.5 * Math.sin(a * 17 + ph * 2);
+    const x = Math.cos(a) * rx * r, y = Math.sin(a) * ry * r; g_.lineTo(cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)); } g_.closePath(); };
+  let g_ = null;
+  const fillPetal = (cx, cy, rx, ry, rot, ph, col, edge, ew = 0.35) => { const g = g_; wavy(cx, cy, rx, ry, rot, ph); g.save(); g.clip();
+    const gr = g.createRadialGradient(64, 128, 4, 64, 128, 128); gr.addColorStop(0, C(col).multiplyScalar(0.82).getStyle()); gr.addColorStop(0.35, col); gr.addColorStop(1, col); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    if (edge){ const eg = g.createRadialGradient(cx, cy, Math.min(rx, ry) * (1 - ew), cx, cy, Math.max(rx, ry) * 1.05); eg.addColorStop(0, 'rgba(0,0,0,0)'); eg.addColorStop(0.55, edge + '99'); eg.addColorStop(1, edge); g.fillStyle = eg; g.fillRect(0, 0, 128, 128); }
+    const r = mkRng(ph * 1000 | 0); g.lineWidth = 0.8; for (let k = 0; k < 26; k++){ const a = -Math.PI / 2 + (r() - 0.5) * 2.4; g.strokeStyle = r() < 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'; g.beginPath(); g.moveTo(64, 128); g.lineTo(64 + Math.cos(a) * 140, 128 + Math.sin(a) * 140); g.stroke(); }   // fine veins, a velvet sheen
+    g.restore(); wavy(cx, cy, rx, ry, rot, ph); g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 0.8; g.stroke(); };
+  function paint(g, P, front, wild){ g_ = g; const w = wild ? 0.82 : 1;
+    if (!front){ fillPetal(64 + 22 * w, 60, 33 * w, 52, 0.3, 1.3, P.up, P.edge, P.ew); fillPetal(64 - 22 * w, 60, 33 * w, 52, -0.3, 2.1, P.up, P.edge, P.ew); return; }
+    fillPetal(64, 54, 44 * w, 48, 0, 0.7, P.low, P.edge, P.ew);                                                       // the lower petal (away from the centre: up the cell)
+    for (const s of [-1, 1]) fillPetal(64 + s * 35 * w, 98, 31 * w, 26, s * 0.45, 3 + s, P.lat, P.edge, P.ew);           // the two side petals, by the centre
+    g.save(); wavy(64, 54, 44 * w, 48, 0, 0.7); for (const s of [-1, 1]) wavy(64 + s * 35 * w, 98, 31 * w, 26, s * 0.45, 3 + s); g.clip();   // (markings stay on the petals)
+    for (const s of [-1, 1]){ g.beginPath(); g.ellipse(64 + s * 35 * w, 98, 31 * w, 26, s * 0.45, 0, TAU); }
+    const face = (k, col, feather) => { g.fillStyle = col; g.beginPath(); g.moveTo(64, 128); g.bezierCurveTo(64 - 70 * k * w, 120, 64 - 40 * k * w, 128 - 92 * k, 64, 128 - 98 * k); g.bezierCurveTo(64 + 40 * k * w, 128 - 92 * k, 64 + 70 * k * w, 120, 64, 128); g.fill();
+      if (feather){ g.strokeStyle = col; g.lineWidth = 1.4; const r = mkRng(7); for (let i = 0; i < 40; i++){ const a = -Math.PI / 2 + (r() - 0.5) * 2.6, L = 98 * k * (0.75 + 0.35 * r()); g.beginPath(); g.moveTo(64, 126); g.lineTo(64 + Math.cos(a) * L * w, 128 + Math.sin(a) * L); g.stroke(); } } };
+    if (P.ring) face(P.br * 1.55, P.ring, true);
+    if (P.bl) face(P.br, P.bl, true);
+    if (P.wh){ g.strokeStyle = P.wh; g.lineCap = 'round'; for (let i = 0; i < 11; i++){ const a = -Math.PI / 2 + (i - 5) * 0.2, L = (i % 2 ? 30 : 44) * (1 - Math.abs(i - 5) * 0.06); g.lineWidth = 1.6 - Math.abs(i - 5) * 0.08; g.beginPath(); g.moveTo(64, 124); g.lineTo(64 + Math.cos(a) * L * w, 124 + Math.sin(a) * L); g.stroke(); }   // the whiskers: down the lower petal...
+      for (const s of [-1, 1]) for (let i = 0; i < 4; i++){ const a = Math.PI + (s > 0 ? Math.PI : 0) + s * (-0.15 - i * 0.16); g.lineWidth = 1.1; g.beginPath(); g.moveTo(64 + s * 6, 120); g.lineTo(64 + s * 6 + Math.cos(a) * 24 * s * s * w, 120 + Math.sin(a) * 18); g.stroke(); } }   // ...and out along the side ones
+    g.fillStyle = 'rgba(255,255,255,0.7)'; for (const s of [-1, 1]) for (let i = 0; i < 14; i++){ g.fillRect(64 + s * (8 + (i % 5) * 2.5), 112 + (i % 3) * 3, 1, 3); }   // the beards
+    g.restore();
+    const eg = g.createRadialGradient(64, 124, 1, 64, 124, 11); eg.addColorStop(0, '#fff2a0'); eg.addColorStop(0.5, '#f4c418'); eg.addColorStop(1, 'rgba(240,180,20,0)'); g.fillStyle = eg; g.beginPath(); g.arc(64, 124, 11, 0, TAU); g.fill(); }   // the yellow eye
+  const ALL = GARDEN.concat(WILDP);
+  const tex_ = tex(1024, 1024, (g) => { g.clearRect(0, 0, 1024, 1024);
+    const cell = (i, f) => { g.save(); const x = (i % 8) * 128, y = (i / 8 | 0) * 128; g.beginPath(); g.rect(x, y, 128, 128); g.clip(); g.translate(x, y); f(); g.restore(); };
+    ALL.forEach((P, k) => { const wild = k >= GARDEN.length; cell(24 + 2 * k, () => paint(g, P, false, wild)); cell(25 + 2 * k, () => paint(g, P, true, wild)); });
+    cell(0, () => { g.translate(64, 125); stalk(g, 0, 26, 3, 2, '#4a7a34'); g.translate(0, -24); const pr = t => t < 0.35 ? 0.45 + 0.55 * Math.sin(t / 0.35 * Math.PI / 2) : Math.pow(Math.cos((t - 0.35) / 0.65 * Math.PI / 2), 0.8);   // the leaf: oval, the edge in round scallops, glossy
+      paintBlade(g, { L: 98, H: 46, prof: pr, teeth: t => t < 0.1 ? 0 : 0.09 * Math.abs(Math.sin(t * 26)), veins: pinnate(pr, [0.15, 0.32, 0.5, 0.68], 0.2, 0.85), col: ['#2e5a24', '#3e6c2c'], vc: 'rgba(170,200,140,0.35)', mc: 'rgba(170,200,140,0.6)' }, 'color'); });
+    cell(1, () => { g.translate(64, 125); const pr = t => Math.pow(Math.sin(Math.PI * Math.min(1, 0.05 + t * 0.97)), 0.7);   // the stipule: leafy, cut deep into narrow lobes
+      paintBlade(g, { L: 120, H: 50, prof: pr, teeth: (t, s) => t < 0.15 ? 0 : 0.55 * saw(t * 4.2 + (s > 0 ? 0 : 0.5)) ** 2.2, veins: [], col: ['#34602a', '#447034'], vc: 'rgba(170,200,140,0.3)' }, 'color'); });
+    cell(14, () => { g.fillStyle = '#5a8a3e'; g.fillRect(0, 0, 128, 128); });
+    cell(16, () => { g.translate(64, 125); paintBlade(g, { L: 120, H: 40, prof: t => Math.pow(Math.sin(Math.PI * Math.min(1, 0.1 + t * 0.92)), 0.6), col: ['#3e6a2c', '#4c7a34'] }, 'color'); });
+    cell(23, () => { g.fillStyle = '#4e7a34'; g.fillRect(0, 0, 128, 128); });
+  }, {});
+  tex_.wrapS = tex_.wrapT = THREE.ClampToEdgeWrapping;
+  // the plants, in their own frames. Garden: a low mound of leaves on short stems, faces held up and out above it on hooked stalks,
+  // buds nodding. Wild: thin stems sprawling and rising, small leaves and their stipules, little faces on long stalks
+  function build(r, wild, far){ const F = FB(), W = FB(); W.O = []; const rn = (a, b) => a + (b - a) * r(), V = (x, y, z) => new V3(x, y, z), up = V(0, 1, 0), mark = (o, f) => { f(); while (W.O.length < W.P.length / 3) W.O.push(o); };
+    const ns = wild ? (far ? 3 : 5) : (far ? 4 : 7), tips = [];
+    for (let k = 0; k < ns; k++){ const az = k / ns * TAU + rn(-0.3, 0.3), out = hzA(az), L = wild ? rn(0.07, 0.12) : rn(0.05, 0.08), rise = wild ? rn(0.9, 1.4) : rn(0.6, 1.0);
+      const pts = []; for (let i = 0; i <= 3; i++){ const t = i / 3; pts.push(out.clone().multiplyScalar(L * t).add(V(0, L * rise * Math.sin(t * Math.PI * 0.5) * (wild ? 1 : 0.8), 0))); }
+      if (!far || wild) fbTube(F, M0, pts, wild ? 0.0018 : 0.003, 0.0015, 0, 1);
+      const nl = far ? 1 : wild ? 4 : 3;
+      for (let j = 0; j < nl; j++){ const t = (j + 1) / (nl + 0.3), p = pts[Math.min(3, Math.round(t * 3))], a = az + rn(-0.9, 0.9), sz = wild ? rn(0.026, 0.036) : rn(0.045, 0.06);
+        fbStrip(F, leafM(p, a, wild ? rn(0.1, 0.6) : rn(0.15, 0.55)), 0, sz, sz * 0.62, { rows: far ? 1 : 2, bend: rn(0.3, 0.7), cup: 0.2 });
+        if (!far && j < 2) fbStrip(F, leafM(p, a + rn(-0.6, 0.6), rn(0.2, 0.7)), 1, sz * 0.7, sz * 0.4, { rows: 1, bend: 0.3 }); }
+      tips.push({ p: pts[3], out, az }); }
+    // the flowers
+    const nf = wild ? 6 : 6;
+    for (let i = 0; i < nf + (far ? 0 : 2); i++){ const bud = i >= nf, T = tips[i % tips.length], az = T.az + rn(-0.5, 0.5), out = hzA(az), fs = wild ? rn(0.021, 0.027) : rn(0.052, 0.066);
+      const base = wild ? T.p.clone() : V(0, 0.03, 0).addScaledVector(out, 0.02), h = wild ? rn(0.035, 0.06) : rn(0.1, 0.16), top = base.clone().addScaledVector(out, wild ? rn(0.0, 0.02) : rn(0.03, 0.08)).add(V(0, h, 0));
+      const n = out.clone().multiplyScalar(bud ? 0.2 : rn(0.6, 0.9)).add(V(0, bud ? -1 : rn(0.45, 0.85), 0)).normalize();   // which way the face looks
+      const yp = up.clone().addScaledVector(n, -up.dot(n)).normalize(), xp = new V3().crossVectors(yp, n), c = top.clone().addScaledVector(n, 0.004), M = new THREE.Matrix4().makeBasis(xp, yp, n).setPosition(c);
+      if (!far || wild){ const hook = top.clone().addScaledVector(n, -0.012).add(V(0, 0.006, 0)); mark(-1, () => fbTube(W, M0, [base, base.clone().lerp(top, 0.6).addScaledVector(out, 0.004), hook, c.clone().addScaledVector(n, -0.004)], wild ? 0.0012 : 0.0018, 0.0012, 0, 1)); }
+      if (bud){ mark(-1, () => fbBud(W, headM(c, n), fs * 0.18, fs * 0.42, 0)); continue; }
+      if (!far) mark(-1, () => { for (let k = 0; k < 5; k++) fbStrip(W, M.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.005)).multiply(new THREE.Matrix4().makeRotationZ(k / 5 * TAU + 0.3)).multiply(new THREE.Matrix4().makeRotationX(-0.5)), 16, fs * 0.3, fs * 0.08, { rows: 1 }); });   // the sepals
+      const o = i / (nf - 1);
+      mark(o, () => fbStrip(W, M.clone().multiply(new THREE.Matrix4().makeTranslation(0, -fs * 0.04, -0.003)), 24, fs * 0.56, fs * 0.96, { rows: far ? 1 : 2, cup: 0.18, bend: -0.25, hc: c, tint: 1 }));   // the upper petals, behind
+      mark(o, () => fbStrip(W, M.clone().multiply(new THREE.Matrix4().makeTranslation(0, fs * 0.17, 0)).multiply(new THREE.Matrix4().makeRotationZ(Math.PI)), 25, fs * 0.86, fs, { rows: far ? 1 : 2, cup: -0.08, bend: 0.22, hc: c, tint: 1 })); }   // the face
+    const gW = flGeo(W, true); gW.setAttribute('aOrd', new THREE.Float32BufferAttribute(W.O, 1));
+    for (const B of [F]) B.T.fill(0); W.T.forEach((t, i) => { if (W.O[i] < -0.5) W.T[i] = 0; }); gW.setAttribute('aTint', new THREE.Float32BufferAttribute(W.T, 1));
+    return [flGeo(F, false), gW]; }
+  // where: garden pansies round the edges of the round beds and across the ends of some beds; wild ones in drifts
+  const items = [];
+  const add = (x, z, pat, wild) => items.push({ x, z, y: bedY(x, z), pat, wild, yaw: pr() * TAU, s: wild ? prn(0.85, 1.2) : prn(0.88, 1.12), r: pr(), v: prn(0.88, 1.08) });
+  for (const B of RBEDS){ const n = 26, a0 = pr() * TAU; let pat = pr() * GARDEN.length | 0, left = 0;
+    for (let i = 0; i < n; i++){ if (left-- <= 0){ left = 2 + (pr() * 4 | 0); pat = pr() * GARDEN.length | 0; } const a = a0 + i / n * TAU, rr = prn(0.93, 1.02); add(B.x + Math.cos(a) * rr, B.z + Math.sin(a) * rr, pat, false); } }
+  for (const B of BEDS) for (const [zz, side] of [[B.z0 + 3.66, 0], [B.z0 + 14.34, 1]]){ if (pr() > 0.32) continue; const pat = pr() * GARDEN.length | 0, two = pr() < 0.5 ? pr() * GARDEN.length | 0 : pat;
+    for (let i = 0; i < 5; i++) add(B.bx - 0.44 + i * 0.22 + prn(-0.02, 0.02), zz + prn(-0.03, 0.03), i % 2 ? two : pat, false); }
+  const obst = [];
+  for (const L of lilacData) obst.push([L.p.x, L.p.z, 0.84 * L.s * 0.75]);
+  for (const k in WILD) for (const b of WILD[k]) obst.push([b.p.x, b.p.z, b.R * 0.8]);
+  for (const k in BERRYB) for (const b of BERRYB[k]) obst.push([b.p.x, b.p.z, b.R * 0.9]);
+  for (const c of CLUMPS) obst.push([c.x, c.z, c.R * 0.8]);
+  for (const f of fruitSpots) obst.push([f.x, f.z, 0.25]);
+  for (const b of BARRELS) obst.push([b.x, b.z, 0.4]);
+  const ok = (x, z) => z > -125.9 && z < LANE_END - 0.3 && x < 17.5 && obst.every(([ox, oz, r]) => Math.hypot(x - ox, z - oz) > r) && !SHEDS.some(S_ => x > S_.x0 - 0.1 && x < S_.x1 + 0.1 && z > S_.z0 - 0.1 && z < S_.z1 + 0.1)
+    && !TBEDS.some(T => Math.abs(x - T.x) < T.hx - 0.1 && Math.abs(z - T.z) < T.hz - 0.1) && !BEDS.some(B => Math.abs(x - B.bx) < 0.6 && z > B.z0 + 3.6 && z < B.z0 + 14.4) && !RBEDS.some(B => Math.hypot(x - B.x, z - B.z) < 1.15);
+  const drift = (x, z) => { if (!ok(x, z)) return; const pats = [pr() * WILDP.length | 0, pr() * WILDP.length | 0], n = 3 + (pr() * 6 | 0);
+    for (let i = 0; i < n; i++){ const a = pr() * TAU, rr = Math.sqrt(pr()) * 0.32, px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr; if (ok(px, pz)) add(px, pz, GARDEN.length + pats[pr() < 0.7 ? 0 : 1], true); } };
+  for (let z0 = -126; z0 < LANE_END - 1; z0 += PL){
+    for (let k = 0; k < 5; k++) drift(GX0 + prn(0.12, 0.45), z0 + prn(0.5, PL - 0.5));                     // under the lane fence
+    for (let k = 0; k < 4; k++) drift(prn(GX0 + 1, 16.5), z0 + (pr() < 0.5 ? 1 : -1) * prn(0.15, 0.45));   // along the posts between the plots
+    for (let k = 0; k < 5; k++){ const B = BEDS.filter(B => B.z0 === z0)[pr() * 6 | 0]; if (B) drift(B.bx + (pr() < 0.5 ? -1 : 1) * prn(0.7, 0.85), z0 + prn(3.6, 14.4)); }   // at the edges of the beds
+    for (let k = 0; k < 4; k++) drift(prn(GX0 + 1, 16.5), z0 + prn(1, PL - 1));                             // in the grass
+    for (let k = 0; k < 3; k++) drift(GX0 - prn(0.35, 0.9), z0 + prn(0.5, PL - 0.5)); }                     // in the lane's verge, outside the fence
+  // meshes: the leaves (the season colours them) and the flowers (opening as the season comes, a flower at a time; the pattern from the instance colour)
+  const V_ = [false, true].map(wild => [build(mkRng(6400 + (wild ? 7 : 0)), wild, false), build(mkRng(6400 + (wild ? 7 : 0)), wild, true)]);
+  const U = [{ o: { value: -1 }, c: { value: -1 } }, { o: { value: -1 }, c: { value: -1 } }];
+  const folMat = near => lodify(swayify(new THREE.MeshStandardMaterial({ map: tex_, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5 }), 0.06), near, lodU.small);
+  const floMat = (near, u) => lodify(petalGlow(shaderChain(swayify(new THREE.MeshStandardMaterial({ map: tex_, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.62 }), 0.08), 'pansy', (sh) => {
+    sh.uniforms.uPO = u.o; sh.uniforms.uPC = u.c;
+    sh.vertexShader = 'attribute float aTint; attribute vec3 aHC; attribute float aOrd; uniform float uPO; uniform float uPC;\n' + sh.vertexShader
+      .replace('#include <uv_vertex>', `#include <uv_vertex>
+        #if defined(USE_INSTANCING_COLOR) && defined(USE_MAP)
+        if (aTint > 0.5){ float col = floor(vMapUv.x * 8.0), row = 7.0 - floor(vMapUv.y * 8.0), c = row * 8.0 + col + 2.0 * floor(instanceColor.r + 0.5), nc = mod(c, 8.0), nr = floor(c / 8.0);
+          vMapUv += vec2((nc - col) / 8.0, -(nr - row) / 8.0); }   // (this plant's pattern)
+        #endif`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+        if (aOrd > -0.5){ float h = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453), k = aOrd * 0.55 + h * 0.45;
+          float o = smoothstep(0.0, 1.0, (uPO - k) * 4.0) * (1.0 - smoothstep(0.0, 1.0, (uPC - k) * 4.0));
+          transformed = aHC + (transformed - aHC) * o; }
+        #endif`)
+      .replace('#include <color_vertex>', '#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n vColor.xyz = vec3(1.0);\n#endif'); })), near, lodU.small);
+  const sets = [false, true].map((wild, w) => { const list = items.filter(it => it.wild === wild); if (!list.length) return null;
+    const fI = list.map(it => ({ p: new V3(it.x, it.y, it.z), q: new THREE.Quaternion().setFromAxisAngle(UPV, it.yaw), s: it.s, vI: 0, it })), wI = fI.map(f => ({ ...f }));
+    const fol = lodSet(fI, [[V_[w][0][0], V_[w][1][0]]], folMat(true), folMat(false), lodU.small, [5, 5]), flo = lodSet(wI, [[V_[w][0][1], V_[w][1][1]]], floMat(true, U[w]), floMat(false, U[w]), lodU.small, [5, 5]);
+    for (const m of fol.meshes.concat(flo.meshes)){ m.castShadow = false; m.receiveShadow = true; }
+    return { wild, fI, wI, fol, flo, on: false }; }).filter(Boolean);
+  const M = new THREE.Matrix4(), Sc = new V3(), col = new THREE.Color(), straw = C('#9a8a50'); let last = -1;
+  return { items, sets, GARDEN, WILDP, tex: tex_,
+    update(S){ if (Math.abs(S - last) < 0.002) return; last = S;
+      for (const st of sets){ const w = st.wild, g = w ? bump(S, 1.3, 1.55, 3.45, 3.62) : bump(S, 1.38, 1.5, 3.2, 3.32), u = U[w ? 1 : 0];
+        u.o.value = (S - (w ? 1.5 : 1.42)) / 0.25 * 1.6 - 0.3; u.c.value = (S - (w ? 3.05 : 2.7)) / (w ? 0.35 : 0.5) * 1.6 - 0.3;   // (garden pansies tire in the heat of August; the wild ones go on into September)
+        st.on = g > 0; if (!st.on) continue;
+        st.fI.forEach((f, i) => { const it = f.it; M.compose(f.p, f.q, Sc.setScalar(it.s * (0.4 + 0.6 * smooth(Math.min(1, g * 1.6))))); st.fol.set(f, M, col.setScalar(it.v).lerp(straw, smooth(clamp((S - 3.15) / 0.3)) * 0.5)); st.flo.set(st.wI[i], M, col.setRGB(it.pat, 0, 0)); });
+        st.fol.touch(); st.flo.touch(); } },
+    lod(){ for (const st of sets){ st.fol.lod(st.on); st.flo.lod(st.on); } } };
+})();
+
+/* French marigolds, lots of them: compact ferny mounds covered in ruffled double heads, golden yellow, orange, tangerine, lemon, and
+   mahogany-red edged with gold; edging some of the beds (beside the low crops), round the ends of the tomatoes' mounds (the old
+   companions), in short rows inside the lane fence; in flower from June to the frost. Near the eye every floret is modelled; further
+   off, a simpler plant. Own random numbers */
+const MARIGOLD = (() => { const mr = mkRng(9839), mrn = (a, b) => a + (b - a) * mr(), items = [];
+  const COLS = ['#f6c21a', '#f08a12', '#e86a10', '#f4d23a', '#f47a18', '#f0a018'];
+  const head = (B, M, s, cell, far, r, hc) => {
+    const rings = far ? [[6, 0.022, 0.022, 1.3, 0.1]] : [[11, 0.022, 0.019, 1.45, 0.35], [9, 0.02, 0.018, 1.12, 0], [6, 0.017, 0.016, 0.75, -0.3], [4, 0.013, 0.013, 0.35, -0.5]];
+    rings.forEach(([n, L, W, op, bd], j) => fbWhorl(B, M, n, cell, L * s, W * s, op, { cup: 0.6, bend: bd, y0: 0.002 + j * 0.003, r0: 0.004, phase: j * 0.41, rows: 1, rnd: r, hc, jit: 0.25, tint: cell === 35 ? 1 : 0 })); };
+  function build(r, cell, far){ const B = FB(), rn = (a, b) => a + (b - a) * r(), ns = far ? 5 : 8, up = new V3(0, 1, 0);
+    for (let k = 0; k < ns; k++){ const az = k / ns * TAU + rn(-0.3, 0.3), out = hzA(az), d0 = out.clone().multiplyScalar(rn(0.25, 0.6)).add(up).normalize(), len = rn(0.09, 0.15), pts = arcPts(new V3(), d0, len, out, rn(0.04, 0.1), far ? 2 : 3);
+      if (!far) fbTube(B, M0, pts, 0.003, 0.0025, 0, 0.5, 0);
+      for (let j = 0; j < (far ? 1 : 3); j++){ const t = far ? 0.5 : 0.1 + j * 0.3, i = Math.round(t * (pts.length - 1)); fbStrip(B, leafM(pts[i], az + rn(-1.3, 1.3), rn(0.15, 0.6)), 37, rn(0.08, 0.1), rn(0.05, 0.065), { rows: far ? 1 : 2, bend: rn(0.3, 0.6), cup: 0.2, tint: 0 }); }
+      const top = pts[pts.length - 1], tan = arcTan(d0, out, 0.1), ax = tan.clone().multiplyScalar(0.4).add(up).normalize();
+      if (!far) fbTube(B, M0, [top, top.clone().addScaledVector(ax, 0.012)], 0.0035, 0.007, 0, 0.5, 0);   // the stalk swelling under the head
+      if (k === 1 && !far){ fbBud(B, headM(top.clone().addScaledVector(out, 0.03).add(new V3(0, -0.04, 0)), ax), 0.006, 0.016, 0); }
+      const hp = top.clone().addScaledVector(ax, 0.012); head(B, headM(hp, ax, r() * TAU), rn(0.95, 1.15), cell, far, r, hp.clone().addScaledVector(ax, 0.008)); }
+    return flGeo(B, false); }
+  const GEO = [[35, 0], [35, 1], [36, 2]].map(([cell, v]) => [build(mkRng(6500 + v * 19), cell, false), build(mkRng(6500 + v * 19), cell, true)]);
+  const add = (x, z, run) => { const y = bedY(x, z), bi = run(); items.push({ p: new V3(x, y, z), q: new THREE.Quaternion().setFromAxisAngle(UPV, mr() * TAU), s: mrn(0.85, 1.15), vI: bi < 0 ? 2 : mr() < 0.5 ? 0 : 1, col: bi < 0 ? C('#ffffff') : C(COLS[bi]).multiplyScalar(mrn(0.92, 1.04)), r: mr() }); };
+  const runOf = () => { let left = 0, c = 0; return () => { if (left-- <= 0){ left = 2 + (mr() * 5 | 0); c = mr() < 0.25 ? -1 : mr() * COLS.length | 0; } return c; }; };   // (a few of a colour together)
+  const big = [...VEG.items.cabbage, ...VEG.items.redcab, ...VEG.items.cauli, ...VEG.items.potato].map(it => it.p), near = (x, z, L, d) => L.some(p => Math.abs(p.x - x) < d && Math.abs(p.z - z) < d);
+  // edging the beds: one long side of some of them, beside the low crops
+  const pz = PANSY.items.map(i => ({ x: i.x, z: i.z }));
+  for (const B of BEDS){ if (mr() > 0.62) continue; const sides = mr() < 0.3 ? [-1, 1] : [mr() < 0.5 ? -1 : 1];
+    for (const sd of sides){ const run = runOf(); for (let z = B.z0 + 3.8; z < B.z0 + 14.2; z += mrn(0.24, 0.3)){ const x = B.bx + sd * mrn(0.5, 0.56); if (!near(x, z, big, 0.42) && !near(x, z, pz, 0.15)) add(x, z, run); } } }
+  // round the ends of the tomatoes' mounds
+  for (const T of TBEDS){ const run = runOf(); for (const e of [-1, 1]) for (const lx of [-0.3, 0, 0.3]) add(T.x + lx + mrn(-0.03, 0.03), T.z + e * (T.L / 2 - 0.02), run); }
+  // in short rows inside the lane fence, where there is room
+  const obst = [];
+  for (const L of lilacData) obst.push([L.p.x, L.p.z, 0.84 * L.s * 0.85]);
+  for (const k in WILD) for (const b of WILD[k]) obst.push([b.p.x, b.p.z, b.R * 0.85]);
+  for (const c of CLUMPS) obst.push([c.x, c.z, c.R * 0.9]);
+  for (const f of fruitSpots) obst.push([f.x, f.z, 0.35]);
+  for (const g of GLAD.plants) obst.push([g.p.x, g.p.z, 0.12]);
+  for (const B of RBEDS) obst.push([B.x, B.z, 1.4]);
+  const free = (x, z) => x > GX0 + 0.3 && x < 17.3 && z > -125.6 && z < LANE_END - 0.8 && !(x > 10.5 && Math.abs(z + 93.5) < 4.2) && !SHEDS.some(S_ => x > S_.x0 - 0.2 && x < S_.x1 + 0.2 && z > S_.z0 - 0.2 && z < S_.z1 + 0.2) && !BARRELS.some(b => Math.hypot(x - b.x, z - b.z) < 0.45) && obst.every(([ox, oz, r]) => Math.hypot(x - ox, z - oz) > r) && !TBEDS.some(T => Math.abs(x - T.x) < T.hx + 0.1 && Math.abs(z - T.z) < T.hz + 0.1);
+  const row = (x0, z0, dx, dz, n) => { const run = runOf(); let placed = 0; for (let i = 0; i < n; i++){ const x = x0 + dx * i, z = z0 + dz * i; if (free(x, z)) { add(x + mrn(-0.03, 0.03), z + mrn(-0.03, 0.03), run); placed++; } else if (placed) break; } };
+  for (let z0 = -126; z0 < LANE_END - 1; z0 += PL){ for (let k = 0; k < 5; k++) row(GX0 + mrn(1.0, 1.6), z0 + mrn(1, PL - 4), 0, 0.26, 12);   // inside the lane fence
+    for (let k = 0; k < 3; k++) row(mrn(GX0 + 2, 14), z0 + (mr() < 0.5 ? 1 : -1) * mrn(1.35, 1.6), 0.26, 0, 12); }   // along the posts between the plots
+  const mat = near => lodify(flowerify(swayify(new THREE.MeshStandardMaterial({ map: FLA.tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.72 }), 0.08), false), near, lodU.small);
+  const SET = lodSet(items, GEO, mat(true), mat(false), lodU.small, [5, 5]); for (const m of SET.meshes){ m.castShadow = false; m.receiveShadow = true; }
+  const M = new THREE.Matrix4(), Sc = new V3(), col = new THREE.Color(), black = C('#2a2420'); let last = -1, on = false;
+  return { items, SET, tris: GEO.map(g => g.map(x => x.index.count / 3)),
+    update(S){ if (Math.abs(S - last) < 0.002) return; last = S; const g = bump(S, 1.95, 2.02, 3.38, 3.45), grow = 0.6 + 0.4 * smooth(clamp((S - 1.95) / 0.35)), fr = smooth(clamp((S - 3.34) / 0.05)); on = g > 0; if (!on) return;
+      for (const it of items){ M.compose(it.p, it.q, Sc.setScalar(it.s * grow * smooth(Math.min(1, g * 2)))); SET.set(it, M, col.copy(it.col).lerp(black, fr)); } SET.touch(); },
+    lod(){ SET.lod(on); } };
 })();
 
 /* ---------- spring bulbs in the gardens: daffodils (all yellow; white with a yellow cup; white with an orange cup) and tulips
@@ -4964,6 +5176,8 @@ function updateSeasonal(sp){
   BORDER.update(S);   // (the big peonies and dahlias)
   TOMATO.update(S);
   GLAD.update(S);
+  PANSY.update(S);
+  MARIGOLD.update(S);
   if (Math.abs(sp.lilac - (lilacBloom.userData.k ?? -1)) > 0.002 || (sp.lilac === 0) !== (lilacBloom.userData.k === 0)){ lilacBloom.userData.k = sp.lilac;
     lilacBloom.userData.L.forEach((l, i) => { SC.setScalar(l.s * smooth(sp.lilac * 1.15)); M4.compose(l.p, l.q, SC); lilacBloom.setMatrixAt(i, M4); }); lilacBloom.instanceMatrix.needsUpdate = true; }
   lilacBloom.visible = sp.lilac > 0.001;
@@ -5492,7 +5706,7 @@ function frame(){
   lastLeaf = sp.leaf;
   if (sp.nutfall > 0 && rng() < dt * 0.45 * sp.nutfall){ const t_ = pick(tree.tips); spawnNut(t_.p.clone().add(TREE)); }
   if (sp.petals > 0 && rng() < dt * 40 * sp.petals){ const t_ = pick(tree.tips); petals.spawn(TREE.x + t_.p.x + rnd(-0.8, 0.8), t_.p.y + rnd(0, 0.8), TREE.z + t_.p.z + rnd(-0.8, 0.8)); }
-  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod();   // (near and far follow the eye as it moves)
+  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod(); PANSY.lod(); MARIGOLD.lod();   // (near and far follow the eye as it moves)
   PETALFALL.update(dt, t, wind);
 
   // snowfall
@@ -5621,6 +5835,10 @@ function frame(){
     if (q.get('clumpat')){ const [k, i] = q.get('clumpat').split(','), c = CLUMPS.filter(c => c.kind === k)[+i || 0], d = +(q.get('clumpd') || 2.2), az = +(q.get('clumpaz') || 0.6), e = new V3(c.x + Math.cos(az) * d, 1.6, c.z + Math.sin(az) * d);
       place(e, yawTo(e, new V3(c.x, 0, c.z)), -+(q.get('clumpp') || 0.4)); console.log('CLUMP', k, i, c.x.toFixed(2), c.z.toFixed(2), 'vI', c.vI, '#' + c.col.getHexString()); }
     if (q.has('clumplog')) console.log('CLUMPS', CLUMPS.filter(c => c.kind === 'peony').length, 'peonies', CLUMPS.filter(c => c.kind === 'dahlia').length, 'dahlias |', BORDER.parts.map(P => P.kind + '/' + P.form + ' x' + P.list.length + ' tris ' + P.tris.join('+')).join(', '), '| garden grass', GTUFTS.length);
+    if (q.get('mariat')){ const it = MARIGOLD.items[+q.get('mariat') || 0], d = +(q.get('marid') || 1.0), e = new V3(it.p.x + d * 0.8, 1.6, it.p.z + d * 0.6); const cy = +(q.get('maricamy') || 0.9); place(e, yawTo(e, it.p), -Math.atan2(cy - it.p.y - 0.15, d)); setTimeout(() => { mode = 'free'; camera.position.y = cy; }, 300); }
+    if (q.has('marilog')) console.log('MARIGOLD', MARIGOLD.items.length, 'tris near/far', MARIGOLD.tris.map(t => t.join('/')).join(' '), 'meshes', MARIGOLD.SET.meshes.length);
+    if (q.get('panat')){ const [k, i] = q.get('panat').split(','), L = PANSY.items.filter(it => it.wild === (k === 'wild')), it = L[+i || 0], d = +(q.get('pand') || 0.8), e = new V3(it.x + d * 0.8, 1.6, it.z + d * 0.6); place(e, yawTo(e, new V3(it.x, 0, it.z)), -Math.atan2(1.6 - +(q.get('pany') || 0.1), d)); if (q.get('pancamy')) setTimeout(() => { mode = 'free'; camera.position.y = +q.get('pancamy'); camera.rotation.x = -Math.atan2(+q.get('pancamy') - 0.12, d); }, 300); }
+    if (q.has('panlog')) console.log('PANSY', PANSY.items.length, 'garden', PANSY.items.filter(i => !i.wild).length, 'wild', PANSY.items.filter(i => i.wild).length, PANSY.sets.map(s => (s.wild ? 'wild' : 'garden') + ' near ' + s.fol.meshes.length + ' meshes, tris fol/flo near ' + s.fol.far[0].geometry.index.count / 3 + '..').join(' | '));
     if (q.get('gladat')){ const p = GLAD.plants[+q.get('gladat') || 0], d = +(q.get('gladd') || 1.6), e = new V3(p.p.x + d * 0.8, 1.6, p.p.z + d * 0.6); place(e, yawTo(e, p.p), -+(q.get('gladp') || 0.15)); }
     if (q.has('gladlog')) console.log('GLAD plants', GLAD.plants.length, 'on beds', GLADBEDS.length, GLADBEDS.map(G => G.x.toFixed(1) + ',' + G.z1.toFixed(1)).join(' '), 'tris near/far', GLAD.SPK.meshes.length, GLAD.FOL.far.map(m => m.geometry.index.count / 3).join('/'), GLAD.SPK.far.map(m => m.geometry.index.count / 3).join('/'));
     if (q.get('tomat')){ const T = TOMATO.mounds[+q.get('tomat') || 0], d = +(q.get('tomd') || 2.2), e = new V3(T.x - d, 1.6, T.z + d * 0.35); place(e, yawTo(e, new V3(T.x, 0, T.z)), -+(q.get('tomp') || 0.42)); }
