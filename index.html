@@ -215,9 +215,9 @@ function leafGlow(mat){ const prev = mat.onBeforeCompile;
 /* rain on the leaves: wet, a leaf darkens and deepens in colour, turns glossy (the grey sky sheening off it at a glance), and
    carries beads of water, each with its bright point of reflected sky; the beads are drawn only near the eye, and grow in number
    as the rain goes on. Chained on top of whatever the material already does */
-const wetU = { wet: { value: 0 }, sky: { value: new THREE.Color(0.6, 0.65, 0.7) } };
-function leafWet(mat, drops = true){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
-  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uWet = wetU.wet; sh.uniforms.uSkyW = wetU.sky;
+const wetU = { wet: { value: 0 }, ground: { value: 0 }, sky: { value: new THREE.Color(0.6, 0.65, 0.7) } };
+function leafWet(mat, drops = true, onGround = false){ const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uWet = onGround ? wetU.ground : wetU.wet; sh.uniforms.uSkyW = wetU.sky;
     sh.vertexShader = 'varying vec3 vDrop;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       #ifdef USE_INSTANCING
       vDrop = fract(instanceMatrix[3].xyz * vec3(3.17, 5.31, 2.73));
@@ -226,19 +226,20 @@ function leafWet(mat, drops = true){ const prev = mat.onBeforeCompile, prevKey =
       #endif`);
     sh.fragmentShader = 'uniform float uWet; uniform vec3 uSkyW; varying vec3 vDrop;\n' + sh.fragmentShader
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        { float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 1.0 + 0.3 * uWet) * (1.0 - 0.24 * uWet);
-          roughnessFactor = mix(roughnessFactor, 0.3, uWet); }`)
+        float wl = clamp((uWet - 0.45 * vDrop.z) / 0.55, 0.0, 1.0);   // this leaf's own wetness: they dry one by one, not all at once
+        { float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 1.0 + 0.3 * wl) * (1.0 - 0.24 * wl);
+          roughnessFactor = mix(roughnessFactor, 0.3, wl); }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        if (uWet > 0.001){ vec3 vv = normalize(vViewPosition); float fr = pow(1.0 - clamp(abs(dot(normal, vv)), 0.0, 1.0), 4.0);
-          totalEmissiveRadiance += uSkyW * uWet * (0.015 + 0.3 * fr);   // the sheen of a wet surface
+        if (wl > 0.001){ vec3 vv = normalize(vViewPosition); float fr = pow(1.0 - clamp(abs(dot(normal, vv)), 0.0, 1.0), 4.0);
+          totalEmissiveRadiance += uSkyW * wl * (0.015 + 0.3 * fr);   // the sheen of a wet surface
           ${drops ? `#ifdef USE_MAP
-          { float dist = length(vViewPosition), fade = smoothstep(7.0, 2.5, dist) * uWet;
+          { float dist = length(vViewPosition), fade = smoothstep(7.0, 2.5, dist) * min(1.0, wl * 2.5);
             if (fade > 0.001){
               for (int L = 0; L < 2; L++){   // two scatterings: many small beads, and a few large ones
                 vec2 sc = L == 0 ? vec2(13.0, 34.0) : vec2(5.0, 13.0), gg = vMapUv * sc + vDrop.xy * (37.0 + float(L) * 11.0), id = floor(gg), f = fract(gg);
                 float h = fract(sin(dot(id, vec2(127.1, 311.7)) + float(L) * 7.1) * 43758.5453);
-                if (h < (L == 0 ? 0.24 : 0.16) * uWet){ vec2 c = vec2(0.25 + 0.5 * fract(h * 7.7), 0.25 + 0.5 * fract(h * 13.3));
-                  float rr = (L == 0 ? 0.1 + 0.26 * fract(h * 29.1) : 0.14 + 0.12 * fract(h * 29.1)), d = length((f - c) * vec2(1.0, 1.0 + 0.25 * fract(h * 3.3))) / rr;
+                if (h < (L == 0 ? 0.24 : 0.16) * wl){ vec2 c = vec2(0.25 + 0.5 * fract(h * 7.7), 0.25 + 0.5 * fract(h * 13.3));
+                  float rr = (L == 0 ? 0.1 + 0.26 * fract(h * 29.1) : 0.14 + 0.12 * fract(h * 29.1)) * (0.45 + 0.55 * wl), d = length((f - c) * vec2(1.0, 1.0 + 0.25 * fract(h * 3.3))) / rr;
                   if (d < 1.0){ float sp = smoothstep(0.5, 0.0, length(f - c - vec2(-0.32, 0.32) * rr) / rr);   // the bead: a little lens of sky, and its bright point
                     totalEmissiveRadiance += (uSkyW * 0.4 * (1.0 - d * d) + vec3(sp) * 1.25) * fade; } } } } }
           #endif
@@ -1806,7 +1807,7 @@ for (let i = 0; i < 1500; i++){ const a = rng() * TAU, r = 1.3 + 13 * Math.sqrt(
   LITTER.push({ p: new V3(TREE.x + Math.cos(a) * r, 0.03 + rng() * 0.02, TREE.z + Math.sin(a) * r), rot: rng() * TAU, s: rnd(0.4, 0.75), r: rng() * 0.9 + (r / 14) * 0.1,
     c: C(pick(['#c9952e', '#b8702a', '#8a5a2a', '#d8b040', '#a0602a', '#6e4a2a'])) }); }
 const litter = (() => {   // the same leaves as on the tree, at the same size, lying flat (three shapes); laid out with the stalk-to-tip axis along the ground
-  const mat = leafWet(snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide }))), by = [[], [], []];
+  const mat = leafWet(snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide })), true, true), by = [[], [], []];
   LITTER.forEach((L, i) => { L.v = i % 7 === 3 ? 2 : i % 2; L.j = by[L.v].length; by[L.v].push(L); });
   const meshes = LEAF.flatGeos.map((g, v) => { const m = new THREE.InstancedMesh(g.clone().rotateX(-Math.PI / 2), mat, Math.max(1, by[v].length)); m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
   return { meshes, setMatrixAt(i, M){ const L = LITTER[i]; meshes[L.v].setMatrixAt(L.j, M); }, setColorAt(i, c){ const L = LITTER[i]; meshes[L.v].setColorAt(L.j, c); },
@@ -2683,6 +2684,10 @@ function updateWeather(dt, t, sp){
   const T = WEATHERS[weather], k = Math.min(1, dt * 0.35);
   W.cloud += (T.cloud - W.cloud) * k; W.rain += (T.rain - W.rain) * k;
   W.wet = clamp(W.wet + (W.rain > 0.3 && sp.snow < 0.4 ? dt * 0.08 : -dt * 0.012));
+  // the leaves: wet through within seconds of the rain; when it stops they drip for a while, then dry, before the ground does,
+  // quickest in sunshine and a breeze, slowest under a grey sky or at night
+  if (W.rain > 0.3 && sp.snow < 0.4){ W.leafWet = clamp(W.leafWet + dt * 0.15); W.drip = 8; }
+  else if ((W.drip -= dt) < 0) W.leafWet = clamp(W.leafWet - dt * 0.022 * (0.6 + 0.9 * env.day * (1 - W.cloud * 0.6)) * (0.8 + 0.4 * windU.value));
   // clouds: lit by the sun, greyer when it rains, dark at night, warm at sunset
   const day = env.day, warm = clamp(1 - Math.abs(env.e - 0.03) / 0.12) * 0.7;
   tmpC.set('#ffffff').lerp(tmpC2.set('#ffb88a'), warm).multiplyScalar(0.12 + 0.88 * day).lerp(tmpC2.set('#7c8590').multiplyScalar(0.15 + 0.85 * day), W.rain * 0.75);
@@ -3541,7 +3546,7 @@ const WEATHERS = {
   cloudy: { label: 'Cloudy', cloud: 0.85, rain: 0, say: () => 'Grey Baltic sky, low and close.' },
   rain: { label: 'Rain', cloud: 1, rain: 1, say: (sp) => sp.snow > 0.3 ? 'Heavy wet snow, the Rīga kind.' : 'Rain again. Latvia.' } };
 let weather = 'fair', weatherT = 60;
-const W = { cloud: 0.28, rain: 0, wet: 0 };
+const W = { cloud: 0.28, rain: 0, wet: 0, leafWet: 0, drip: 0 };
 const sunDir = new V3(), moonDir = new V3(), overcastTop = C('#9aa4ae'), overcastHor = C('#cfd3d6');
 function updateEnv(sp){
   const elevMax = lerp(0.22, 0.92, 0.5 - 0.5 * Math.cos(TAU * (S - 0.5) / 4));
@@ -3577,7 +3582,7 @@ function updateEnv(sp){
   roomLight.intensity = lampOn ? 0.5 + lit * 2.2 : 0; deskLamp.spot.intensity = lampOn ? 1.2 + lit * 3.5 : 0;
   deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
   groundMat.color.copy(cyc(S, groundKeys, tmpC)).multiplyScalar(1 - 0.28 * W.wet); groundMat.roughness = 1 - 0.35 * W.wet;
-  { const wt = W.wet * (1 - sp.snow); wetU.wet.value = wt; wetU.sky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.4);   // the chestnut in the rain
+  { const wt = W.wet * (1 - sp.snow); wetU.wet.value = W.leafWet * (1 - sp.snow); wetU.ground.value = wt; wetU.sky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.4);   // the chestnut in the rain
     tree.barkMat.color.setScalar(1 - 0.38 * wt); tree.barkMat.roughness = 0.95 - 0.5 * wt; }
   roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
   snowU.value = sp.snow; snowLayer.visible = sp.snow > 0.02;
@@ -4245,14 +4250,17 @@ function frame(){
         const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
-        console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
+        console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain, leafWet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
     if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
     if (q.get('bulblog')){ const e = PERCH[0].p.clone().sub(TREE); const cs = CANDLES.map(c => [c, c.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 4);
       cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }
     if (q.get('fall')){ for (let i = 0; i < +q.get('fall'); i++){ const li = Math.floor(Math.random() * LEAVES.length), L = LEAVES[li]; spawnLeaf(L.p.clone().add(TREE), C(['#d8a83a', '#c47a2a', '#e2b42e', '#8a5a2a'][i % 4]), li); FLs.forEach(F => { if (F.on && F.land <= 0) F.p.y -= Math.random() * 6; }); }
       if (q.get('fallhold')){ const c = new V3(...q.get('fallhold').split(',').map(Number)); FLs.filter(F => F.on).forEach((F, k) => { F.p.set(c.x + (k % 6 - 2.5) * 0.9, c.y + Math.floor(k / 6) % 3 * 0.9, c.z + Math.floor(k / 18) * 0.6); F.spin.set(0, 0, 0); }); window.__fallHold = true; } }   // debug: a shower of leaves (or a still rack of them)
-    if (q.get('glowk')) window.__glowk = +q.get('glowk'); if (q.has('wet')) W.wet = +q.get('wet');
+    if (q.get('glowk')) window.__glowk = +q.get('glowk'); if (q.has('wet')) W.wet = W.leafWet = +q.get('wet');
+    if (q.get('drylog')){ const sp = SP(S); let t = 0; setWeather('fair');   // debug: rain, then fair; step the weather 0.05 s at a time and log how things dry
+      for (let i = 0; i <= 200 * 20; i++){ if (i % 200 === 0) console.log('DRY', (i / 20).toFixed(0) + 's', 'rain', W.rain.toFixed(2), 'wet', W.wet.toFixed(2), 'leaves', (W.leafWet ?? W.wet).toFixed(2));
+        updateEnv(sp); updateWeather(0.05, t += 0.05, sp); } }
     if (q.get('husklog')){ const e = PERCH[1].p.clone().sub(TREE); HUSKS.map(h => [h, h.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 2).forEach(([h, d]) => console.log('HUSK', d.toFixed(2), h.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','))); }
     if (q.get('sunlog')) setTimeout(() => console.log('SUN', sunDir.toArray().map(v => v.toFixed(2)).join(','), 'e', env.e.toFixed(2), 'I', sun.intensity.toFixed(2)), 500);
     if (q.get('bulblog')) console.log('LEAVES', LEAVES.length, 'tris per leaf', LEAF.tris.join('/'));
