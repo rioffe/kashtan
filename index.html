@@ -413,6 +413,12 @@ const GAR_X = -15.0, ROAD_X = -8.4, ROAD_W = 3.2, GX0 = -4.65, ROAD_Z0 = -126.4;
 // from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
 const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = -11.1, GATE_X1 = -4.7, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
 const WOOD = { x0: GATE_X1, x1: 20.6, zb: -55.5, zf: -46.5 };   // the old wooden house on Stabu, right behind the gardens
+// the streets round our blocks (the town is a grid of blocks 46 m square, the streets 12 m between them), as far as I was allowed to ride:
+// out of the gateway onto Stabu iela, up the four cross streets north of it, and along the next two streets
+const CITY = { xs: [-88, -30, 28, 86], zs: [13, 71], x0: -88, x1: 98, z1: 83 };
+const onStreet = (x, z, m) => (x >= CITY.x0 + m && x <= CITY.x1 - m && (z <= STABU_FAR - m || CITY.zs.some(a => z >= a + m && z <= a + 12 - m))) || (z <= CITY.z1 - m && CITY.xs.some(a => x >= a + m && x <= a + 12 - m));
+const kerbY = (x, z) => { if (z < STABU_FRONT + 2.2) return z > STABU_FRONT - 0.01 && z < STABU_FRONT + 2.2 ? 0.14 : 0;   // (the pavement on our side of Stabu; elsewhere the ring round the nearest block)
+  const gx = Math.floor((x + 24) / 58), gz = Math.floor((z + 39) / 58), x0 = gx * 58 - 18, z0 = gz * 58 - 33; return gz >= 0 && x > x0 - 2.2 && x < x0 + 48.2 && z > z0 - 2.2 && z < z0 + 48.2 ? 0.14 : 0; };
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -471,8 +477,16 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
   const st = dirtTex.clone(); st.repeat.set(160, 2.2); st.needsUpdate = true;   // Stabu iela: cobbles and old asphalt
   const street = new THREE.Mesh(new THREE.PlaneGeometry(900, STABU_FAR - STABU_FRONT).rotateX(-Math.PI / 2), flatMat(st, '#6c6862', 0.8, -1));
   street.position.set(0, 0.011, (STABU_FRONT + STABU_FAR) / 2); street.receiveShadow = true; scene.add(street);
-  for (const z of [STABU_FRONT + 1.1, STABU_FAR - 1.1]){ const kerb = new THREE.Mesh(new THREE.BoxGeometry(900, 0.14, 2.2), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 })));
+  for (const z of [STABU_FRONT + 1.1]){ const kerb = new THREE.Mesh(new THREE.BoxGeometry(900, 0.14, 2.2), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 })));
     kerb.position.set(0, 0.07, z); kerb.receiveShadow = true; scene.add(kerb); } road.receiveShadow = true; scene.add(road);
+  { // the town's other streets, cobbles and old asphalt between the blocks, and the pavement raised round every block near us
+    const P_ = [], N_ = [], U_ = [], I_ = [], quad = (x0, x1, z0, z1) => { const b = P_.length / 3; for (const [x, z] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]){ P_.push(x, 0, z); N_.push(0, 1, 0); U_.push(x / 5.6, -z / 5.45); } I_.push(b, b + 2, b + 1, b, b + 3, b + 2); };
+    for (let gz = 0; gz <= 7; gz++){ quad(-450, 450, gz * 58 + 13, gz * 58 + 25); for (let gx = -7; gx <= 7; gx++) quad(gx * 58 + 28, gx * 58 + 40, gz * 58 - 33, gz * 58 + 13); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N_, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U_, 2)); g.setIndex(I_);
+    const t2 = dirtTex.clone(); t2.repeat.set(1, 1); t2.needsUpdate = true; const town = new THREE.Mesh(g, flatMat(t2, '#6c6862', 0.8, -1)); town.position.y = 0.011; town.receiveShadow = true; scene.add(town);
+    const kb = []; for (let gx = -7; gx <= 7; gx++) for (let gz = 0; gz <= (Math.abs(gx) <= 3 ? 2 : 0); gz++){ const x0 = gx * 58 - 18, z0 = gz * 58 - 33, x1 = x0 + 46, z1 = z0 + 46;
+      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 - 1.1, 50.4, 2.2], [(x0 + x1) / 2, z1 + 1.1, 50.4, 2.2], [x0 - 1.1, (z0 + z1) / 2, 2.2, 46], [x1 + 1.1, (z0 + z1) / 2, 2.2, 46]]) kb.push(new THREE.BoxGeometry(w, 0.14, d).translate(cx, 0.07, cz)); }
+    const pave = new THREE.Mesh(mergeGeometries(kb), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 }))); pave.receiveShadow = true; scene.add(pave); }
   // (no bare yard: in front of the house it is grass, with narrow asphalt paths — see 'paths and overgrowth' below)
   const ct = dirtTex.clone(); ct.repeat.set(3, 3); ct.needsUpdate = true;
   const worn = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40).rotateX(-Math.PI / 2), flatMat(ct, '#d8ccb8', 0.9, -3));
@@ -4546,10 +4560,21 @@ var blockMats = [];
       colorize(t, col); t.translate(cx, 10.5, cz); bodies.push(t);
       const dome = colorize(new THREE.ConeGeometry(3.0, 5.5, 14).toNonIndexed(), pick(ROOF)); dome.translate(cx, 23.75, cz); roofs.push(dome); }
   }
+  { const sv = seed; seed = 19840777;   // the gaps at the corners of the blocks near us closed (so no courtyard shows through, and nothing leans on air): a facade just behind the houses' own, drawn apart
+    for (let gx = -3; gx <= 3; gx++) for (let gz = 0; gz <= 2; gz++){ const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK, t = 0.3, i_ = 0.12, Hf = 18.9;
+      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 + i_ + t / 2, BLOCK - 2 * i_, t], [(x0 + x1) / 2, z1 - i_ - t / 2, BLOCK - 2 * i_, t], [x0 + i_ + t / 2, (z0 + z1) / 2, t, BLOCK - 2 * i_], [x1 - i_ - t / 2, (z0 + z1) / 2, t, BLOCK - 2 * i_]]){
+        const g = boxUV(w, Hf, d, 3.6); colorize(g, pick(PAL)); g.translate(cx, Hf / 2, cz); bodies.push(g); } }
+    seed = sv; }
   // our side of Stabu iela: the street-front houses whose backs close the yard, with the gateway the lane runs out through
   { const zz = (LANE_END + STABU_FRONT) / 2;
-    for (let x = GATE_X0; x - (-44) >= 3.6;){ const bays = Math.min(Math.floor((x + 44) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x - w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x -= w; }
-    for (let x = WOOD.x1 + 0.4; 52 - x >= 3.6;){ const bays = Math.min(Math.floor((52 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x += w; } }
+    let xL = GATE_X0, xR = WOOD.x1 + 0.4;
+    for (; xL - (-44) >= 3.6;){ const bays = Math.min(Math.floor((xL + 44) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(xL - w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); xL -= w; }
+    for (; 52 - xR >= 3.6;){ const bays = Math.min(Math.floor((52 - xR) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(xR + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); xR += w; }
+    const sv = seed; seed = 19840501;   // (on along Stabu to the cross streets, and down the two side streets beside the yard: drawn apart, so nothing else in the town changes)
+    for (let x = xL; x - (-76) >= 3.6;){ const bays = Math.min(Math.floor((x + 76) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x - w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x -= w; }
+    for (let x = xR; 86 - x >= 3.6;){ const bays = Math.min(Math.floor((86 - x) / 3.6), 3 + Math.floor(rng() * 4)), w = bays * 3.6; building(x + w / 2, zz, w, D, 0, pick(PAL), pick(ROOF)); x += w; }
+    for (const [xx, ry] of [[-76 + D / 2, -Math.PI / 2], [86 - D / 2, Math.PI / 2]]) for (let z = -194; -58 - z >= 3.6;){ const bays = Math.min(Math.floor((-58 - z) / 3.6), 3 + Math.floor(rng() * 3)), w = bays * 3.6; building(xx, z + w / 2, w, D, ry, pick(PAL), pick(ROOF)); z += w; }
+    seed = sv; }
   // and, right behind the gardens, the old two-storey wooden house, its clapboards painted a dark, weathered red
   { const x0 = WOOD.x0, x1 = WOOD.x1, w = x1 - x0, zb = WOOD.zb, zf = WOOD.zf, d = zf - zb, H = 7.2, rise = 2.7, cx = (x0 + x1) / 2, cz = (zb + zf) / 2, ppm = 40;
     const boards = (g, W, Hh, y0 = 0) => { g.fillStyle = '#6e2c22'; g.fillRect(0, y0, W, Hh);
@@ -5838,7 +5863,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   // y up, z across; the ball of the foot at the origin)
   const SHOE = (() => { const YS = 0.016, PW = 2 / 2.6;
     const k1 = (t, K) => { let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++; const [t0, a] = K[i], [t1, b] = K[i + 1]; return lerp(a, b, smooth((t - t0) / (t1 - t0))); };
-    const style = (o) => { const { X0, LEN, W, HT, sole } = o;
+    const style = (o) => { const { X0, LEN, W, HT, sole } = o, PW = 2 / o.p;   // (the cross-section: straight-sided, rounding over the top)
       const hw = u => { const b = W * lerp(0.031, 0.0425, smooth((u - 0.08) / 0.55)) * (1 - 0.12 * smooth((u - 0.78) / 0.22));   // (half the width: narrow at the heel, widest across the ball, the toe rounded)
         return b * Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, u / 0.13)) ** 2)) * Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, (1 - u) / 0.2)) ** 2)); };
       const at = (u, th, out = new V3()) => { const c = Math.cos(th), s = Math.sin(th); return out.set(X0 + LEN * u, YS + sole + (k1(u, HT) - YS - sole) * Math.pow(Math.max(0, c), PW), hw(u) * Math.sign(s) * Math.pow(Math.abs(s), PW)); };   // (a point on the upper)
@@ -5870,7 +5895,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
       return { at, nrm, hw, upper, slab, eyelets, laces }; };
     const X = (u, w) => u * w, Y = (th, h) => (0.5 - th / Math.PI) * h;
     // Keds
-    const kd = style({ X0: -0.17, LEN: 0.245, W: 1, sole: 0, HT: [[0, 0.064], [0.15, 0.069], [0.33, 0.074], [0.45, 0.068], [0.62, 0.056], [0.8, 0.043], [0.92, 0.034], [1, 0.022]], eyes: Array.from({ length: 7 }, (_, k) => 0.577 - k * 0.037), eth0: 0.36, eth1: 0.06, hooks: 0, eyeR: 0.0027, laceR: 0.0019 });
+    const kd = style({ p: 4.4, X0: -0.17, LEN: 0.245, W: 1, sole: 0, HT: [[0, 0.064], [0.15, 0.069], [0.33, 0.074], [0.45, 0.068], [0.62, 0.056], [0.8, 0.043], [0.92, 0.034], [1, 0.022]], eyes: Array.from({ length: 7 }, (_, k) => 0.577 - k * 0.037), eth0: 0.36, eth1: 0.06, hooks: 0, eyeR: 0.0027, laceR: 0.0019 });
     const kedsTex = tex(1024, 512, (g, w, h) => { const r = mkRng(7311);
       g.fillStyle = '#3b3c3f'; g.fillRect(0, 0, w, h);
       for (let y = 0; y < h; y += 2){ g.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + r() * 0.04})`; g.fillRect(0, y, w, 1); } for (let x = 0; x < w; x += 2){ g.fillStyle = `rgba(0,0,0,${0.03 + r() * 0.05})`; g.fillRect(x, 0, 1, h); }   // (the weave)
@@ -5885,7 +5910,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
       g.strokeStyle = 'rgba(190,182,160,0.9)'; g.lineWidth = 2.5; edge(0.004); g.stroke(); g.strokeStyle = 'rgba(200,200,200,0.5)'; g.lineWidth = 1.5; g.setLineDash([5, 4]); edge(-0.012); g.stroke();
       g.setLineDash([]); g.fillStyle = '#e7e0cc'; g.fillRect(0, 0, X(0.035, w), h); });   // (and a rubber heel patch)
     // the boots
-    const bt = style({ X0: -0.172, LEN: 0.255, W: 1.07, sole: 0.012, HT: [[0, 0.135], [0.2, 0.14], [0.33, 0.134], [0.42, 0.104], [0.55, 0.078], [0.7, 0.062], [0.85, 0.05], [0.95, 0.04], [1, 0.032]], eyes: Array.from({ length: 7 }, (_, k) => 0.6 - k * 0.04), eth0: 0.4, eth1: 0.04, hooks: 3, eyeR: 0.0032, laceR: 0.0022 });
+    const bt = style({ p: 3.8, X0: -0.172, LEN: 0.255, W: 1.07, sole: 0.012, HT: [[0, 0.135], [0.2, 0.14], [0.33, 0.134], [0.42, 0.104], [0.55, 0.078], [0.7, 0.062], [0.85, 0.05], [0.95, 0.04], [1, 0.032]], eyes: Array.from({ length: 7 }, (_, k) => 0.6 - k * 0.04), eth0: 0.4, eth1: 0.04, hooks: 3, eyeR: 0.0032, laceR: 0.0022 });
     const bootTex = tex(1024, 512, (g, w, h) => { const r = mkRng(7312);
       const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#4e2f1c'); gr.addColorStop(0.3, '#7a4a2b'); gr.addColorStop(0.5, '#86532f'); gr.addColorStop(0.7, '#7a4a2b'); gr.addColorStop(1, '#4e2f1c'); g.fillStyle = gr; g.fillRect(0, 0, w, h);   // (tan, darker down the sides)
       for (let i = 0; i < 900; i++){ g.fillStyle = `rgba(${r() < 0.5 ? '40,20,8' : '170,110,60'},${0.04 + r() * 0.05})`; g.beginPath(); g.ellipse(r() * w, r() * h, 2 + r() * 10, 1 + r() * 5, r() * 3, 0, TAU); g.fill(); }   // the grain, mottled
@@ -5978,7 +6003,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   // where it leans: against the wall to the right of our entrance (the second, 10-17), the front wheel turned in to the wall
   const DOOR = new V3(9, 0, BZ), LEAN = { p: new V3(), rx: -0.24, ry: 0, steer: 0.42 };
   const benchIn = (x, z, m) => BENCHES.some(b => { const dx = x - b.x, dz = z - b.z, c = Math.cos(b.ry), sn = Math.sin(b.ry), lx = dx * c - dz * sn, lz = dx * sn + dz * c; return Math.abs(lx) < 0.97 + m && lz > -0.36 - m && lz < 0.25 + m; });   // (a bench: 1.9 m of slats, its back behind)
-  const blocked = (x, z) => x < -33.6 || x > 33.6 || z < BZ + 0.85 || z > STABU_FAR - 1.4 || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6)   // (the garden fence: the plots, their flower beds)
+  const blocked = (x, z) => (z > STABU_FRONT + 0.3 ? !onStreet(x, z, 0.35) : x < -33.6 || x > 33.6 || z < BZ + 0.85) || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6 && z < WOOD.zb - 0.3)   // (the garden fence: the plots, their flower beds)
     || Math.hypot(x - TREE.x, z - TREE.z) < 0.95 || Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.35 || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.8
     || benchIn(x, z, 0.3) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
   const st = { riding: false, v: 0, steer: 0, head: Math.PI, lean: 0, crank: 0, roll: 0, x: 0, z: 0, bob: 0, tick: 0, pedal: 0, bump: 0 };
@@ -5997,9 +6022,11 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     if (z > -126 && z < LANE_END && x < GX0 - 0.215) out.push({ d: GX0 - 0.215 - x, n: P(-1, 0, 0), w: P(GX0 - 0.215, 0, z), k: 'fence' });
     if (Math.abs(x) < 17.9) box(-17.9, 17.9, BZ - 12, BZ + 0.015, 'wall');
     for (const I of INDS) box(I.x0, I.x1, I.z0, I.z1, 'workshop');
+    if (z > STABU_FRONT - 3){ box(-76, GATE_X0, LANE_END, STABU_FRONT, 'house'); box(WOOD.x1, 86, LANE_END, STABU_FRONT, 'house'); box(WOOD.x0, WOOD.x1, WOOD.zb, WOOD.zf, 'house');   // the houses in the town
+      for (let gx = -2; gx <= 2; gx++) for (let gz = 0; gz <= 2; gz++) box(gx * 58 - 18, gx * 58 + 28, gz * 58 - 33, gz * 58 + 13, 'house'); }
     return out.filter(c => !lilacData.some(L => Math.hypot(c.w.x - L.p.x, c.w.z - L.p.z) < 0.95 * L.s + 0.8)); };   // (not into a lilac)
   const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
-    wall: 'I leaned my bike against the wall.', workshop: 'I leaned my bike against the workshop wall.' };
+    wall: 'I leaned my bike against the wall.', house: 'I leaned my bike against the house.', workshop: 'I leaned my bike against the workshop wall.' };
   const getOff = () => { st.riding = false; st.v = 0; me.visible = false; for (const h of hands) h.visible = false; camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix(); };
   // against the chestnut: its trunk flares at the foot and six buttress roots run out two metres from it, so there the bike is fitted to the
   // wood itself: a height map of the trunk and the roots (and for each height, how far it is to the wood), the bike's own shape turned this
@@ -6073,7 +6100,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const F = [...foot.values()];
     for (const r of [0, 0.2, 0.4, 0.6, 0.85, 1.1, 1.4, 1.7, 2.1]) for (let k = 0; k < (r ? 16 : 1); k++) for (const dy of [0, 0.3, -0.3, 0.7, -0.7, 1.2, -1.2]){
       const x = x0 + r * Math.cos(k / 16 * TAU), z = z0 + r * Math.sin(k / 16 * TAU), Y = head + dy + Math.PI / 2, c = Math.cos(Y), sn = Math.sin(Y);
-      if (F.every(p => { const px = x + p[0] * c + p[2] * sn, pz = z - p[0] * sn + p[2] * c; return !blocked(px, pz) && woodAt(px, pz) <= p[1] - y0 + 0.004; })){ root.rotation.set(-1.32, Y, 0); root.position.set(x, -y0, z); root.updateMatrixWorld(true); return head + dy; } }
+      if (F.every(p => { const px = x + p[0] * c + p[2] * sn, pz = z - p[0] * sn + p[2] * c; return !blocked(px, pz) && woodAt(px, pz) <= p[1] - y0 + 0.004; })){ root.rotation.set(-1.32, Y, 0); root.position.set(x, -y0 + kerbY(x, z), z); root.updateMatrixWorld(true); return head + dy; } }
     root.rotation.set(-1.32, head + Math.PI / 2, 0); root.position.set(x0, -y0, z0); root.updateMatrixWorld(true); return head; };
   const parkHere = () => { if (!st.riding) return; const sps = supports(st.x, st.z).filter(q => q.d < 1.6).sort((a, b) => a.d - b.d);
     fadeThen(() => { getOff(); const fw = P(-Math.sin(st.head), 0, -Math.cos(st.head)); let n, head, c = null;
@@ -6082,7 +6109,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
         const a = Math.atan2(q.n.x, q.n.z), f1 = P(Math.cos(a), 0, -Math.sin(a)), side = fw.dot(f1) >= 0 ? 1 : -1;   // (it faces the way I was riding, more or less)
         root.position.set(0, 0, 0); pose(side * LEAN.steer); drive(0.6); root.rotation.set(side * LEAN.rx, side > 0 ? 0 : Math.PI, 0); root.updateMatrixWorld(true);
         const bb = new THREE.Box3().setFromObject(frame, true); root.rotation.y += a; root.position.copy(q.w).addScaledVector(q.n, 0.012 - bb.min.z); root.position.y = -bb.min.y;
-        if (!standsClear(q.k)) continue;
+        root.position.y += kerbY(root.position.x, root.position.z); if (!standsClear(q.k)) continue;   // (on the pavement, if it's there)
         c = q; n = q.n; const f = f1.multiplyScalar(side); head = Math.atan2(-f.x, -f.z); break; }
       if (!c){ head = layDown(st.x, st.z, st.head); n = P(Math.cos(head), 0, -Math.sin(head)); }
       root.updateMatrixWorld(true); st.parked = { n: n.clone(), head };
@@ -6094,7 +6121,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const { n, head } = st.parked, f = P(-Math.sin(head), 0, -Math.cos(head)), o = root.position;
     for (let r = 0; r < 2.6; r += 0.1) for (const sd of [1, -1]){ const x = o.x + n.x * r * sd, z = o.z + n.z * r * sd; if (!blocked(x, z) && !blocked(x + f.x * 0.75, z + f.z * 0.75) && !blocked(x - f.x * 0.65, z - f.z * 0.65)) return [x, z, head]; }
     return [DOOR.x + 1.6, BZ + 1.7, Math.PI]; };
-  const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; [st.x, st.z, st.head] = startFrom(); cam.yaw = st.head; cam.pitch = -0.48;
+  const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; [st.x, st.z, st.head] = startFrom(); st.ky = kerbY(st.x, st.z); cam.yaw = st.head; cam.pitch = -0.48;
       me.visible = true; if (new URLSearchParams(location.search).has('bikebody')){ const furM = new THREE.MeshStandardMaterial({ color: '#4a3a2c', roughness: 1 }), hairM = new THREE.MeshStandardMaterial({ color: '#6a4a2a', roughness: 0.9 }); body.head.traverse(o => { if (o.isMesh) o.material = o.parent === body.hat ? furM : o === body.hair ? hairM : skin; }); } if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
       if (!st.said){ st.said = 1; caption('My own Orlyonok. The year I turned twelve, my parents finally bought me one.', 6); } }); };
   const dismount = (toDoor = true) => { if (!st.riding) return; const go = () => { st.parked = null; park(); camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix();
@@ -6109,12 +6136,14 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const fx = -Math.sin(st.head), fz = -Math.cos(st.head), nx = st.x + fx * st.v * dt, nz = st.z + fz * st.v * dt;
     const ahead = Math.sign(st.v || 1) > 0 ? 0.7 : -0.6;
     if (!blocked(nx + fx * ahead, nz + fz * ahead) && !blocked(nx - fx * ahead * 0.85, nz - fz * ahead * 0.85)){ st.x = nx; st.z = nz; }
-    else if (Math.abs(st.v) > 0.05){ if (Math.abs(st.v) > 1.2) sfx.thunk(Math.min(0.3, Math.abs(st.v) * 0.05)); st.v *= -0.15; st.bump = 0.3; }
+    else if (Math.abs(st.v) > 0.05){ const bx = nx + fx * ahead, bz = nz + fz * ahead; if (bz > STABU_FRONT + 0.3 && (bx < CITY.x0 + 0.4 || bx > CITY.x1 - 0.4 || bz > CITY.z1 - 0.4) && clock.elapsedTime - (st.limitT ?? -99) > 9){ st.limitT = clock.elapsedTime; caption("That's as far as I was allowed to go: only round our blocks.", 3.5); }   // (the edge of where I could go)
+      if (Math.abs(st.v) > 1.2) sfx.thunk(Math.min(0.3, Math.abs(st.v) * 0.05)); st.v *= -0.15; st.bump = 0.3; }
     const targ = -Math.atan(st.v * st.v * Math.tan(st.steer) / (9.8 * L)); st.lean += (clamp(targ, -0.5, 0.5) - st.lean) * Math.min(1, dt * 5);
     if (pedal) st.crank -= st.v / (Rw * SCL) / 2.4 * dt; else if (brake && st.v > 0.05) st.crank += dt * 0.6 * Math.max(0, 0.25 - (st.pedal += dt)); if (!brake) st.pedal = 0;
     rearW.rotation.z -= st.v / (Rw * SCL) * dt; frontW.rotation.z -= st.v / (Rw * SCL) * dt; drive(st.crank);
     pose(st.steer); st.bump = Math.max(0, st.bump - dt);
-    root.position.set(st.x, 0, st.z); root.rotation.set(st.lean, st.head + Math.PI / 2, 0); root.updateMatrixWorld(true);
+    const ky = kerbY(st.x, st.z); if (Math.abs(ky - (st.ky ?? 0)) > 0.06 && Math.abs(st.v) > 0.3) st.bump = Math.max(st.bump, 0.22); st.ky = (st.ky ?? 0) + (ky - (st.ky ?? 0)) * Math.min(1, dt * 16);   // (up the kerb and down it, with a jolt)
+    root.position.set(st.x, st.ky, st.z); root.rotation.set(st.lean, st.head + Math.PI / 2, 0); root.updateMatrixWorld(true);
     // me on it: the hips on the saddle, the feet on the pedals, the knees forward; the shoulders behind the bars, the elbows out
     frame.updateMatrixWorld(true); const toMe = (v) => me.worldToLocal(v);
     for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.105, 0.088, 0));
@@ -6607,6 +6636,8 @@ const I18N = {   // English → [Russian, Latvian]
   'I leaned my bike against the rowan.': ['Я прислонил велосипед к рябине.', 'Es atbalstīju riteni pret pīlādzi.'],
   'I leaned my bike against the garden fence.': ['Я прислонил велосипед к забору огородов.', 'Es atbalstīju riteni pret dārziņu sētu.'],
   'I leaned my bike against the garages.': ['Я прислонил велосипед к гаражам.', 'Es atbalstīju riteni pret garāžām.'],
+  'I leaned my bike against the house.': ['Я прислонил велосипед к стене дома.', 'Es atbalstīju riteni pret mājas sienu.'],
+  "That's as far as I was allowed to go: only round our blocks.": ['Дальше мне было нельзя: только вокруг наших кварталов.', 'Tālāk man nebija ļauts: tikai apkārt mūsu kvartāliem.'],
   'I leaned my bike against the wall.': ['Я прислонил велосипед к стене.', 'Es atbalstīju riteni pret sienu.'],
   'I leaned my bike against the workshop wall.': ['Я прислонил велосипед к стене мастерской.', 'Es atbalstīju riteni pret darbnīcas sienu.'],
   'I laid my bike down in the grass.': ['Я положил велосипед на траву.', 'Es noliku riteni zālē.'],
@@ -6733,7 +6764,7 @@ function walkStep(dt, mx, mz, sp_){
     p.x = lerp(M.p0.x, M.p1.x, fw); p.z = lerp(M.p0.z, M.p1.z, fw); body.feet = lerp(M.f0, M.f1 + 0.25 * Math.sin(Math.PI * M.t), up);
     if (M.t >= 1){ body.feet = M.f1; body.mantle = null; sfx.step(surfKind); onRoof(); } }
   else {
-    let walked = false;
+    let walked = false; const ox = p.x, oz = p.z;
     if (mx || mz){ const l = Math.hypot(mx, mz), vx = (fwd.x * mz + right.x * mx) / l * sp_ * dt, vz = (fwd.z * mz + right.z * mx) / l * sp_ * dt, lim = body.feet + 0.45;
       let blockTop = 0;
       const tx = surf(p.x + vx + Math.sign(vx) * 0.3, p.z); if (tx <= lim) p.x += vx; else blockTop = tx;
@@ -6741,7 +6772,8 @@ function walkStep(dt, mx, mz, sp_){
       walked = true; bob += dt * sp_ * 2.2;
       if (blockTop && mz > 0 && body.vy === 0 && (blockTop - body.feet < 2.95 || nearLadder())){ body.push += dt; if (body.push > 0.45) jumpOrClimb(); } else body.push = 0;
     } else body.push = 0;
-    p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, STABU_FAR - 1.4);
+    if (p.z > STABU_FRONT + 0.3){ if (!onStreet(p.x, p.z, 0.3)){ if (onStreet(ox, p.z, 0.3)) p.x = ox; else if (onStreet(p.x, oz, 0.3)) p.z = oz; else { p.x = ox; p.z = oz; } } }   // (out in the town: the streets and the pavements)
+    else { p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, STABU_FAR - 1.4); }
     const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4 && body.feet < 1){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
     { const rx = p.x - ROWAN.x, rz = p.z - ROWAN.z, rd = Math.hypot(rx, rz); if (rd < 0.45 && body.feet < 1.5){ p.x = ROWAN.x + rx / rd * 0.45; p.z = ROWAN.z + rz / rd * 0.45; } }   // (round the rowan's trunk)
     const gnd = surf(p.x, p.z);
