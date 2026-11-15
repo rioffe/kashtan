@@ -50,12 +50,13 @@
   html,body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   button{touch-action:manipulation}
   /* touch screens (iPad): a stick to walk, a button to jump */
-  #stick,#jumpBtn{position:fixed;z-index:11;display:none;touch-action:none;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:50%}
+  #stick,#jumpBtn,#parkBtn{position:fixed;z-index:11;display:none;touch-action:none;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:50%}
   #stick{left:calc(28px + env(safe-area-inset-left));bottom:calc(var(--ctl-b,170px) + env(safe-area-inset-bottom));width:132px;height:132px}
   #knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:rgba(255,248,235,.85);box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none}
   #jumpBtn{right:calc(32px + env(safe-area-inset-right));bottom:calc(var(--ctl-b,170px) + 24px + env(safe-area-inset-bottom));width:84px;height:84px;color:var(--ink);font:500 30px var(--sans);cursor:pointer}
   #jumpBtn:active{background:rgba(255,248,235,.35)}
-  body.touch #stick.on,body.touch #jumpBtn.on{display:block}
+  #parkBtn{right:calc(134px + env(safe-area-inset-right));bottom:calc(var(--ctl-b,170px) + 34px + env(safe-area-inset-bottom));width:64px;height:64px;color:var(--ink);font:600 24px var(--sans);cursor:pointer}
+  body.touch #stick.on,body.touch #jumpBtn.on,body.touch #parkBtn.on{display:block}
   body.touch #caption{width:min(640px,calc(100% - 360px))}
   #ui.hidden{opacity:0;pointer-events:none}
   #ctx{display:flex;gap:8px;min-height:36px}
@@ -98,7 +99,7 @@
   </div>
   <div id="hint"></div>
 </div>
-<div id="stick"><div id="knob"></div></div><button id="jumpBtn" aria-label="Jump">⤒</button>
+<div id="stick"><div id="knob"></div></div><button id="jumpBtn" aria-label="Jump">⤒</button><button id="parkBtn" aria-label="Park the bike">P</button>
 <div id="fade"></div>
 
 <script type="module">
@@ -5784,24 +5785,78 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   const arms = [-1, 1].map(s => ({ s, fore: limb(0.024, 0.019, skin), sleeve: limb(0.034, 0.03, sleeveM), upper: limb(0.034, 0.03, sleeveM) }));
   const legs = [-1, 1].map(s => ({ s, thigh: limb(0.058, 0.046, trouserM), shin: limb(0.044, 0.032, trouserM), sock: limb(0.032, 0.03, sockM), shoe: (() => { const g = new THREE.Group(); me.add(g);
     const u = new THREE.Mesh(rbox(0.12, 0.035, 0.044, 0.03), shoeM), so = new THREE.Mesh(rbox(0.125, 0.012, 0.047, 0.01), soleM); u.position.set(0.02, 0.04, 0); so.position.set(0.02, 0.01, 0); g.add(u, so); return g; })() }));
+  const EYE = P(-0.05, 1.39);   // (where the eye is, on the bike)
+  // the rest of me: the pelvis on the saddle, the torso leaning a little forward over the bars, the shoulders; the neck and the head drawn
+  // only into the shadows (the eye is inside it), with hair, or in the cold the fur hat with its ear flaps tied up
+  const ghost = new THREE.MeshBasicMaterial({ color: '#e0aa88', colorWrite: false, depthWrite: false });
+  const body = (() => { const W = P(SC.x + 0.018, SC.y + 0.13), N = P(EYE.x - 0.062, EYE.y - 0.13), d = N.clone().sub(W), L = d.length(), ang = Math.atan2(d.x, d.y);
+    const prof = [[0, -0.02], [0.112, -0.016], [0.121, 0.04], [0.126, 0.12], [0.138, 0.2], [0.146, 0.25], [0.139, 0.282], [0.1, 0.305], [0.052, 0.316], [0, 0.318]];
+    const torso = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y / 0.318)), 28), sleeveM); torso.position.copy(W); torso.rotation.z = -ang; torso.castShadow = true; me.add(torso);
+    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), trouserM); pelvis.position.set(SC.x + 0.005, SC.y + 0.095, 0); pelvis.scale.set(0.094, 0.074, 0.122); pelvis.castShadow = true; me.add(pelvis);
+    const shoulders = [-1, 1].map(sd => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.043, 16, 10), sleeveM); m.position.set(EYE.x - 0.055, EYE.y - 0.168, sd * 0.158); m.castShadow = true; me.add(m); return m; });
+    const head = new THREE.Group(); head.position.set(EYE.x - 0.058, EYE.y + 0.018, 0); head.rotation.z = -0.12; me.add(head);
+    const part = (geo, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, ghost); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; head.add(m); return m; };
+    part(new THREE.CylinderGeometry(0.042, 0.045, 0.12, 14), -0.012, -0.12, 0);   // the neck
+    part(new THREE.SphereGeometry(1, 22, 16), 0, 0, 0, 0.098, 0.112, 0.084);   // the head
+    part(new THREE.SphereGeometry(1, 10, 8), 0.094, -0.012, 0, 0.018, 0.024, 0.014); part(new THREE.SphereGeometry(1, 10, 8), 0.07, -0.06, 0, 0.04, 0.03, 0.05);   // the nose, the chin
+    for (const sd of [-1, 1]) part(new THREE.SphereGeometry(1, 10, 8), -0.008, 0.0, sd * 0.084, 0.024, 0.032, 0.012);   // the ears
+    const hair = part(new THREE.SphereGeometry(1, 22, 14, 0, TAU, 0, Math.PI * 0.62), -0.012, 0.012, 0, 0.106, 0.118, 0.092);   // the hair, a boy's, short
+    const hat = new THREE.Group(); head.add(hat);
+    { const hp = (geo, x, y, z, sx, sy, sz, rz = 0) => { const m = new THREE.Mesh(geo, ghost); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.z = rz; m.castShadow = true; hat.add(m); };
+      hp(new THREE.SphereGeometry(1, 22, 14, 0, TAU, 0, Math.PI * 0.55), -0.008, 0.03, 0, 0.122, 0.13, 0.112);   // the crown of the fur hat
+      hp(new THREE.TorusGeometry(1, 0.22, 10, 26).rotateX(Math.PI / 2), -0.004, 0.035, 0, 0.118, 0.13, 0.108);   // its fur band
+      hp(new THREE.BoxGeometry(1, 1, 1), 0.105, 0.06, 0, 0.03, 0.06, 0.15, -0.35);   // the front flap turned up
+      for (const sd of [-1, 1]) hp(new THREE.BoxGeometry(1, 1, 1), -0.01, 0.075, sd * 0.1, 0.11, 0.035, 0.05, 0); }   // the ear flaps, tied up on top
+    return { torso, pelvis, shoulders, head, hair, hat }; })();
   const ik = (a, c, l1, l2, hint) => { const d = c.clone().sub(a), L = Math.min(d.length(), l1 + l2 - 1e-4), dn = d.clone().normalize(), x = (l1 * l1 - l2 * l2 + L * L) / (2 * L), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
     const side = hint.clone().addScaledVector(dn, -hint.dot(dn)).normalize(); return a.clone().addScaledVector(dn, x).addScaledVector(side, h); };
   // where it leans: against the wall to the right of our entrance (the second, 10-17), the front wheel turned in to the wall
   const DOOR = new V3(9, 0, BZ), LEAN = { p: new V3(), rx: -0.24, ry: 0, steer: 0.42 };
   const blocked = (x, z) => x < -33.6 || x > 33.6 || z < BZ + 0.85 || z > STABU_FAR - 1.4 || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6)   // (the garden fence: the plots, their flower beds)
     || Math.hypot(x - TREE.x, z - TREE.z) < 0.95 || Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.35 || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.8
-    || BENCHES.some(b => Math.hypot(x - b.x, z - b.z) < 0.95) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.p && Math.hypot(x - s.p.x, z - s.p.z) < 0.5);
+    || BENCHES.some(b => Math.hypot(x - b.x, z - b.z) < 0.95) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
   const st = { riding: false, v: 0, steer: 0, head: Math.PI, lean: 0, crank: 0, roll: 0, x: 0, z: 0, bob: 0, tick: 0, pedal: 0, bump: 0 };
   const pose = (steerA) => { steer.quaternion.setFromAxisAngle(axis.clone().negate(), steerA); };
   const park = () => { root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); pose(LEAN.steer); root.rotation.set(LEAN.rx, LEAN.ry, 0); root.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(frame, true); root.position.set(DOOR.x + 1.95, -bb.min.y, BZ + 0.015 - bb.min.z); drive(0.6); me.visible = false; for (const h of hands) h.visible = false; st.riding = false; };
   park();
   // ride: pedal, brake, steer; it leans into the turns; the cranks go round only while you pedal (and back a little when you brake: the coaster brake)
-  const EYE = P(-0.05, 1.39), L = 1.045, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null, prevFov = 62;
-  const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; st.head = Math.PI; st.x = DOOR.x + 1.6; st.z = BZ + 1.7; cam.yaw = st.head; cam.pitch = -0.48;
-      me.visible = true; if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
-      caption('My own Orlyonok. The year I turned twelve, my parents finally bought me one.', 6); }); };
-  const dismount = (toDoor = true) => { if (!st.riding) return; const go = () => { park(); camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix();
+  const L = 1.045, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null, prevFov = 62;
+  // where it can lean: the chestnut, the rowan, the garden fence (from the lane), the garages' fronts, the building, the workshops
+  const supports = (x, z) => { const out = [];
+    const round = (c, r, k) => { const dx = x - c.x, dz = z - c.z, d0 = Math.hypot(dx, dz) || 1; out.push({ d: d0 - r, n: P(dx / d0, 0, dz / d0), w: P(c.x + dx / d0 * r, 0, c.z + dz / d0 * r), k }); };
+    const box = (x0, x1, z0, z1, k) => { const nx = clamp(x, x0, x1), nz = clamp(z, z0, z1), d = Math.hypot(x - nx, z - nz); if (d > 1e-3) out.push({ d, n: P((x - nx) / d, 0, (z - nz) / d), w: P(nx, 0, nz), k }); };
+    round(TREE, 0.8, 'chestnut'); round(ROWAN, 0.17, 'rowan');
+    box(-18.05, -12.0, -129.7, GARAGES[GARAGES.length - 1].z + 1.63, 'garages');
+    if (z > -126 && z < LANE_END && x < GX0 - 0.215) out.push({ d: GX0 - 0.215 - x, n: P(-1, 0, 0), w: P(GX0 - 0.215, 0, z), k: 'fence' });
+    if (Math.abs(x) < 17.9) box(-17.9, 17.9, BZ - 12, BZ + 0.015, 'wall');
+    for (const I of INDS) box(I.x0, I.x1, I.z0, I.z1, 'workshop');
+    return out.filter(c => !lilacData.some(L => Math.hypot(c.w.x - L.p.x, c.w.z - L.p.z) < 0.95 * L.s + 0.8)); };   // (not into a lilac)
+  const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
+    wall: 'I leaned my bike against the wall.', workshop: 'I leaned my bike against the workshop wall.' };
+  const getOff = () => { st.riding = false; st.v = 0; me.visible = false; for (const h of hands) h.visible = false; camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix(); };
+  const parkHere = () => { if (!st.riding) return; const sp = supports(st.x, st.z).sort((a, b) => a.d - b.d)[0], c = sp && sp.d < 1.6 ? sp : null;
+    fadeThen(() => { getOff(); const fw = P(-Math.sin(st.head), 0, -Math.cos(st.head)); let n, head;
+      if (c){ n = c.n; const a = Math.atan2(n.x, n.z), f1 = P(Math.cos(a), 0, -Math.sin(a)), side = fw.dot(f1) >= 0 ? 1 : -1;   // (it faces the way I was riding, more or less)
+        root.position.set(0, 0, 0); pose(side * LEAN.steer); root.rotation.set(side * LEAN.rx, side > 0 ? 0 : Math.PI, 0); root.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(frame, true); root.rotation.y += a; root.position.copy(c.w).addScaledVector(n, 0.012 - bb.min.z); root.position.y = -bb.min.y;
+        const f = f1.multiplyScalar(side); head = Math.atan2(-f.x, -f.z); }
+      else { head = st.head; n = P(Math.cos(head), 0, -Math.sin(head));   // nothing near: down on its left side, the chain up, the bars turned
+        root.position.set(0, 0, 0); pose(0.32); drive(1.2); root.rotation.set(-1.32, head + Math.PI / 2, 0); root.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(frame, true); root.position.set(st.x, -bb.min.y, st.z); }
+      root.updateMatrixWorld(true); st.parked = { n: n.clone(), head };
+      let stand = null; const a0 = Math.atan2(n.z, n.x); for (const r of [0.95, 1.3, 1.8, 2.4]) for (const da of [0, 0.5, -0.5, 1.1, -1.1, 1.8, -1.8, Math.PI]){ const q = root.position.clone().add(P(Math.cos(a0 + da) * r, 0, Math.sin(a0 + da) * r)); if (!stand && !blocked(q.x, q.z) && !lilacData.some(L => Math.hypot(q.x - L.p.x, q.z - L.p.z) < L.s + 0.35)) stand = q; }   // (and I stand beside it)
+      stand = stand || root.position.clone().addScaledVector(n, 1.2); stand.y = 1.6; const look = root.position.clone().setY(0.45); place(stand, yawTo(stand, look), -Math.atan2(1.15, stand.distanceTo(look))); resetBody();
+      caption(c ? PARKSAY[c.k] : SP(S).snow > 0.5 ? 'I laid my bike down in the snow.' : 'I laid my bike down in the grass.', 4); }); };
+  // getting on again where it stands: a clear spot beside it, facing the way it faces
+  const startFrom = () => { if (!st.parked) return [DOOR.x + 1.6, BZ + 1.7, Math.PI];
+    const { n, head } = st.parked, f = P(-Math.sin(head), 0, -Math.cos(head)), o = root.position;
+    for (let r = 0; r < 2.6; r += 0.1) for (const sd of [1, -1]){ const x = o.x + n.x * r * sd, z = o.z + n.z * r * sd; if (!blocked(x, z) && !blocked(x + f.x * 0.75, z + f.z * 0.75) && !blocked(x - f.x * 0.65, z - f.z * 0.65)) return [x, z, head]; }
+    return [DOOR.x + 1.6, BZ + 1.7, Math.PI]; };
+  const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; [st.x, st.z, st.head] = startFrom(); cam.yaw = st.head; cam.pitch = -0.48;
+      me.visible = true; if (new URLSearchParams(location.search).has('bikebody')){ ghost.colorWrite = ghost.depthWrite = true; } if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
+      if (!st.said){ st.said = 1; caption('My own Orlyonok. The year I turned twelve, my parents finally bought me one.', 6); } }); };
+  const dismount = (toDoor = true) => { if (!st.riding) return; const go = () => { st.parked = null; park(); camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix();
       if (toDoor){ const p = new V3(DOOR.x + 0.4, 1.6, BZ + 2.6); place(p, yawTo(p, root.position), -0.12); resetBody(); } };
     toDoor ? fadeThen(go) : go(); };
   const step = (dt, mx, mz) => { const kL = keys.has('ArrowLeft') ? 1 : 0, kR = keys.has('ArrowRight') ? 1 : 0, sIn = clamp(-mx + kL - kR, -1, 1);
@@ -5833,12 +5888,13 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   };
   const seasonWear = () => { const cold = S < 0.95 || S > 3.4, summer = S > 1.7 && S < 2.95; st.cold = cold;   // a T-shirt and shorts in summer, a jacket and trousers otherwise
     trouserM.color.set(summer ? '#30406a' : '#2a3048'); sleeveM.color.set(cold ? '#3a4a3a' : '#c8b896');
-    for (const lg of legs){ lg.shin.material = summer ? skin : trouserM; } for (const am of arms) am.fore.material = cold ? sleeveM : skin; };
+    for (const lg of legs){ lg.shin.material = summer ? skin : trouserM; } for (const am of arms) am.fore.material = cold ? sleeveM : skin;
+    const puff = cold ? 1.08 : 1; body.torso.scale.set(0.62 * puff, (body.torso.userData.L ??= P(EYE.x - 0.062, EYE.y - 0.13).distanceTo(P(SC.x + 0.018, SC.y + 0.13))), puff); for (const m of body.shoulders) m.scale.setScalar(puff); body.hat.visible = cold; body.hair.visible = !cold; };
   const pickBike = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); const h = ray.intersectObject(frame, true); return h.length && h[0].distance < 4; };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'walk' || st.riding || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return; if (camera.position.distanceTo(root.position) < 6 && pickBike(e)) mount(); });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'walk' || st.riding || camera.position.distanceTo(root.position) > 6) return; const on = pickBike(e); if (on !== st.hover){ st.hover = on; renderer.domElement.style.cursor = on ? 'pointer' : ''; } });
-  return { get riding(){ return st.riding; }, get roll(){ return st.roll; }, st, root, mount, dismount, step, bell(){ if (st.riding) sfx.bell(); }, update(){ if (st.riding) seasonWear(); const kd = 0.25 + 0.75 * env.day; paint.envMapIntensity = paintDS.envMapIntensity = 0.5 * kd; chrome.envMapIntensity = kd; leather.envMapIntensity = 0.3 * kd; }, blocked };
+  return { get riding(){ return st.riding; }, get roll(){ return st.roll; }, st, root, mount, dismount, step, parkHere, bell(){ if (st.riding) sfx.bell(); }, update(){ if (st.riding) seasonWear(); const kd = 0.25 + 0.75 * env.day; paint.envMapIntensity = paintDS.envMapIntensity = 0.5 * kd; chrome.envMapIntensity = kd; leather.envMapIntensity = 0.3 * kd; }, blocked };
 })();
 
 /* ============================== season & time ============================== */
@@ -6004,6 +6060,7 @@ addEventListener('keydown', e => {
   if ((k === 'KeyF' && mode !== 'window') || k === 'KeyK') shake();
   if (k === 'KeyR') roast();
   if (k === 'KeyB') buildSnowman();
+  if (k === 'KeyP' && BIKE.riding){ BIKE.parkHere(); return; }   // (park the bike right here)
   if (k === 'Space'){ e.preventDefault(); if (BIKE.riding) BIKE.bell(); else if (mode === 'walk') jumpOrClimb(); }
   if (k === 'KeyM') toggleMusic();
   if (k === 'KeyO' && mode === 'window') toggleLamp();
@@ -6296,8 +6353,16 @@ const I18N = {   // English → [Russian, Latvian]
   // roofs
   'From the last garage you could reach the rowan. We often climbed up here to pick its berries.': ['С последнего гаража можно было дотянуться до рябины. Мы часто залезали сюда за её ягодами.', 'No pēdējās garāžas varēja aizsniegt pīlādzi. Mēs bieži kāpām šeit augšā plūkt tā ogas.'],
   'My own Orlyonok. The year I turned twelve, my parents finally bought me one.': ['Мой собственный «Орлёнок». В двенадцать лет родители наконец купили мне его.', 'Mans paša «Orļonoks». Kad man palika divpadsmit, vecāki beidzot man to nopirka.'],
-  'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · Esc to get off at the door': ['W — крутить педали · S — тормоз · A / D — руль · тяни, чтобы осмотреться · пробел — звонок · Esc — слезть у подъезда', 'W — mīt pedāļus · S — bremzēt · A / D — stūrēt · velc, lai paskatītos apkārt · atstarpe — zvaniņš · Esc — nokāpt pie durvīm'],
-  'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · drag to look · Walk to get off at the door': ['Стик вверх — педали, вниз — тормоз, в стороны — руль · ⤒ — звонок · тяни, чтобы осмотреться · «Гулять» — слезть у подъезда', 'Kursoru uz augšu — pedāļi, uz leju — bremze, uz sāniem — stūre · ⤒ — zvaniņš · velc, lai paskatītos · «Staigāt» — nokāpt pie durvīm'],
+  'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door': ['W — крутить педали · S — тормоз · A / D — руль · тяни, чтобы осмотреться · пробел — звонок · P — поставить здесь · Esc — слезть у подъезда', 'W — mīt pedāļus · S — bremzēt · A / D — stūrēt · velc, lai paskatītos apkārt · atstarpe — zvaniņš · P — novietot šeit · Esc — nokāpt pie durvīm'],
+  'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · Walk to get off at the door': ['Стик вверх — педали, вниз — тормоз, в стороны — руль · ⤒ — звонок · P — поставить здесь · тяни, чтобы осмотреться · «Гулять» — слезть у подъезда', 'Kursoru uz augšu — pedāļi, uz leju — bremze, uz sāniem — stūre · ⤒ — zvaniņš · P — novietot šeit · velc, lai paskatītos · «Staigāt» — nokāpt pie durvīm'],
+  'I leaned my bike against the chestnut.': ['Я прислонил велосипед к каштану.', 'Es atbalstīju riteni pret kastaņu.'],
+  'I leaned my bike against the rowan.': ['Я прислонил велосипед к рябине.', 'Es atbalstīju riteni pret pīlādzi.'],
+  'I leaned my bike against the garden fence.': ['Я прислонил велосипед к забору огородов.', 'Es atbalstīju riteni pret dārziņu sētu.'],
+  'I leaned my bike against the garages.': ['Я прислонил велосипед к гаражам.', 'Es atbalstīju riteni pret garāžām.'],
+  'I leaned my bike against the wall.': ['Я прислонил велосипед к стене.', 'Es atbalstīju riteni pret sienu.'],
+  'I leaned my bike against the workshop wall.': ['Я прислонил велосипед к стене мастерской.', 'Es atbalstīju riteni pret darbnīcas sienu.'],
+  'I laid my bike down in the grass.': ['Я положил велосипед на траву.', 'Es noliku riteni zālē.'],
+  'I laid my bike down in the snow.': ['Я положил велосипед в снег.', 'Es noliku riteni sniegā.'],
   'Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.': ['На крышах гаражей — тёплый рубероид, ржавая жесть, вся дорога как на ладони.', 'Uz garāžu jumtiem — silts ruberoīds, rūsgans skārds, viss ceļš kā uz delnas.'],
   'The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.': ['Крыши мастерских: жесть гремит под ногами, а вокруг до горизонта — весь город.', 'Darbnīcu jumti: skārds dārd zem kājām, un visapkārt līdz apvārsnim — visa pilsēta.'],
   'We ran from roof to roof, and nobody could catch us.': ['Мы бегали с крыши на крышу, и никто не мог нас поймать.', 'Mēs skrējām no jumta uz jumtu, un neviens mūs nespēja noķert.'],
@@ -6357,8 +6422,8 @@ function syncButtons(){
   const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
     window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · stick to shuffle along the branch · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
     window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · A / D to shuffle along the branch · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
-  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · drag to look · Walk to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · Esc to get off at the door') : hints[mode] || '');
-  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk');
+  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · Walk to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door') : hints[mode] || '');
+  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk'); $('parkBtn').classList.toggle('on', BIKE.riding);
   placeSticks();
 }
 let ctxState = '';
@@ -6394,6 +6459,7 @@ const stick = { x: 0, y: 0, m: 0, id: null };
   el.addEventListener('pointerdown', e => { e.preventDefault(); stick.id = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch (_) {} move(e); });
   el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) move(e); });
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('lostpointercapture', end);
+  $('parkBtn').addEventListener('pointerdown', e => { e.preventDefault(); BIKE.parkHere(); });
   $('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (BIKE.riding) BIKE.bell(); else if (mode === 'walk') jumpOrClimb(); });
   for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
@@ -6645,8 +6711,9 @@ function frame(){
       if (q.has('chesstap')) setTimeout(() => { clk(); setTimeout(clk, 150); setTimeout(() => { clk(); console.log('CHESSCT tapped thrice: playing', CHESS.G.on); }, 300);
         setTimeout(() => { console.log('CHESSCT after 8s: ply', CHESS.G.i, 'moved', CHESS.G.moved, 'wait', CHESS.G.wait.toFixed(2), 'clock', CHESS.G.clock.toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc: playing', CHESS.G.on, 'moved', CHESS.G.moved, 'still seated', desk.on, desk.f); }, 8300); }, 2500);
       else setTimeout(() => { console.log('CHESSCT seated at', camera.position.distanceTo(wp).toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc', 'on', desk.on, 'view', desk.f, camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode); }, +(q.get('chessctt') || 3000)); }, 50); }
-    if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.get('bikep')) cam.pitch = +q.get('bikep'); if (q.get('bikey')) cam.yaw += +q.get('bikey');
-      console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikeesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => console.log('BIKE after Esc: riding', BIKE.riding, 'bike at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode), 1200); } }, 900); }, 400);   // debug: ?bikeride[&bikesim=frames&bikesteer=-1..1&bikep=pitch&bikey=look]
+    if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { if (q.get('bikeat')){ const v = q.get('bikeat').split(',').map(Number); BIKE.st.x = v[0]; BIKE.st.z = v[1]; if (v.length > 2) BIKE.st.head = cam.yaw = v[2]; } const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.get('bikep')) cam.pitch = +q.get('bikep'); if (q.get('bikey')) cam.yaw += +q.get('bikey');
+      console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikepark')){ BIKE.parkHere(); setTimeout(() => console.log('BIKE parked at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'rot', [BIKE.root.rotation.x, BIKE.root.rotation.y].map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'riding', BIKE.riding), 1200); }
+      if (q.has('bikeesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => console.log('BIKE after Esc: riding', BIKE.riding, 'bike at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode), 1200); } }, 900); }, 400);   // debug: ?bikeride[&bikesim=frames&bikesteer=-1..1&bikep=pitch&bikey=look]
     if (q.has('smokelog')) console.log('SMOKE chimneys', CHIMNEYS.length, 'smoking', CHSMOKE.CH.filter(c => c.k > 0.3).length, 'puffs', CHSMOKE.mesh.geometry.instanceCount);
     if (q.get('mariat')){ const it = MARIGOLD.items[+q.get('mariat') || 0], d = +(q.get('marid') || 1.0), e = new V3(it.p.x + d * 0.8, 1.6, it.p.z + d * 0.6); const cy = +(q.get('maricamy') || 0.9); place(e, yawTo(e, it.p), -Math.atan2(cy - it.p.y - 0.15, d)); setTimeout(() => { mode = 'free'; camera.position.y = cy; }, 300); }
     if (q.has('marilog')) console.log('MARIGOLD', MARIGOLD.items.length, 'tris near/far', MARIGOLD.tris.map(t => t.join('/')).join(' '), 'meshes', MARIGOLD.SET.meshes.length);
