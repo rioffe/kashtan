@@ -50,13 +50,15 @@
   html,body{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   button{touch-action:manipulation}
   /* touch screens (iPad): a stick to walk, a button to jump */
-  #stick,#jumpBtn,#parkBtn{position:fixed;z-index:11;display:none;touch-action:none;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:50%}
+  #stick,#jumpBtn,#parkBtn,#backBtn{position:fixed;z-index:11;display:none;touch-action:none;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:50%}
   #stick{left:calc(28px + env(safe-area-inset-left));bottom:calc(var(--ctl-b,170px) + env(safe-area-inset-bottom));width:132px;height:132px}
   #knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px;border-radius:50%;background:rgba(255,248,235,.85);box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none}
   #jumpBtn{right:calc(32px + env(safe-area-inset-right));bottom:calc(var(--ctl-b,170px) + 24px + env(safe-area-inset-bottom));width:84px;height:84px;color:var(--ink);font:500 30px var(--sans);cursor:pointer}
   #jumpBtn:active{background:rgba(255,248,235,.35)}
   #parkBtn{right:calc(134px + env(safe-area-inset-right));bottom:calc(var(--ctl-b,170px) + 34px + env(safe-area-inset-bottom));width:64px;height:64px;color:var(--ink);font:600 24px var(--sans);cursor:pointer}
-  body.touch #stick.on,body.touch #jumpBtn.on,body.touch #parkBtn.on{display:block}
+  #backBtn{left:calc(16px + env(safe-area-inset-left));top:calc(76px + env(safe-area-inset-top));width:56px;height:56px;padding:0;line-height:1;color:var(--ink);font:500 26px var(--sans);cursor:pointer}
+  #backBtn:active{background:rgba(255,248,235,.35)}
+  body.touch #stick.on,body.touch #jumpBtn.on,body.touch #parkBtn.on,body.touch #backBtn.on{display:block}
   body.touch #caption{width:min(640px,calc(100% - 360px))}
   #ui.hidden{opacity:0;pointer-events:none}
   #ctx{display:flex;gap:8px;min-height:36px}
@@ -99,7 +101,7 @@
   </div>
   <div id="hint"></div>
 </div>
-<div id="stick"><div id="knob"></div></div><button id="jumpBtn" aria-label="Jump">⤒</button><button id="parkBtn" aria-label="Park the bike">P</button>
+<div id="stick"><div id="knob"></div></div><button id="jumpBtn" aria-label="Jump">⤒</button><button id="parkBtn" aria-label="Park the bike">P</button><button id="backBtn" aria-label="Back">↩︎</button>
 <div id="fade"></div>
 
 <script type="module">
@@ -816,7 +818,7 @@ function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
 function deskView(k){ desk.f = k; const v = desk.views[k || 'seat']; desk.yaw = v.yaw; desk.pitch = v.pitch; desk.d = v.d; }
 function sitDesk(on, k = null){ if (on === desk.on || mode !== 'window') return; desk.on = on; desk.snap = false; const was = desk.home; desk.home = on ? k : null;   // (k: 'chess' to sit on the sofa by the chessboard)
   if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(k); camera.near = 0.03; camera.updateProjectionMatrix();
-    caption(k === 'chess' ? 'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.' : pick(['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
+    caption(k === 'chess' ? (TOUCH ? 'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.' : 'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.') : pick(TOUCH ? ['I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.', 'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.'] : ['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
   else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat;
     if (was === 'chess'){ const t = desk.views.chess.t; camera.position.set(t.x + 1.0, WIN_POS.y, t.z + 0.2); cam.yaw = Math.PI / 2 + 0.15; cam.pitch = -0.55; }   // standing up from the sofa
     else { camera.position.set(HOME.x + 0.45, WIN_POS.y, v.t.z + 0.1); cam.yaw = Math.PI / 2 + 0.2; cam.pitch = -0.35; } } }
@@ -1715,7 +1717,7 @@ vec3 paintFig(vec3 p, vec3 n, out float gold){
         if (p.type === 'king' && Math.abs(f1 - from % 8) === 2){ const rf = f1 > 4 ? 7 : 0, rt = f1 > 4 ? 5 : 3, rk = G.at.get(rf + r1 * 8);   // castling: the rook comes round after the king
           G.at.delete(rf + r1 * 8); G.at.set(rt + r1 * 8, rk); p.x = sqX(r1); p.z = sqZ(f1); p.y = TH; t = track(rk, sqX(r1) + jit(), sqZ(rt) + jit(), t - 0.1, rk.ry); }
         G.moved = true; return t; };
-      const start = () => { resetBoard(); G.on = true; G.wait = 1.4; caption('Reykjavík, 1972: Fischer – Spassky, the sixth game. Esc sets the pieces back.', 6); };
+      const start = () => { resetBoard(); G.on = true; G.wait = 1.4; caption(TOUCH ? 'Reykjavík, 1972: Fischer – Spassky, the sixth game. ↩︎ sets the pieces back.' : 'Reykjavík, 1972: Fischer – Spassky, the sixth game. Esc sets the pieces back.', 6); };
       const play = (dt) => { if (!G.on && !G.tracks.length) return; G.clock += dt;
         for (const tk of G.tracks){ if (G.clock < tk.t0) continue; const u = clamp((G.clock - tk.t0) / tk.dur), s = smooth((u - 0.2) / 0.6), hu = smooth(u / 0.22) * smooth((1 - u) / 0.22), p = tk.p;
           p.ry = lerp(tk.ry0, tk.ry1, s); const yb = lerp(tk.y0, tk.y1, s); place(p, lerp(tk.x0, tk.x1, s), yb + (tk.top - Math.max(tk.y0, tk.y1)) * hu + (Math.max(tk.y0, tk.y1) - yb) * hu, lerp(tk.z0, tk.z1, s));
@@ -6382,6 +6384,13 @@ renderer.domElement.addEventListener('pointermove', e => { if (!drag || !pointer
 renderer.domElement.addEventListener('wheel', e => { if (!desk.on) return; e.preventDefault(); const v = desk.views[desk.f || 'seat']; desk.d = clamp(desk.d * Math.exp(e.deltaY * 0.0012), v.d0, v.d1); }, { passive: false });
 const endPtr = e => { pointers.delete(e.pointerId); if (!pointers.size) drag = null; };
 renderer.domElement.addEventListener('pointerup', endPtr); renderer.domElement.addEventListener('pointercancel', endPtr);
+// back out of wherever I am, a step at a time (off the bike, down from the tree, up from the desk, away from the window): Esc or G on a
+// keyboard, ↩︎ on a touch screen; by the chessboard Esc (and ↩︎) first sets the pieces back
+function goBack(chess = true){ if (!started || fadeEl.style.opacity === '1') return;   // (not twice over while the screen fades)
+  if (desk.on){ if (chess && desk.f === 'chess' && CHESS.reset()) return;
+    if (desk.f && desk.f !== desk.home) deskView(desk.home); else sitDesk(false); return; }
+  if (BIKE.riding){ BIKE.dismount(); return; }   // (off the bike, and back to the door with it)
+  setMode('walk'); }
 addEventListener('keydown', e => {
   if (!started) return;
   if (e.altKey && /^Key[A-Z]$/.test(e.code)){ e.preventDefault(); catSecret(e.code.slice(3).toLowerCase()); return; }   // the secret: hold Option/Alt and type K-I-S (or C-A-T)
@@ -6393,10 +6402,7 @@ addEventListener('keydown', e => {
   if (k === 'KeyL') setMode('lie');
   if (k === 'KeyC') setMode('climb');
   if (k === 'KeyX' && mode === 'window'){ sitDesk(!desk.on); return; }
-  if (desk.on && (k === 'Escape' || k === 'KeyG')){ if (k === 'Escape' && desk.f === 'chess' && CHESS.reset()) return;   // (Esc by the chessboard first sets the pieces back)
-    if (desk.f && desk.f !== desk.home) deskView(desk.home); else sitDesk(false); return; }
-  if (BIKE.riding && (k === 'Escape' || k === 'KeyG')){ BIKE.dismount(); return; }   // (off the bike, and back to the door with it)
-  if (k === 'Escape' || k === 'KeyG') setMode('walk');
+  if (k === 'Escape' || k === 'KeyG'){ goBack(k === 'Escape'); return; }
   if (k === 'KeyE'){ if (mode === 'climb') climb(1); else if (mode === 'walk' && distTree() < 5) setMode('climb'); }
   if (k === 'KeyQ' && mode === 'climb') climb(-1);
   if (mode === 'climb' && (k === 'KeyW' || k === 'ArrowUp')) climb(1);
@@ -6638,7 +6644,7 @@ const I18N = {   // English → [Russian, Latvian]
     ['Джойстик — ходить · тянуть пальцем — смотреть · коснитесь окна, чтобы открыть его, лампы — чтобы включить, книги — чтобы открыть её',
      'Kursorsvira — staigāt · velc ar pirkstu — skatīties · pieskarieties logam, lai to atvērtu, lampai — lai ieslēgtu, grāmatai — lai to atvērtu'],
   'Higher / Lower to climb · stick to shuffle along the branch · drag to look': ['«Выше» / «Ниже» — лезть по дереву · джойстик — подвинуться по ветке · тянуть пальцем — смотреть', '«Augstāk» / «Zemāk» — kāpt · kursorsvira — pavirzīties pa zaru · velc ar pirkstu — skatīties'],
-  'Drag to look around · Walk to get up': ['Тянуть пальцем — оглядеться · «Гулять» — встать', 'Velc ar pirkstu — paskatīties apkārt · «Staigāt» — piecelties'],
+  'Drag to look around · ↩︎ to get up': ['Тянуть пальцем — оглядеться · ↩︎ — встать', 'Velc ar pirkstu — paskatīties apkārt · ↩︎ — piecelties'],
   'Higher': ['Выше', 'Augstāk'], 'Lower': ['Ниже', 'Zemāk'], 'Climb down': ['Слезть', 'Kāpt lejā'],
   'Drag to look around · Esc to get up': ['Тянуть мышью — оглядеться · Esc — встать', 'Velc ar peli — paskatīties apkārt · Esc — piecelties'],
   // captions
@@ -6658,6 +6664,10 @@ const I18N = {   // English → [Russian, Latvian]
   'From my window on the third floor, the tree was the whole world.': ['Из моего окна на третьем этаже дерево было целым миром.', 'No mana loga trešajā stāvā koks bija visa pasaule.'],
   'I would sit here for hours, and the tree would sit there with me.': ['Я мог сидеть здесь часами, и дерево было там, со мной.', 'Es te varēju sēdēt stundām, un koks bija tur, kopā ar mani.'],
   'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.': ['Папины шахматы: фигуры расставлены для партии. Тяни, чтобы осмотреться; Esc — встать.', 'Tēta šahs: figūras saliktas spēlei. Velc, lai paskatītos apkārt; Esc — piecelties.'],
+  'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.': ['Папины шахматы: фигуры расставлены для партии. Тяни, чтобы осмотреться; ↩︎ — встать.', 'Tēta šahs: figūras saliktas spēlei. Velc, lai paskatītos apkārt; ↩︎ — piecelties.'],
+  'Reykjavík, 1972: Fischer – Spassky, the sixth game. ↩︎ sets the pieces back.': ['Рейкьявик, 1972: Фишер — Спасский, шестая партия. ↩︎ — расставить фигуры заново.', 'Reikjavīka, 1972: Fišers — Spaskis, sestā partija. ↩︎ — salikt figūras atpakaļ.'],
+  'I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.': ['Я сел за свой стол. Коснись любой вещи, чтобы рассмотреть; ↩︎ — встать.', 'Es apsēdos pie sava galda. Pieskaries jebkurai lietai, lai to aplūkotu tuvāk; ↩︎ — piecelties.'],
+  'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.': ['Мой стол: тетрадь, калькулятор, книга, купальщица. Коснись, чтобы рассмотреть; ↩︎ — встать.', 'Mans galds: burtnīca, kalkulators, grāmata, peldētāja. Pieskaries, lai aplūkotu tuvāk; ↩︎ — piecelties.'],
   'Reykjavík, 1972: Fischer – Spassky, the sixth game. Esc sets the pieces back.': ['Рейкьявик, 1972: Фишер — Спасский, шестая партия. Esc — расставить фигуры заново.', 'Reikjavīka, 1972: Fišers — Spaskis, sestā partija. Esc — salikt figūras atpakaļ.'],
   'Spassky resigned, and stood up with the audience to applaud Fischer.': ['Спасский сдался — и вместе со зрителями встал аплодировать Фишеру.', 'Spaskis padevās — un kopā ar skatītājiem piecēlās, lai aplaudētu Fišeram.'],
   'I sat down at my table. Click anything on it to look closer; Esc to get up.': ['Я сел за свой стол. Кликни по любой вещи, чтобы рассмотреть; Esc — встать.', 'Es apsēdos pie sava galda. Noklikšķini uz jebkuras lietas, lai to aplūkotu tuvāk; Esc — piecelties.'],
@@ -6698,7 +6708,7 @@ const I18N = {   // English → [Russian, Latvian]
   'From the last garage you could reach the rowan. We often climbed up here to pick its berries.': ['С последнего гаража можно было дотянуться до рябины. Мы часто залезали сюда за её ягодами.', 'No pēdējās garāžas varēja aizsniegt pīlādzi. Mēs bieži kāpām šeit augšā plūkt tā ogas.'],
   'My own Orlyonok. The year I turned twelve, my parents finally bought me one.': ['Мой собственный «Орлёнок». В двенадцать лет родители наконец купили мне его.', 'Mans paša «Orļonoks». Kad man palika divpadsmit, vecāki beidzot man to nopirka.'],
   'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door': ['W — крутить педали · S — тормоз · A / D — руль · тяни, чтобы осмотреться · пробел — звонок · P — поставить здесь · Esc — слезть у подъезда', 'W — mīt pedāļus · S — bremzēt · A / D — stūrēt · velc, lai paskatītos apkārt · atstarpe — zvaniņš · P — novietot šeit · Esc — nokāpt pie durvīm'],
-  'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · Walk to get off at the door': ['Стик вверх — педали, вниз — тормоз, в стороны — руль · ⤒ — звонок · P — поставить здесь · тяни, чтобы осмотреться · «Гулять» — слезть у подъезда', 'Kursoru uz augšu — pedāļi, uz leju — bremze, uz sāniem — stūre · ⤒ — zvaniņš · P — novietot šeit · velc, lai paskatītos · «Staigāt» — nokāpt pie durvīm'],
+  'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · ↩︎ to get off at the door': ['Стик вверх — педали, вниз — тормоз, в стороны — руль · ⤒ — звонок · P — поставить здесь · тяни, чтобы осмотреться · ↩︎ — слезть у подъезда', 'Kursoru uz augšu — pedāļi, uz leju — bremze, uz sāniem — stūre · ⤒ — zvaniņš · P — novietot šeit · velc, lai paskatītos · ↩︎ — nokāpt pie durvīm'],
   'I leaned my bike against the chestnut.': ['Я прислонил велосипед к каштану.', 'Es atbalstīju riteni pret kastaņu.'],
   'I leaned my bike against the rowan.': ['Я прислонил велосипед к рябине.', 'Es atbalstīju riteni pret pīlādzi.'],
   'I leaned my bike against the garden fence.': ['Я прислонил велосипед к забору огородов.', 'Es atbalstīju riteni pret dārziņu sētu.'],
@@ -6766,10 +6776,10 @@ function syncButtons(){
   Object.keys(WEATHERS).forEach(n => $('bw' + n).classList.toggle('on', n === weather));
   $('bmusic').classList.toggle('on', sfx.on); $('bdrift').classList.toggle('on', drift);
   const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
-    window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · stick to shuffle along the branch · drag to look', lie: 'Drag to look around · Walk to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
+    window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · stick to shuffle along the branch · drag to look', lie: 'Drag to look around · ↩︎ to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
     window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · A / D to shuffle along the branch · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
-  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · Walk to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door') : hints[mode] || '');
-  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk'); $('parkBtn').classList.toggle('on', BIKE.riding);
+  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · ↩︎ to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door') : hints[mode] || '');
+  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk'); $('parkBtn').classList.toggle('on', BIKE.riding); $('backBtn').classList.toggle('on', started && (BIKE.riding || mode !== 'walk'));
   placeSticks();
 }
 let ctxState = '';
@@ -6806,6 +6816,7 @@ const stick = { x: 0, y: 0, m: 0, id: null };
   el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) move(e); });
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('lostpointercapture', end);
   $('parkBtn').addEventListener('pointerdown', e => { e.preventDefault(); BIKE.parkHere(); });
+  $('backBtn').addEventListener('pointerdown', e => { e.preventDefault(); goBack(); });
   $('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (BIKE.riding) BIKE.bell(); else if (mode === 'walk') jumpOrClimb(); });
   for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
   document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
