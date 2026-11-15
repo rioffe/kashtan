@@ -163,6 +163,23 @@ function snowify(mat, k = 1){
   };
   return mat;
 }
+/* roofs in the rain: wet where the rain falls on them (whatever faces the sky), darker, glossy, the grey sky sheening off them at a glance,
+   and near enough to see, the rings of the raindrops spreading on them; they dry with the yard. Chained on top of the snow */
+const roofWetU = { value: 0 }, roofRainU = { value: 0 };
+function wetRoof(mat, k = 1){ return shaderChain(mat, 'wetRoof' + k, (sh) => {
+  Object.assign(sh.uniforms, { uRW: roofWetU, uRR: roofRainU, uRSky: wetU.sky, uRT: timeU });
+  sh.vertexShader = 'varying vec3 vRWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vRWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+  sh.fragmentShader = 'uniform float uRW; uniform float uRR; uniform vec3 uRSky; uniform float uRT; varying vec3 vRWP;\n' + sh.fragmentShader
+    .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+      float rw = clamp(uRW * ${k.toFixed(2)}, 0.0, 1.0) * smoothstep(0.25, 0.75, vSnowN);
+      float pud = rw * smoothstep(0.985, 0.998, vSnowN) * smoothstep(0.35, 0.8, sin(vRWP.x * 1.3 + 0.7) * sin(vRWP.z * 1.1 + 2.1) + 0.5 * sin(vRWP.x * 0.6 - vRWP.z * 0.9 + 4.0));   // (on the flat tar roofs, shallow puddles)
+      diffuseColor.rgb *= (1.0 - 0.34 * rw) * (1.0 - 0.3 * pud); roughnessFactor = mix(mix(roughnessFactor, 0.12, rw), 0.03, pud);`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      if (rw > 0.001){ vec3 vv = normalize(vViewPosition); float fr = pow(1.0 - clamp(abs(dot(normal, vv)), 0.0, 1.0), 5.0), rings = 0.0;
+        float near = smoothstep(26.0, 7.0, length(vViewPosition)) * uRR;
+        if (near > 0.001) for (int L = 0; L < 2; L++){ vec2 q = vRWP.xz * (L == 0 ? 7.0 : 4.3) + float(L) * 17.3, id = floor(q), f = fract(q) - 0.5; float h = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
+          float ph = fract(uRT * (1.1 + 0.6 * h) + h * 9.0), rr = ph * 0.42; rings += smoothstep(0.028, 0.0, abs(length(f + (h - 0.5) * 0.2) - rr)) * (1.0 - ph) * (1.0 - ph) * step(0.6, h); }
+        totalEmissiveRadiance += uRSky * (rw * (0.02 + 0.5 * fr + 0.16 * rings * near * (1.0 + pud)) + pud * (0.05 + 0.4 * fr)); }`); }); }
 function swayify(mat, amp, flut = 0){   // flut: each leaf also flutters on its own, faster, at its own phase (small leaves on a wall)
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU; sh.uniforms.uAmp = { value: amp }; sh.uniforms.uFlut = { value: flut };
@@ -618,7 +635,7 @@ const roofTex = tex(512, 512, (g, w, h) => {
   b.position.set(0, BH / 2, BZ - BD / 2); b.castShadow = b.receiveShadow = true; scene.add(b);
   const shape = new THREE.Shape([new THREE.Vector2(-BD / 2 - 0.4, 0), new THREE.Vector2(BD / 2 + 0.4, 0), new THREE.Vector2(0, 2.4)]);
   const rg = new THREE.ExtrudeGeometry(shape, { depth: BW + 0.8, bevelEnabled: false }); rg.rotateY(Math.PI / 2);
-  const roof = new THREE.Mesh(rg, snowify(new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.7, metalness: 0.3 }), 1.2));
+  const roof = new THREE.Mesh(rg, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.7, metalness: 0.3 }), 1.2)));
   roof.position.set(-BW / 2 - 0.4, BH, BZ - BD / 2); roof.castShadow = roof.receiveShadow = true; scene.add(roof);
   const brick = snowify(new THREE.MeshStandardMaterial({ color: '#7a5246', roughness: 1 }));
   for (const x of [-12, -3, 6.5, 14]){ const ch = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.7), brick); ch.position.set(x, BH + 1.9, BZ - BD / 2 + rnd(-1.5, 1.5)); ch.castShadow = true; scene.add(ch); CHIMNEYS.push(new V3(x, BH + 2.85, ch.position.z)); }
@@ -2192,7 +2209,7 @@ const brickTex = tex(256, 256, (g, w, h) => { g.fillStyle = '#b9b4a8'; g.fillRec
   for (let y = 0; y < h; y += 16) for (let x = -32; x < w; x += 32){ g.fillStyle = `hsl(40,${8 + rng() * 6}%,${70 + rng() * 10}%)`; g.fillRect(x + ((y / 16) % 2) * 16 + 1, y + 1, 30, 14); }
   speckle(g, w, h, 600, ['rgba(80,70,60,.3)']); });
 const GARAGES = [];
-const tarMat = snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughness: 0.9 }), 1.2);
+const tarMat = wetRoof(snowify(new THREE.MeshStandardMaterial({ color: '#3f3b38', roughness: 0.9 }), 1.2), 1.1);
 {
   const doorCols = ['#5d7a5a', '#4a6a8a', '#8a8a80', '#7a4a3a', '#6b8e8e', '#5a6a3a', '#8a6a3a'];
   const doorMats = doorCols.map((c, i) => snowify(new THREE.MeshStandardMaterial({ map: doorTex(c, String(3 + i * 11)), roughness: 0.75, metalness: 0.2 })));
@@ -3344,7 +3361,7 @@ const brickLowTex = tex(1024, 228, (g, w, h) => {   // the low workshop's wall: 
   // the one right next to the house is a low single-storey workshop: its eaves only just clear the top of the ground-floor windows
   for (let z = -150; z < LANE_END - 4;){ const len = rnd(18, 38), H = rnd(5.2, 6.2), low = z === -150; industrial(18, 34, z, Math.min(z + len, LANE_END), low ? 3.55 : H, low); z += len; }
   const wm = new THREE.Mesh(mergeGeometries(walls), snowify(new THREE.MeshStandardMaterial({ map: brickBayTex, roughness: 0.95 })));
-  const rm = new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2));
+  const rm = new THREE.Mesh(mergeGeometries(roofs), wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2)));
   wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm);
   const lm = new THREE.Mesh(mergeGeometries(lowWalls), snowify(new THREE.MeshStandardMaterial({ map: brickLowTex, roughness: 0.95 }))); lm.castShadow = lm.receiveShadow = true; scene.add(lm);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 24, 16), snowify(new THREE.MeshStandardMaterial({ color: '#6a3426', roughness: 1 }), 0.5));
@@ -4664,13 +4681,13 @@ var blockMats = [];
     const endMat = wm(plank), g = new THREE.Group(); g.add(back, front);
     for (const s of [-1, 1]){ const e = new THREE.Mesh(new THREE.ShapeGeometry(end), endMat); e.rotation.y = s * Math.PI / 2; e.position.set(s < 0 ? x0 : x1, 0, cz); g.add(e);
       const aw = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9), new THREE.MeshStandardMaterial({ color: '#1c262c', roughness: 0.3 })); aw.rotation.y = s * Math.PI / 2; aw.position.set((s < 0 ? x0 : x1) + s * 0.02, H + 0.9, cz); g.add(aw); }
-    const tin = snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4), a = Math.atan2(rise, d / 2), sl = Math.hypot(rise, d / 2) + 0.45;
+    const tin = wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4)), a = Math.atan2(rise, d / 2), sl = Math.hypot(rise, d / 2) + 0.45;
     for (const s of [-1, 1]){ const r = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.07, sl), tin); r.rotation.x = s * a; r.position.set(cx, H + rise / 2 + 0.02, cz + s * (d / 4 + 0.1)); g.add(r); }
     for (const fx of [0.3, 0.72]){ const ch = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.6), snowify(new THREE.MeshStandardMaterial({ map: brickTex, color: '#a0503a', roughness: 1 }), 0.6)); ch.position.set(x0 + w * fx, H + rise - 0.1, cz + 0.6); g.add(ch); CHIMNEYS.push(new V3(x0 + w * fx, H + rise + 0.62, cz + 0.6)); }
     g.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } }); scene.add(g); }
   const cityMat = snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6);
   scene.add(new THREE.Mesh(mergeGeometries(bodies), cityMat));
-  scene.add(new THREE.Mesh(mergeGeometries(roofs), snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)));
+  scene.add(new THREE.Mesh(mergeGeometries(roofs), wetRoof(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3))));
   blockMats.push(cityMat);
 }
 
@@ -6297,7 +6314,7 @@ function updateEnv(sp){
   deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
   groundMat.color.copy(cyc(S, groundKeys, tmpC)).multiplyScalar(1 - 0.28 * W.wet); groundMat.roughness = 1 - 0.35 * W.wet;
   { const wt = W.wet * (1 - sp.snow); wetU.wet.value = W.leafWet * (1 - sp.snow); wetU.ground.value = wt; wetU.sky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.4);   // the chestnut in the rain
-    tree.barkMat.color.setScalar(1 - 0.38 * wt); tree.barkMat.roughness = 0.95 - 0.5 * wt; }
+    tree.barkMat.color.setScalar(1 - 0.38 * wt); tree.barkMat.roughness = 0.95 - 0.5 * wt; roofWetU.value = wt; roofRainU.value = W.rain * (1 - sp.snow); }   // (and the roofs)
   roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
   snowU.value = sp.snow; snowLayer.visible = sp.snow > 0.02;
   liftU.value = 0.03 + 0.2 * env.day;
