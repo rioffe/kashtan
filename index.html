@@ -5599,7 +5599,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   const BB = P(0, 0.27), RH = P(-0.476, Rw), ST = P(-0.205, 0.71), HT = P(0.345, 0.775), HB = P(0.392, 0.645), axis = HB.clone().sub(HT).normalize();
   add([rod(BB, ST, 0.0145), rod(ST, P(0.35, 0.752), 0.0125), rod(BB, P(0.386, 0.662), 0.0165), rod(HT.clone().addScaledVector(axis, -0.01), HB.clone().addScaledVector(axis, -0.002), 0.0185),
     rod(P(0, 0.27, -0.04), P(0, 0.27, 0.04), 0.021), new THREE.SphereGeometry(0.017, 10, 8).translate(ST.x, ST.y, 0),
-    ...[-1, 1].flatMap(s => [rod(P(0.0, 0.27, s * 0.032), P(RH.x, RH.y, s * 0.062), 0.0095, 0.0075), rod(P(ST.x + 0.006, ST.y - 0.02, s * 0.018), P(RH.x, RH.y, s * 0.062), 0.0085, 0.0068)])], paint);
+    ...[-1, 1].flatMap(s => [rod(P(0.0, 0.27, s * 0.032), P(RH.x, RH.y, s * 0.057), 0.0095, 0.0075), rod(P(ST.x + 0.006, ST.y - 0.02, s * 0.018), P(RH.x, RH.y, s * 0.057), 0.0085, 0.0068)])], paint);
   // the decal on the down tube: Орлёнок, both sides
   { const dec = tex(256, 64, (g, w, h) => { g.fillStyle = '#f4f2ea'; g.beginPath(); g.roundRect(4, 8, w - 8, h - 16, 20); g.fill(); g.fillStyle = '#2a2a3a'; g.font = 'italic bold 34px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Орлёнок', w / 2, h / 2 + 2); });
     const dm = new THREE.MeshStandardMaterial({ map: dec, roughness: 0.4, transparent: true, polygonOffset: true, polygonOffsetFactor: -2 }), mid = BB.clone().lerp(P(0.386, 0.662), 0.5), ang = Math.atan2(0.662 - 0.27, 0.386);
@@ -5639,8 +5639,8 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     sp.push(rod(P(0, 0, -0.045), P(0, 0, 0.045), 0.015), rod(P(0, 0, -0.033), P(0, 0, -0.028), 0.028), rod(P(0, 0, 0.028), P(0, 0, 0.033), 0.028)); add(sp, chrome, g); return g; };
   const rearW = wheel(frame); rearW.position.copy(RH);
   const axleNuts = (c, z) => [rod(P(c.x, c.y, -z - 0.012), P(c.x, c.y, z + 0.012), 0.0042), ...[-1, 1].flatMap(sd => [nut(0.0108, 0.0075, sd * (z + 0.006), c.x, c.y), new THREE.CylinderGeometry(0.0128, 0.0128, 0.0018, 20).rotateX(Math.PI / 2).translate(c.x, c.y, sd * (z + 0.0012))])];
-  add(axleNuts(RH, 0.064), chrome);
-  add([rod(P(RH.x, RH.y, -0.072), P(-0.352, 0.292, -0.066), 0.0055, 0.0045, 8)], black); add([rod(P(-0.36, 0.293, -0.066), P(-0.345, 0.291, -0.066), 0.0105, 0.0105, 10)], chrome);   // the coaster brake's arm and its clip
+  add(axleNuts(RH, 0.059), chrome);
+  add([rod(P(RH.x, RH.y, -0.067), P(-0.352, 0.292, -0.062), 0.0055, 0.0045, 8)], black); add([rod(P(-0.36, 0.293, -0.066), P(-0.345, 0.291, -0.066), 0.0105, 0.0105, 10)], chrome);   // the coaster brake's arm and its clip
   const guard = (c, a0, a1, r, parent) => { const pr = [[-0.034, -0.014], [-0.022, -0.003], [0, 0], [0.022, -0.003], [0.034, -0.014]], Pp = [], I = [], n = 40;
     for (let i = 0; i <= n; i++){ const a = lerp(a0, a1, i / n); for (const [w, h] of pr) Pp.push(c.x + Math.cos(a) * (r + h), c.y + Math.sin(a) * (r + h), w); }
     for (let i = 0; i < n; i++) for (let j = 0; j < 4; j++){ const q = i * 5 + j; I.push(q, q + 5, q + 1, q + 1, q + 5, q + 6); }
@@ -5649,7 +5649,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   guard(RH, -0.12, 2.75, Rw + 0.03, frame);
   add([-1, 1].map(s => rod(P(RH.x + Math.cos(2.45) * (Rw + 0.025), RH.y + Math.sin(2.45) * (Rw + 0.025), s * 0.034), P(RH.x, RH.y, s * 0.06), 0.0022)), chrome);   // its stays
   { const rr = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.008, 16).rotateZ(Math.PI / 2), red); rr.position.set(RH.x + Math.cos(2.5) * (Rw + 0.045), RH.y + Math.sin(2.5) * (Rw + 0.045), 0); rr.rotation.z = 2.5 - Math.PI; frame.add(rr); }   // the red reflector
-  const ZC = 0.064, RC = 0.0127 / (2 * Math.sin(Math.PI / 48)), RS = 0.0127 / (2 * Math.sin(Math.PI / 18));   // (a half-inch chain: 48 teeth in front, 18 behind)
+  const ZC = 0.047, RC = 0.0127 / (2 * Math.sin(Math.PI / 48)), RS = 0.0127 / (2 * Math.sin(Math.PI / 18));   // (a half-inch chain: 48 teeth in front, 18 behind)
   const sprocket = new THREE.Mesh(new THREE.ExtrudeGeometry(gearShape(18, RS + 0.0036, RS - 0.0036, 0.012), { depth: 0.0026, bevelEnabled: false }).translate(0, 0, ZC - 0.0013), steelDk); sprocket.position.set(RH.x, RH.y, 0); sprocket.castShadow = true; frame.add(sprocket);
   const chain = (() => { const pts = [];
     for (let i = 0; i <= 12; i++) pts.push(P(BB.x + Math.sin(i / 12 * Math.PI) * RC, BB.y + Math.cos(i / 12 * Math.PI) * RC, ZC));
@@ -5681,10 +5681,10 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     add([0, 1, 2, 3, 4].map(k => { const a = a0 + k * TAU / 5; return rbox(0.0075, 0.0062, 0.0025, 0.0024, 2).rotateZ(a).translate(Math.cos(a) * 0.08, Math.sin(a) * 0.08, ZC + 0.0045); }), guardM, crank);
     // the arms: flat, tapering, chrome, the right one outside the guard
     const arm = (z, dir) => new THREE.CylinderGeometry(0.0072, 0.0098, 0.165, 14).scale(1, 1, 0.62).translate(0, dir * 0.0825, z);
-    add([arm(0.095, -1).rotateZ(0), arm(-0.074, 1), rod(P(0, 0, -0.082), P(0, 0, 0.1), 0.0085), new THREE.CylinderGeometry(0.0125, 0.0125, 0.012, 20).rotateX(Math.PI / 2).translate(0, 0, -0.074), new THREE.CylinderGeometry(0.0125, 0.0125, 0.012, 20).rotateX(Math.PI / 2).translate(0, 0, 0.095)], chrome, crank); }
+    add([arm(0.08, -1), arm(-0.08, 1), rod(P(0, 0, -0.088), P(0, 0, 0.087), 0.0085), new THREE.CylinderGeometry(0.0125, 0.0125, 0.012, 20).rotateX(Math.PI / 2).translate(0, 0, -0.08), new THREE.CylinderGeometry(0.0125, 0.0125, 0.012, 20).rotateX(Math.PI / 2).translate(0, 0, 0.08)], chrome, crank); }
   // the pedals, after the photograph: three parts each, a rubber block in front and one behind the chrome middle where the spindle runs, each
   // block in three ribs; chrome plates at both ends, an amber reflector front and back, the spindle's capped nut outside; they stay level
-  const pedals = [-1, 1].map(s => { const g = new THREE.Group(); crank.add(g); g.position.set(0, s > 0 ? -0.165 : 0.165, s > 0 ? 0.146 : -0.125);
+  const pedals = [-1, 1].map(s => { const g = new THREE.Group(); crank.add(g); g.position.set(0, s > 0 ? -0.165 : 0.165, s > 0 ? 0.131 : -0.131);
     const ch = [rod(P(0, 0, -s * 0.052), P(0, 0, s * 0.044), 0.0068, 0.0068, 12), nut(0.0092, 0.0068, s * 0.0475), new THREE.SphereGeometry(0.0062, 12, 6, 0, TAU, 0, Math.PI / 2).scale(1, 0.6, 1).rotateX(s * Math.PI / 2).translate(0, 0, s * 0.051),
       rbox(0.0118, 0.0112, 0.0365, 0.0042, 3), ...[-0.0375, 0.0375].flatMap(zp => [rbox(0.0145, 0.0132, 0.0016, 0.0045, 3).translate(0, 0, zp), ...[-1, 1].map(sy => rbox(0.05, 0.0021, 0.0016, 0.0012, 2).translate(0, sy * 0.0112, zp))])], rb = [], am = [];   // (the middle in chrome, and only thin rails along the ends' edges: the blocks show)
     for (const xb of [-0.032, 0.032]) for (let j = -1; j <= 1; j++) rb.push(rbox(0.0047, 0.0122, 0.0355, 0.0018, 2).translate(xb + j * 0.0106, 0, 0));
@@ -5706,7 +5706,11 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     add([rod(a, b, 0.0165, 0.0175, 14), rod(b, b.clone().add(b.clone().sub(a).normalize().multiplyScalar(0.006)), 0.019, 0.019, 14)], rubber, steer); }
   { const bell = clamp0.clone().add(P(0.005, 0.03, -0.075)); add([new THREE.SphereGeometry(0.027, 16, 8, 0, TAU, 0, Math.PI / 2).translate(bell.x, bell.y, bell.z), rod(bell.clone().add(P(0, -0.02, 0)), bell, 0.004)], chrome, steer);   // the bell
     add([rod(bell.clone().add(P(-0.01, 0.002, 0.012)), bell.clone().add(P(-0.035, 0.004, 0.03)), 0.0025)], chrome, steer);
-    const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.01, 18).rotateZ(Math.PI / 2), white); rf.position.copy(S_(P(0.4, 0.8))); steer.add(rf); }   // the front reflector
+    const lk = S_(HT.clone().addScaledVector(axis, -0.0195)), fw = new V3(-axis.y, axis.x, 0), rc = lk.clone().addScaledVector(fw, 0.05), ang = Math.atan2(fw.y, fw.x);   // the front reflector, on a bracket clamped under the locknut
+    add([new THREE.CylinderGeometry(0.0212, 0.0212, 0.0026, 28).applyQuaternion(qFrom(up, axis)).translate(lk.x, lk.y, lk.z), new THREE.BoxGeometry(0.034, 0.0024, 0.009).rotateZ(ang).translate(...lk.clone().addScaledVector(fw, 0.031).toArray()),
+      new THREE.BoxGeometry(0.0024, 0.016, 0.009).rotateZ(ang).translate(...lk.clone().addScaledVector(fw, 0.047).addScaledVector(axis, 0.006).toArray()), nut(0.0042, 0.004, 0.0075, ...lk.clone().addScaledVector(fw, 0.047).addScaledVector(axis, 0.004).toArray().slice(0, 2)),
+      new THREE.TorusGeometry(0.0235, 0.0024, 8, 32).applyQuaternion(qFrom(Z, fw)).translate(...rc.clone().addScaledVector(fw, 0.0035).toArray())], chrome, steer);
+    const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.0232, 0.0232, 0.008, 28).applyQuaternion(qFrom(up, fw)).translate(...rc.clone().addScaledVector(fw, 0.0035).toArray()), white); rf.castShadow = true; steer.add(rf); }
   // me: hands on the grips, forearms back to the elbows, knees going round with the pedals (only when riding)
   const me = new THREE.Group(); me.visible = false; root.add(me);
   const skin = new THREE.MeshStandardMaterial({ color: '#e2ae8c', roughness: 0.62 }), sleeveM = new THREE.MeshStandardMaterial({ color: '#2c4a7a', roughness: 0.9 }), trouserM = new THREE.MeshStandardMaterial({ color: '#2a3048', roughness: 0.9 });
