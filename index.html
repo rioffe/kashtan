@@ -5630,8 +5630,19 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     add([...springs, rod(P(SC.x - 0.13, SC.y - 0.01, -0.055), P(SC.x + 0.1, SC.y + 0.04, 0), 0.004), rod(P(SC.x - 0.13, SC.y - 0.01, 0.055), P(SC.x + 0.1, SC.y + 0.04, 0), 0.004), rod(P(SC.x - 0.02, SC.y, -0.03), P(SC.x - 0.02, SC.y, 0.03), 0.01)], chrome);
   }
   // the rear wheel, its mudguard, the chain
+  // the tyres' rubber, after the photograph: the crown ribbed in dense chevrons, the shoulders in short slanting ribs, fine rings moulded
+  // round the sidewalls. (One tile of the canvas: 12 cm round the wheel; down it, once round the tyre's section, the crown in the middle)
+  const tread = (g, w, h, hi, lo) => { const c = h / 2;
+    g.strokeStyle = lo; g.lineWidth = 2.6; g.lineJoin = 'miter'; for (let x = -12; x < w + 12; x += 11){ g.beginPath(); g.moveTo(x, c - 12); g.lineTo(x + 6, c); g.lineTo(x, c + 12); g.stroke(); }   // the chevrons
+    g.lineWidth = 1.6; g.beginPath(); for (const sd of [-1, 1]) { g.moveTo(0, c + sd * 13.5); g.lineTo(w, c + sd * 13.5); } g.stroke();   // the grooves along their edges
+    g.lineWidth = 1.5; for (const sd of [-1, 1]) for (let x = -6; x < w + 6; x += 5.5){ g.beginPath(); g.moveTo(x, c + sd * 15.5); g.lineTo(x + 3.5, c + sd * 21); g.stroke(); }   // the shoulders' ribs
+    g.strokeStyle = hi; g.lineWidth = 1.1; g.beginPath(); for (const sd of [-1, 1]) for (const o of [26, 29, 34]){ g.moveTo(0, c + sd * o); g.lineTo(w, c + sd * o); } g.stroke(); };   // the rings on the sidewalls
+  const tyreCol = tex(256, 128, (g, w, h) => { g.fillStyle = '#232323'; g.fillRect(0, 0, w, h); g.fillStyle = '#2a2a29'; g.fillRect(0, h / 2 - 14, w, 28); tread(g, w, h, 'rgba(70,70,68,0.6)', '#111111'); });
+  const tyreNrm = reliefNormals(256, 128, (g, w, h) => tread(g, w, h, 'rgb(200,200,200)', 'rgb(70,70,70)'), 3.0);
+  for (const t of [tyreCol, tyreNrm]){ t.repeat.set(15, 1); t.offset.set(0, 0.5); }
+  const tyreM = new THREE.MeshStandardMaterial({ map: tyreCol, normalMap: tyreNrm, normalScale: new THREE.Vector2(1.3, 1.3), roughness: 0.84 });
   const wheel = (parent) => { const g = new THREE.Group(); parent.add(g);
-    const tyre = new THREE.Mesh(new THREE.TorusGeometry(Rw - 0.019, 0.019, 10, 72), rubber); tyre.castShadow = true; g.add(tyre);
+    const tyre = new THREE.Mesh(new THREE.TorusGeometry(Rw - 0.019, 0.019, 18, 144), tyreM); tyre.castShadow = true; g.add(tyre);
     const rim = new THREE.Mesh(new THREE.TorusGeometry(Rw - 0.036, 0.0105, 6, 72).scale(1, 1, 1.25), chrome); g.add(rim);
     const sp = []; for (let i = 0; i < 36; i++){ const side = i % 2 ? 1 : -1, a = i / 36 * TAU, lead = (i % 4 < 2 ? 1 : -1) * 3 * TAU / 36;   // thirty-six spokes, laced three-cross
       sp.push(rod(P(Math.cos(a + lead) * 0.024, Math.sin(a + lead) * 0.024, side * 0.03), P(Math.cos(a) * (Rw - 0.042), Math.sin(a) * (Rw - 0.042), 0), 0.0011, 0.0011, 3)); }
