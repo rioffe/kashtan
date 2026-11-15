@@ -5719,18 +5719,55 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const rf = new THREE.Mesh(new THREE.CylinderGeometry(0.0232, 0.0232, 0.008, 28).applyQuaternion(qFrom(up, fw)).translate(...rc.clone().addScaledVector(fw, 0.0035).toArray()), white); rf.castShadow = true; steer.add(rf); }
   // me: hands on the grips, forearms back to the elbows, knees going round with the pedals (only when riding)
   const me = new THREE.Group(); me.visible = false; root.add(me);
-  const skin = new THREE.MeshStandardMaterial({ color: '#e2ae8c', roughness: 0.62 }), sleeveM = new THREE.MeshStandardMaterial({ color: '#2c4a7a', roughness: 0.9 }), trouserM = new THREE.MeshStandardMaterial({ color: '#2a3048', roughness: 0.9 });
+  const skin = new THREE.MeshPhysicalMaterial({ color: '#e0aa88', roughness: 0.58, sheen: 0.5, sheenColor: new THREE.Color('#ffcab2'), sheenRoughness: 0.55 }), sleeveM = new THREE.MeshStandardMaterial({ color: '#2c4a7a', roughness: 0.9 }), trouserM = new THREE.MeshStandardMaterial({ color: '#2a3048', roughness: 0.9 });
   const shoeM = new THREE.MeshStandardMaterial({ color: '#2e3c64', roughness: 0.85 }), soleM = new THREE.MeshStandardMaterial({ color: '#ece8dc', roughness: 0.8 }), sockM = new THREE.MeshStandardMaterial({ color: '#f0eee8', roughness: 0.9 });
-  // a hand round a grip, built round the grip's axis (+z outward), the rider behind it (-x): the back of the hand over the top, four fingers curled round the front and under, the thumb under from behind
-  const handGeo = (() => { const rg = 0.018, parts = [];
-    const pal = rbox(0.038, 0.0105, 0.034, 0.0095); pal.rotateZ(-0.55); pal.translate(-0.02, 0.03, 0); parts.push(pal);   // the back of the hand, sloping down to the knuckles
-    [[-0.027, 0.95], [-0.009, 1.0], [0.009, 0.97], [0.027, 0.84]].forEach(([z, L]) => { const pts = []; for (let i = 0; i <= 8; i++){ const a = lerp(1.25, -1.5 + (1 - L) * 2.4, i / 8), r = rg + 0.0085; pts.push(P(Math.cos(a) * r, Math.sin(a) * r, z + (i / 8) * 0.002)); }
-      parts.push(tube(pts, 0.0082 * (L > 0.9 ? 1 : 0.92), 12, 7)); parts.push(new THREE.SphereGeometry(0.0082, 8, 6).translate(pts[8].x, pts[8].y, pts[8].z)); });
-    { const pts = []; for (let i = 0; i <= 8; i++){ const a = lerp(3.5, 4.85, i / 8), r = rg + 0.009; pts.push(P(Math.cos(a) * r - 0.006, Math.sin(a) * r, -0.04 + i * 0.002)); } parts.push(tube(pts, 0.0095, 10, 7)); parts.push(new THREE.SphereGeometry(0.0095, 8, 6).translate(pts[8].x, pts[8].y, pts[8].z)); }
-    parts.push(rbox(0.024, 0.0155, 0.027, 0.0145).translate(-0.058, 0.042, -0.004));   // the heel of the hand and the wrist
-    return mergeGeometries(parts.map(g => g.index ? g.toNonIndexed() : g)); })();
+  // a hand closed round a grip, as one smooth skin: built round the grip's axis (+z outward along the bar, +x forward, +y up, the rider
+  // behind and above). The back of the hand over the top of the grip with its knuckles, the four fingers each in three joints curling
+  // over the front and under, every bone resting on the rubber; the palm's heel and the ball of the thumb down the back of the grip, the
+  // thumb wrapping under it from the rider's side, its tip coming up by the index finger's. Built the first time you get on
+  const buildHand = () => { const T0 = performance.now(), rg = 0.0178, ks = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+    const cap = (a, b, r0, r1 = r0) => { const ab = b.clone().sub(a), l2 = ab.lengthSq(); return (x, y, z) => { const px = x - a.x, py = y - a.y, pz = z - a.z, t = l2 > 1e-12 ? clamp((px * ab.x + py * ab.y + pz * ab.z) / l2) : 0, dx = px - ab.x * t, dy = py - ab.y * t, dz = pz - ab.z * t; return Math.sqrt(dx * dx + dy * dy + dz * dz) - lerp(r0, r1, t); }; };
+    const palm = [], digits = [];
+    // the fingers: [z along the bar, the knuckle's angle round it, the three bones' lengths, their thicknesses, where the bone of the palm starts at the wrist]
+    const F = [[-0.0245, 1.32, [0.034, 0.021, 0.0175], [0.0084, 0.0077, 0.0071], P(-0.052, 0.034, -0.015)], [-0.0081, 1.36, [0.038, 0.024, 0.0185], [0.0087, 0.008, 0.0073], P(-0.055, 0.036, -0.005)],
+      [0.0083, 1.31, [0.035, 0.023, 0.018], [0.0084, 0.0077, 0.0071], P(-0.053, 0.035, 0.006)], [0.0238, 1.2, [0.028, 0.018, 0.016], [0.0075, 0.0069, 0.0063], P(-0.048, 0.031, 0.015)]];
+    for (const [z, th0, L, R, carp] of F){ const need = L.map((l, i) => Math.sqrt((rg + R[i] + 0.0004) ** 2 + (l / 2) ** 2)), J = [Math.max(need[0], 0.029), Math.max(need[0], need[1]), Math.max(need[1], need[2]), need[2]];
+      let th = th0; const pts = [P(Math.cos(th) * J[0], Math.sin(th) * J[0], z)];
+      for (let i = 0; i < 3; i++){ th -= Math.acos(clamp((J[i] ** 2 + J[i + 1] ** 2 - L[i] ** 2) / (2 * J[i] * J[i + 1]), -1, 1)); pts.push(P(Math.cos(th) * J[i + 1], Math.sin(th) * J[i + 1], z * [0.97, 0.93, 0.9][i])); }   // (the fingers draw together a little as they curl)
+      palm.push(cap(carp, pts[0], 0.0102, 0.0096));   // the bone of the palm, from the wrist to the knuckle
+      const bones = [0, 1, 2].map(i => cap(pts[i], pts[i + 1], R[i], i < 2 ? R[i + 1] : R[i] * 0.92)), knuckle = cap(pts[0], pts[0], R[0] * 1.13);
+      digits.push((x, y, zz) => ks(ks(ks(knuckle(x, y, zz), bones[0](x, y, zz), 0.004), bones[1](x, y, zz), 0.0022), bones[2](x, y, zz), 0.0022)); }
+    // the palm filled out behind the grip, the heel of the hand down its back on the little finger's side, the wrist, the ball of the thumb
+    palm.push(cap(P(-0.03, 0.021, -0.017), P(-0.03, 0.021, 0.016), 0.0128), cap(P(-0.041, 0.021, 0.019), P(-0.027, 0.006, 0.021), 0.0112, 0.0102),
+      cap(P(-0.052, 0.032, -0.006), P(-0.08, 0.046, -0.008), 0.0165, 0.0158), cap(P(-0.052, 0.032, 0.007), P(-0.08, 0.046, 0.004), 0.0165, 0.0158),
+      cap(P(-0.045, 0.026, -0.021), P(-0.034, 0.009, -0.028), 0.0125, 0.0112), cap(P(-0.046, 0.021, -0.029), P(-0.031, -0.003, -0.037), 0.0118, 0.0103));   // (the last: the thumb's bone in the palm)
+    { const t0 = P(-0.031, -0.003, -0.037), t1 = P(-0.012, -0.024, -0.035), t2 = P(0.007, -0.031, -0.031), a = cap(t0, t1, 0.0098, 0.009), b = cap(t1, t2, 0.009, 0.0082), k = cap(t0, t0, 0.0104);
+      digits.push((x, y, z) => ks(ks(k(x, y, z), a(x, y, z), 0.003), b(x, y, z), 0.0022)); }   // the thumb, under the grip
+    const sdf = (x, y, z) => { let p = 1e9; for (const f of palm) p = ks(p, f(x, y, z), 0.011); let d = 1e9; for (const f of digits) d = Math.min(d, ks(p, f(x, y, z), 0.0065)); return d; };
+    // surface nets over a 1.3 mm grid, fine only near the skin
+    const h = 0.0013, x0 = -0.095, y0 = -0.046, z0 = -0.052, NX = Math.ceil(0.14 / h) + 1, NY = Math.ceil(0.112 / h) + 1, NZ = Math.ceil(0.092 / h) + 1, C = 4;
+    const V = new Float32Array(NX * NY * NZ), at = (i, j, k) => i + NX * (j + NY * k);
+    for (let K = 0; K < NZ; K += C) for (let Jj = 0; Jj < NY; Jj += C) for (let I = 0; I < NX; I += C){ const dc = sdf(x0 + (I + C / 2) * h, y0 + (Jj + C / 2) * h, z0 + (K + C / 2) * h), far = Math.abs(dc) > h * C * 1.2;
+      for (let k = K; k < Math.min(K + C, NZ); k++) for (let j = Jj; j < Math.min(Jj + C, NY); j++) for (let i = I; i < Math.min(I + C, NX); i++) V[at(i, j, k)] = far ? dc : sdf(x0 + i * h, y0 + j * h, z0 + k * h); }
+    const cellV = new Int32Array((NX - 1) * (NY - 1) * (NZ - 1)).fill(-1), ci = (i, j, k) => i + (NX - 1) * (j + (NY - 1) * k), pos = [], nor = [], idx = [];
+    const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]], e = h * 0.4;
+    const grad = (x, y, z) => new V3(sdf(x + e, y, z) - sdf(x - e, y, z), sdf(x, y + e, z) - sdf(x, y - e, z), sdf(x, y, z + e) - sdf(x, y, z - e)).normalize();
+    for (let k = 0; k < NZ - 1; k++) for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++){ const v = []; let mask = 0;
+      for (let c = 0; c < 8; c++){ const val = V[at(i + (c & 1), j + (c >> 1 & 1), k + (c >> 2 & 1))]; v.push(val); if (val < 0) mask |= 1 << c; }
+      if (mask === 0 || mask === 255) continue; let sx = 0, sy = 0, sz = 0, n = 0;
+      for (const [a, b] of EDGES){ if ((v[a] < 0) === (v[b] < 0)) continue; const t = v[a] / (v[a] - v[b]); sx += (a & 1) + ((b & 1) - (a & 1)) * t; sy += (a >> 1 & 1) + ((b >> 1 & 1) - (a >> 1 & 1)) * t; sz += (a >> 2 & 1) + ((b >> 2 & 1) - (a >> 2 & 1)) * t; n++; }
+      let x = x0 + (i + sx / n) * h, y = y0 + (j + sy / n) * h, z = z0 + (k + sz / n) * h; const g = grad(x, y, z), d = sdf(x, y, z); x -= g.x * d; y -= g.y * d; z -= g.z * d;   // (settled onto the skin)
+      const gn = grad(x, y, z); cellV[ci(i, j, k)] = pos.length / 3; pos.push(x, y, z); nor.push(gn.x, gn.y, gn.z); }
+    for (let k = 1; k < NZ - 1; k++) for (let j = 1; j < NY - 1; j++) for (let i = 1; i < NX - 1; i++){ const inside = V[at(i, j, k)] < 0;
+      for (let a = 0; a < 3; a++){ const i2 = i + (a === 0), j2 = j + (a === 1), k2 = k + (a === 2); if ((V[at(i2, j2, k2)] < 0) === inside) continue;
+        const q = a === 0 ? [ci(i, j - 1, k - 1), ci(i, j, k - 1), ci(i, j, k), ci(i, j - 1, k)] : a === 1 ? [ci(i - 1, j, k - 1), ci(i, j, k - 1), ci(i, j, k), ci(i - 1, j, k)] : [ci(i - 1, j - 1, k), ci(i, j - 1, k), ci(i, j, k), ci(i - 1, j, k)];
+        const vs = q.map(c => cellV[c]); if (vs.some(w => w < 0)) continue;
+        for (const [a0, a1, a2] of [[vs[0], vs[1], vs[2]], [vs[0], vs[2], vs[3]]]){ const A = new V3().fromArray(pos, a0 * 3), B = new V3().fromArray(pos, a1 * 3).sub(A), Cc = new V3().fromArray(pos, a2 * 3).sub(A);
+          const nn = new V3().fromArray(nor, a0 * 3).add(new V3().fromArray(nor, a1 * 3)).add(new V3().fromArray(nor, a2 * 3)); if (B.cross(Cc).dot(nn) < 0) idx.push(a0, a2, a1); else idx.push(a0, a1, a2); } } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx); if (new URLSearchParams(location.search).has('bikelog')) console.log('HAND verts', pos.length / 3, 'tris', idx.length / 3, (performance.now() - T0).toFixed(0) + ' ms'); return g; };
+  let handGeo = null;
   const hands = (() => { const { a, b } = grips[1], zr = b.clone().sub(a).normalize(), xr = new V3().crossVectors(up, zr).normalize(), yr = new V3().crossVectors(zr, xr), q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xr, yr, zr)), pr = a.clone().lerp(b, 0.5);
-    return [-1, 1].map(s => { const m = new THREE.Mesh(handGeo, skin); m.position.set(pr.x, pr.y, s * pr.z); if (s < 0){ m.quaternion.set(-q.x, -q.y, q.z, q.w); m.scale.z = -1; } else m.quaternion.copy(q); m.castShadow = true; m.visible = false; steer.add(m); return m; }); })();
+    return [-1, 1].map(s => { const m = new THREE.Mesh(new THREE.BufferGeometry(), skin); m.position.set(pr.x, pr.y, s * pr.z); if (s < 0){ m.quaternion.set(-q.x, -q.y, q.z, q.w); m.scale.z = -1; } else m.quaternion.copy(q); m.castShadow = true; m.visible = false; steer.add(m); return m; }); })();
   const limb = (r0, r1, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 12, 1, false).translate(0, 0.5, 0), mat); m.castShadow = true; me.add(m); return m; };
   const span = (m, a, b) => { m.position.copy(a); const d = b.clone().sub(a); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(up, d.normalize()); };
   const arms = [-1, 1].map(s => ({ s, fore: limb(0.024, 0.019, skin), sleeve: limb(0.034, 0.03, sleeveM), upper: limb(0.034, 0.03, sleeveM) }));
@@ -5751,7 +5788,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   // ride: pedal, brake, steer; it leans into the turns; the cranks go round only while you pedal (and back a little when you brake: the coaster brake)
   const EYE = P(-0.05, 1.39), L = 1.045, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null, prevFov = 62;
   const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; st.head = Math.PI; st.x = DOOR.x + 1.6; st.z = BZ + 1.7; cam.yaw = st.head; cam.pitch = -0.48;
-      me.visible = true; for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
+      me.visible = true; if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
       caption('My own Orlyonok. The year I turned twelve, my parents finally bought me one.', 6); }); };
   const dismount = (toDoor = true) => { if (!st.riding) return; const go = () => { park(); camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix();
       if (toDoor){ const p = new V3(DOOR.x + 0.4, 1.6, BZ + 2.6); place(p, yawTo(p, root.position), -0.12); resetBody(); } };
@@ -5776,7 +5813,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.06, 0.075, 0));
       const knee = ik(hip, ank, 0.39, 0.38, P(1, 0.15, lg.s * 0.25)); span(lg.thigh, hip, knee); span(lg.shin, knee, ank); span(lg.sock, ank.clone().add(P(0, -0.02, 0)), ank.clone().add(P(0, 0.05, 0)));
       lg.shoe.position.copy(foot.clone().add(P(-0.02, 0.008, 0))); lg.shoe.rotation.set(0, 0, 0); }
-    for (const am of arms){ const h = hands[am.s > 0 ? 1 : 0]; const wrist = toMe(h.localToWorld(P(-0.07, 0.042, -0.006))), sh = P(EYE.x - 0.05, EYE.y - 0.17, am.s * 0.17), elb = ik(sh, wrist, 0.25, 0.22, P(-0.3, -0.6, am.s * 1));
+    for (const am of arms){ const h = hands[am.s > 0 ? 1 : 0]; const wrist = toMe(h.localToWorld(P(-0.076, 0.044, -0.002))), sh = P(EYE.x - 0.05, EYE.y - 0.17, am.s * 0.17), elb = ik(sh, wrist, 0.25, 0.22, P(-0.3, -0.6, am.s * 1));
       span(am.upper, sh, elb); span(am.fore, elb, wrist); span(am.sleeve, elb, elb.clone().lerp(wrist, st.cold ? 0.92 : 0.25)); am.sleeve.visible = true; }
     // the eye, on the bike, with it leaning; a little bob with the pedalling and the bumps
     const e = root.localToWorld(EYE.clone().add(P(0, Math.sin(st.crank * 2) * 0.006 * (pedal ? 1 : 0) + Math.sin(st.bump * 40) * 0.01 * st.bump, 0)));
