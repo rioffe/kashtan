@@ -5580,10 +5580,18 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
       .forEach(([b, r], k) => (i === 0 && k === 0) ? sh.moveTo(Math.cos(b) * r, Math.sin(b) * r) : sh.lineTo(Math.cos(b) * r, Math.sin(b) * r)); }
     sh.closePath(); if (rh){ const hole = new THREE.Path(); hole.absarc(0, 0, rh, 0, TAU, true); sh.holes.push(hole); } return sh; };
   // the outdoors, for the chrome and the paint to reflect: sky above, the yard below
-  const yardEnv = tex(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8fb6dc'); gr.addColorStop(0.45, '#dfe6ea'); gr.addColorStop(0.52, '#8a8a78'); gr.addColorStop(0.7, '#5a5a46'); gr.addColorStop(1, '#3a3a2e'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(160,150,135,0.8)'; g.fillRect(w * 0.6, h * 0.3, w * 0.3, h * 0.2); g.fillStyle = 'rgba(70,100,60,0.7)'; g.fillRect(w * 0.1, h * 0.35, w * 0.25, h * 0.15); });
+  const yardEnv = tex(512, 256, (g, w, h) => { const r = mkRng(5150), H = h / 2;   // what the paint and the chrome mirror: the sky pale to the horizon, a few clouds, the houses, workshops and trees round the yard, the ground
+    let gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#5f8fc8'); gr.addColorStop(0.6, '#a9c4de'); gr.addColorStop(1, '#f2f5f6'); g.fillStyle = gr; g.fillRect(0, 0, w, H);
+    for (let i = 0; i < 40; i++){ const x = r() * w, y = H * (0.12 + r() * 0.6), rr = 6 + r() * 20; for (const dx of [-w, 0, w]){ const c = g.createRadialGradient(x + dx, y, 0, x + dx, y, rr); c.addColorStop(0, 'rgba(255,255,255,0.8)'); c.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = c; g.fillRect(x + dx - rr, y - rr, rr * 2, rr * 2); } }
+    for (let x = 0; x < w;){ const bw = 14 + r() * 46;
+      if (r() < 0.35){ g.fillStyle = r() < 0.5 ? '#2c4428' : '#37522f'; for (let j = 0; j < 7; j++){ g.beginPath(); g.arc(x + r() * bw, H - h * (0.02 + r() * 0.07), 5 + r() * 9, 0, TAU); g.fill(); } g.fillRect(x, H - h * 0.03, bw, h * 0.03); }
+      else { const bh = h * (0.04 + r() * 0.09); g.fillStyle = ['#9a958c', '#a8a092', '#7d5d4a', '#8a8784', '#6f6a62'][Math.floor(r() * 5)]; g.fillRect(x, H - bh, bw, bh); g.fillStyle = '#5a3a30'; g.fillRect(x - 1, H - bh - 3, bw + 2, 3);
+        g.fillStyle = 'rgba(40,46,56,0.85)'; for (let yy = H - bh + 4; yy < H - 4; yy += 8) for (let xx = x + 3; xx < x + bw - 4; xx += 7) g.fillRect(xx, yy, 3, 4); }
+      x += bw; }
+    gr = g.createLinearGradient(0, H, 0, h); gr.addColorStop(0, '#6b6b5a'); gr.addColorStop(0.15, '#56603f'); gr.addColorStop(0.6, '#3e4630'); gr.addColorStop(1, '#2c2f24'); g.fillStyle = gr; g.fillRect(0, H, w, h - H);
+    for (let i = 0; i < 60; i++){ g.fillStyle = r() < 0.5 ? 'rgba(120,110,85,0.35)' : 'rgba(40,60,30,0.35)'; g.fillRect(r() * w, H + r() * (h - H), 10 + r() * 40, 2 + r() * 6); } });
   yardEnv.mapping = THREE.EquirectangularReflectionMapping;
-  const paint = new THREE.MeshPhysicalMaterial({ color: '#e0441f', roughness: 0.38, clearcoat: 0.7, clearcoatRoughness: 0.18, envMap: yardEnv, envMapIntensity: 0.5 });
+  const paint = new THREE.MeshPhysicalMaterial({ color: '#ec4a20', metalness: 0.8, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.03, envMap: yardEnv, envMapIntensity: 1 });   // (a metallic enamel, the flakes catching the light, under a glassy lacquer)
   const chrome = new THREE.MeshStandardMaterial({ color: '#e4e6e8', metalness: 1, roughness: 0.2, envMap: yardEnv, envMapIntensity: 1 });
   const rubber = new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.85 }), black = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.5 });
   const leather = new THREE.MeshPhysicalMaterial({ color: '#1e2c4c', roughness: 0.42, clearcoat: 0.8, clearcoatRoughness: 0.14, envMap: yardEnv, envMapIntensity: 0.45, side: THREE.DoubleSide }), steelDk = new THREE.MeshStandardMaterial({ color: '#3a3a3c', metalness: 0.7, roughness: 0.45 });
@@ -5592,9 +5600,9 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   const felt = new THREE.MeshStandardMaterial({ color: '#c6b289', roughness: 0.95, side: THREE.DoubleSide }), thread = new THREE.MeshStandardMaterial({ color: '#cdd2da', roughness: 0.6 });
   const amber = new THREE.MeshStandardMaterial({ color: '#f2a41c', roughness: 0.25, emissive: '#3a2200' });
   const red = new THREE.MeshStandardMaterial({ color: '#c01010', roughness: 0.3, emissive: '#300000' }), white = new THREE.MeshStandardMaterial({ color: '#f2f0e6', roughness: 0.3 });
-  const root = new THREE.Group(); root.rotation.order = 'YXZ'; scene.add(root);
+  const SCL = 0.2915 / Rw, root = new THREE.Group(); root.rotation.order = 'YXZ'; root.scale.setScalar(SCL); scene.add(root);   // (24 x 1.5: a 507 mm rim, a 38 mm tyre, 583 mm across)
   const frame = new THREE.Group(); root.add(frame);
-  const paintDS = paint.clone(); paintDS.side = THREE.DoubleSide;
+  let paintEnv = 2.1; const paintDS = paint.clone(); paintDS.side = THREE.DoubleSide;
   const add = (geos, mat, parent = frame) => { const m = new THREE.Mesh(mergeGeometries(geos.map(g => g.index ? g.toNonIndexed() : g)), mat); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
   // the frame (bike's own axes: x forward, y up, z to the right; the ground under the bottom bracket at the origin)
   const BB = P(0, 0.27), RH = P(-0.476, Rw), ST = P(-0.205, 0.71), HT = P(0.345, 0.775), HB = P(0.392, 0.645), axis = HB.clone().sub(HT).normalize();
@@ -5782,18 +5790,175 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     return [-1, 1].map(s => { const m = new THREE.Mesh(new THREE.BufferGeometry(), skin); m.position.set(pr.x, pr.y, s * pr.z); if (s < 0){ m.quaternion.set(-q.x, -q.y, q.z, q.w); m.scale.z = -1; } else m.quaternion.copy(q); m.castShadow = true; m.visible = false; steer.add(m); return m; }); })();
   const limb = (r0, r1, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 12, 1, false).translate(0, 0.5, 0), mat); m.castShadow = true; me.add(m); return m; };
   const span = (m, a, b) => { m.position.copy(a); const d = b.clone().sub(a); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(up, d.normalize()); };
-  const arms = [-1, 1].map(s => ({ s, fore: limb(0.024, 0.019, skin), sleeve: limb(0.034, 0.03, sleeveM), upper: limb(0.034, 0.03, sleeveM) }));
-  const legs = [-1, 1].map(s => ({ s, thigh: limb(0.058, 0.046, trouserM), shin: limb(0.044, 0.032, trouserM), sock: limb(0.032, 0.03, sockM), shoe: (() => { const g = new THREE.Group(); me.add(g);
-    const u = new THREE.Mesh(rbox(0.12, 0.035, 0.044, 0.03), shoeM), so = new THREE.Mesh(rbox(0.125, 0.012, 0.047, 0.01), soleM); u.position.set(0.02, 0.04, 0); so.position.set(0.02, 0.01, 0); g.add(u, so); return g; })() }));
+  // the arms and the legs: one smooth tube each, from the shoulder (the hip) down, round the elbow (the knee), on to the wrist (the ankle);
+  // the forearm turns at the wrist into the line of the hand (wider than deep there, the way the hand is), so the wrist bends with the bars
+  // instead of breaking. Over it the sleeve, the shorts, the trousers: the same tube a little fuller, open at the end
+  const TR = 18, TN = 30;
+  const tubeMesh = (mat) => { const g = new THREE.BufferGeometry(), nv = TN * (TR + 1), idx = [];
+    for (let i = 0; i < TN - 1; i++) for (let j = 0; j < TR; j++){ const a = i * (TR + 1) + j, b = a + TR + 1; idx.push(a, a + 1, b, b, a + 1, b + 1); }
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nv * 3), 3)); g.setIndex(idx);
+    const m = new THREE.Mesh(g, mat); m.castShadow = true; m.frustumCulled = false; me.add(m); return m; };
+  const kp = (t, K) => { let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++; const [t0, a0, b0] = K[i], [t1, a1, b1] = K[i + 1], u = smooth((t - t0) / (t1 - t0)); return [lerp(a0, a1, u), lerp(b0, b1, u)]; };   // (the radii, across and down, along a stretch)
+  const bez2 = (a, c, b, t) => a.clone().multiplyScalar((1 - t) * (1 - t)).addScaledVector(c, 2 * t * (1 - t)).addScaledVector(b, t * t);
+  const bez3 = (a, c1, c2, b, t) => { const s = 1 - t; return a.clone().multiplyScalar(s * s * s).addScaledVector(c1, 3 * s * s * t).addScaledVector(c2, 3 * s * t * t).addScaledVector(b, t * t * t); };
+  // the path of a limb (in my own frame): straight from S towards the joint J, round it, and on to E, arriving along `ax`; the radii along
+  // the upper (K1) and the lower (K2) part; `across`: which way the end is wider
+  const limbPath = (S, J, E, K1, K2, f, ax, across, E2, K3) => { const d1 = J.clone().sub(S).normalize(), d2 = E.clone().sub(J).normalize(); f = Math.min(f, 0.3 * J.distanceTo(S), 0.3 * J.distanceTo(E));
+    const A = J.clone().addScaledVector(d1, -f), B = J.clone().addScaledVector(d2, f), L = B.distanceTo(E), C1 = B.clone().addScaledVector(d2, L * 0.4), C2 = E.clone().addScaledVector(ax || d2, -L * 0.4);
+    const pts = [], rad = [], r1 = kp(1, K1), r2 = kp(0, K2);
+    for (let i = 0; i <= 10; i++){ const t = i / 10; pts.push(S.clone().lerp(A, t)); rad.push(kp(t, K1)); }
+    for (let i = 1; i <= 6; i++){ const t = i / 6; pts.push(bez2(A, J, B, t)); rad.push([lerp(r1[0], r2[0], t), lerp(r1[1], r2[1], t)]); }   // (round the joint)
+    const iJ = pts.length - 4;
+    for (let i = 1; i <= 26; i++){ const t = i / 26; pts.push(bez3(B, C1, C2, E, t)); rad.push(kp(t, K2)); }
+    const iW = pts.length - 1; if (E2) for (let i = 1; i <= 8; i++){ const t = i / 8; pts.push(E.clone().lerp(E2, t)); rad.push(kp(t, K3)); }   // (and straight on, into the hand along its own line)
+    const n = pts.length, s = [0]; for (let i = 1; i < n; i++) s.push(s[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    const T = pts.map((p, i) => pts[Math.min(n - 1, i + 1)].clone().sub(pts[Math.max(0, i - 1)]).normalize()), U = new Array(n);   // (the frames: set at the end, carried back up without twisting)
+    U[n - 1] = across.clone().addScaledVector(T[n - 1], -across.dot(T[n - 1])).normalize();
+    for (let i = n - 2; i >= 0; i--){ const u = U[i + 1].clone().addScaledVector(T[i], -U[i + 1].dot(T[i])); U[i] = u.lengthSq() > 1e-10 ? u.normalize() : U[i + 1].clone(); }
+    return { pts, rad, T, U, s, sJ: s[iJ], sA: s[10], sW: s[iW], sEnd: s[n - 1] }; };
+  // a stretch [s0, s1] of a limb's path as a tube, the radii grown by `grow`, the end flared by `flare`
+  const fillTube = (m, A, s0, s1, grow, flare) => { const pa = m.geometry.attributes.position, na = m.geometry.attributes.normal, n = A.pts.length; let k = 0;
+    const p = new V3(), u = new V3(), v = new V3(), t = new V3(), nn = new V3();
+    for (let i = 0; i < TN; i++){ const sv = lerp(s0, s1, i / (TN - 1)); while (k < n - 2 && A.s[k + 1] < sv) k++; const w = clamp((sv - A.s[k]) / Math.max(1e-6, A.s[k + 1] - A.s[k]));
+      p.copy(A.pts[k]).lerp(A.pts[k + 1], w); t.copy(A.T[k]).lerp(A.T[k + 1], w).normalize(); u.copy(A.U[k]).lerp(A.U[k + 1], w); u.addScaledVector(t, -u.dot(t)).normalize(); v.crossVectors(t, u);
+      const fl = flare ? flare * smooth((i / (TN - 1) - 0.8) / 0.2) : 0, ra = lerp(A.rad[k][0], A.rad[k + 1][0], w) + grow + fl, rb = lerp(A.rad[k][1], A.rad[k + 1][1], w) + grow + fl;
+      for (let j = 0; j <= TR; j++){ const th = j / TR * TAU, c = Math.cos(th), sn = Math.sin(th), q = i * (TR + 1) + j;
+        pa.setXYZ(q, p.x + (u.x * c * ra + v.x * sn * rb), p.y + (u.y * c * ra + v.y * sn * rb), p.z + (u.z * c * ra + v.z * sn * rb));
+        nn.copy(u).multiplyScalar(c / ra).addScaledVector(v, sn / rb).normalize(); na.setXYZ(q, nn.x, nn.y, nn.z); } }
+    pa.needsUpdate = na.needsUpdate = true; m.geometry.computeBoundingSphere(); };
+  const ARM_UP = [[0, 0.038, 0.038], [0.35, 0.033, 0.033], [1, 0.0285, 0.0285]], ARM_LO = [[0, 0.027, 0.026], [0.3, 0.0285, 0.0245], [0.75, 0.0245, 0.019], [1, 0.0235, 0.0175]], ARM_IN = [[0, 0.0235, 0.0175], [0.55, 0.0235, 0.0175], [1, 0.016, 0.0112]];   // (the wrist a shade fuller than the hand's own, then tapering away inside it)
+  const LEG_UP = [[0, 0.062, 0.062], [0.4, 0.056, 0.056], [1, 0.045, 0.045]], LEG_LO = [[0, 0.043, 0.043], [0.3, 0.045, 0.042], [0.8, 0.033, 0.031], [1, 0.03, 0.03]];
+  const meQ = new THREE.Quaternion(), ZL = new V3(0, 0, 1);
+  sleeveM.side = trouserM.side = THREE.DoubleSide;   // (the inside of a cuff)
+  const arms = [-1, 1].map(s => ({ s, skinT: tubeMesh(skin), clothT: tubeMesh(sleeveM) }));
+  // the shoes, on a last for a twelve-year-old's foot (24.5 cm), the ball of the foot over the pedal. In spring and summer laced Keds:
+  // charcoal canvas on a cream rubber sole with the rounded rubber toe cap, cream laces criss-crossed through seven pairs of metal eyelets,
+  // tied in a bow. In autumn and winter laced leather boots: tan-brown leather over the ankle, a stitched welt on a thick dark sole,
+  // gunmetal eyelets and speed hooks, red-brown laces, a padded collar and a pull loop at the heel. (Shoe's own axes: x to the toe,
+  // y up, z across; the ball of the foot at the origin)
+  const SHOE = (() => { const YS = 0.016, PW = 2 / 2.6;
+    const k1 = (t, K) => { let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++; const [t0, a] = K[i], [t1, b] = K[i + 1]; return lerp(a, b, smooth((t - t0) / (t1 - t0))); };
+    const style = (o) => { const { X0, LEN, W, HT, sole } = o;
+      const hw = u => { const b = W * lerp(0.031, 0.0425, smooth((u - 0.08) / 0.55)) * (1 - 0.12 * smooth((u - 0.78) / 0.22));   // (half the width: narrow at the heel, widest across the ball, the toe rounded)
+        return b * Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, u / 0.13)) ** 2)) * Math.sqrt(Math.max(0, 1 - (1 - Math.min(1, (1 - u) / 0.2)) ** 2)); };
+      const at = (u, th, out = new V3()) => { const c = Math.cos(th), s = Math.sin(th); return out.set(X0 + LEN * u, YS + sole + (k1(u, HT) - YS - sole) * Math.pow(Math.max(0, c), PW), hw(u) * Math.sign(s) * Math.pow(Math.abs(s), PW)); };   // (a point on the upper)
+      const nrm = (u, th) => { const e = 1e-3, a = at(Math.min(1, u + e), th).sub(at(Math.max(0, u - e), th)), b = at(u, th + e).sub(at(u, th - e)); return a.cross(b).normalize().multiplyScalar(-1); };
+      const NU = 56, NT = 30, us = Array.from({ length: NU }, (_, i) => 0.5 - 0.5 * Math.cos(Math.PI * i / (NU - 1)));
+      const upper = (() => { const P_ = [], UV = [], I = [], v = new V3();
+        for (let i = 0; i < NU; i++) for (let j = 0; j <= NT; j++){ const th = -Math.PI / 2 + Math.PI * j / NT; at(us[i], th, v); P_.push(v.x, v.y, v.z); UV.push(us[i], 1 - j / NT); }
+        for (let i = 0; i < NU - 1; i++) for (let j = 0; j < NT; j++){ const a = i * (NT + 1) + j, b = a + NT + 1; I.push(a, b, a + 1, b, b + 1, a + 1); }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeVertexNormals(); return g; })();
+      const slab = (grow, y0, h, bev) => { const sh = new THREE.Shape(), n = 48, ed = u => hw(u) + grow * Math.sqrt(Math.sin(Math.PI * Math.min(1, u * 4)));   // (the outline of the sole, a little proud of the upper)
+        for (let i = 0; i <= n; i++){ const u = i / n, x = X0 - grow * 0.6 + (LEN + grow * 1.6) * u; i ? sh.lineTo(x, ed(u)) : sh.moveTo(x, ed(u)); }
+        for (let i = n; i >= 0; i--){ const u = i / n, x = X0 - grow * 0.6 + (LEN + grow * 1.6) * u; sh.lineTo(x, -ed(u)); }
+        const g = new THREE.ExtrudeGeometry(sh, { depth: h - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 4 }); g.rotateX(-Math.PI / 2); g.translate(0, y0 + bev, 0); return g; };
+      // the eyelets (and hooks) up the facings, the laces criss-crossed from the toe end, a bow at the top
+      const EU = o.eyes, ETH = u => o.eth0 - o.eth1 * (u - EU[EU.length - 1]) / (EU[0] - EU[EU.length - 1]);
+      const eyeAt = (k, sd) => { const u = EU[k], th = sd * ETH(u), n = nrm(u, th); return { p: at(u, th).addScaledVector(n, 0.0008), n }; };
+      const eyelets = mergeGeometries(EU.flatMap((_, k) => [-1, 1].map(sd => { const { p, n } = eyeAt(k, sd), hook = k >= EU.length - o.hooks;
+        const g = hook ? new THREE.TorusGeometry(0.0045, 0.0013, 6, 14, Math.PI * 1.3).rotateZ(-0.5).rotateY(Math.PI / 2).translate(0, 0, 0.003) : new THREE.TorusGeometry(o.eyeR, o.eyeR * 0.34, 6, 14);
+        g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0, 0, 1), n)); if (hook) g.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(n, sd * Math.PI / 2)); return g.translate(p.x, p.y, p.z); })).map(g => g.index ? g.toNonIndexed() : g));
+      const laces = (() => { const parts = [], lr = o.laceR, strand = (a, b, lift) => { const pts = []; for (let i = 0; i <= 8; i++){ const t = i / 8, u = lerp(a[0], b[0], t), th = lerp(a[1], b[1], t); pts.push(at(u, th).addScaledVector(nrm(u, th), lift + 0.0035 * Math.sin(Math.PI * t))); }
+          parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, lr, 5, false)); };
+        const E = (k, sd) => [EU[k], sd * ETH(EU[k])], n = EU.length;
+        strand(E(0, -1), E(0, 1), 0.0012);   // (straight across at the toe end)
+        for (let k = 0; k < n - 1; k++){ strand(E(k, -1), E(k + 1, 1), lr + 0.0006); strand(E(k, 1), E(k + 1, -1), 2 * lr + 0.0012); }   // (criss-cross up to the top)
+        const ut = EU[n - 1] - 0.02, top = at(ut, 0).addScaledVector(nrm(ut, 0), 0.006);   // the bow: two loops, two ends
+        for (const sd of [-1, 1]){ parts.push(new THREE.TorusGeometry(0.011, lr, 5, 18).scale(1, 0.55, 1).rotateX(Math.PI / 2 - 0.35).rotateY(sd * 0.25).translate(top.x - 0.004, top.y + 0.003, top.z + sd * 0.012));
+          const e1 = at(ut - 0.03, sd * 0.55).addScaledVector(nrm(ut - 0.03, sd * 0.55), 0.004), e2 = at(ut - 0.06, sd * 0.95).addScaledVector(nrm(ut - 0.06, sd * 0.95), 0.003); parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([top.clone(), e1, e2]), 10, lr, 5, false)); }
+        return mergeGeometries(parts.map(g => g.toNonIndexed()).map(g => { g.deleteAttribute('uv'); return g; })); })();
+      return { at, nrm, hw, upper, slab, eyelets, laces }; };
+    const X = (u, w) => u * w, Y = (th, h) => (0.5 - th / Math.PI) * h;
+    // Keds
+    const kd = style({ X0: -0.17, LEN: 0.245, W: 1, sole: 0, HT: [[0, 0.064], [0.15, 0.069], [0.33, 0.074], [0.45, 0.068], [0.62, 0.056], [0.8, 0.043], [0.92, 0.034], [1, 0.022]], eyes: Array.from({ length: 7 }, (_, k) => 0.577 - k * 0.037), eth0: 0.36, eth1: 0.06, hooks: 0, eyeR: 0.0027, laceR: 0.0019 });
+    const kedsTex = tex(1024, 512, (g, w, h) => { const r = mkRng(7311);
+      g.fillStyle = '#3b3c3f'; g.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 2){ g.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + r() * 0.04})`; g.fillRect(0, y, w, 1); } for (let x = 0; x < w; x += 2){ g.fillStyle = `rgba(0,0,0,${0.03 + r() * 0.05})`; g.fillRect(x, 0, 1, h); }   // (the weave)
+      g.fillStyle = '#46474b'; g.fillRect(X(0.31, w), Y(0.3, h), X(0.36, w), Y(-0.3, h) - Y(0.3, h));   // the tongue, under the laces
+      g.fillStyle = '#1c1c1e'; g.beginPath(); g.ellipse(X(0.2, w), Y(0, h), X(0.12, w), Y(-0.5, h) - Y(0, h), 0, 0, TAU); g.fill();   // where the foot goes in
+      g.strokeStyle = '#56575b'; g.lineWidth = 8; g.stroke();   // (the padded collar)
+      g.strokeStyle = 'rgba(200,200,200,0.55)'; g.lineWidth = 1.5; g.setLineDash([5, 4]);
+      for (const sd of [-1, 1]) for (const o of [0.44, 0.52]){ g.beginPath(); g.moveTo(X(0.3, w), Y(sd * o, h)); g.lineTo(X(0.6, w), Y(sd * o * 0.85, h)); g.lineTo(X(0.64, w), Y(0, h)); g.stroke(); }   // the facings, stitched twice
+      for (const o of [0.012, 0.024]){ g.beginPath(); g.ellipse(X(0.2, w), Y(0, h), X(0.12 + o, w), Y(-0.5, h) - Y(0, h) + X(o, w), 0, 0, TAU); g.stroke(); }
+      const capU = th => 0.835 - 0.05 * (th / (Math.PI / 2)) ** 2, edge = (o) => { g.beginPath(); for (let i = 0; i <= 40; i++){ const th = Math.PI / 2 - Math.PI * i / 40; i ? g.lineTo(X(capU(th) + o, w), Y(th, h)) : g.moveTo(X(capU(th) + o, w), Y(th, h)); } };   // the rubber toe cap, its edge further back down the sides
+      g.setLineDash([]); g.fillStyle = '#e7e0cc'; edge(0); g.lineTo(X(1.01, w), Y(-Math.PI / 2, h)); g.lineTo(X(1.01, w), Y(Math.PI / 2, h)); g.fill();
+      g.strokeStyle = 'rgba(190,182,160,0.9)'; g.lineWidth = 2.5; edge(0.004); g.stroke(); g.strokeStyle = 'rgba(200,200,200,0.5)'; g.lineWidth = 1.5; g.setLineDash([5, 4]); edge(-0.012); g.stroke();
+      g.setLineDash([]); g.fillStyle = '#e7e0cc'; g.fillRect(0, 0, X(0.035, w), h); });   // (and a rubber heel patch)
+    // the boots
+    const bt = style({ X0: -0.172, LEN: 0.255, W: 1.07, sole: 0.012, HT: [[0, 0.135], [0.2, 0.14], [0.33, 0.134], [0.42, 0.104], [0.55, 0.078], [0.7, 0.062], [0.85, 0.05], [0.95, 0.04], [1, 0.032]], eyes: Array.from({ length: 7 }, (_, k) => 0.6 - k * 0.04), eth0: 0.4, eth1: 0.04, hooks: 3, eyeR: 0.0032, laceR: 0.0022 });
+    const bootTex = tex(1024, 512, (g, w, h) => { const r = mkRng(7312);
+      const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#4e2f1c'); gr.addColorStop(0.3, '#7a4a2b'); gr.addColorStop(0.5, '#86532f'); gr.addColorStop(0.7, '#7a4a2b'); gr.addColorStop(1, '#4e2f1c'); g.fillStyle = gr; g.fillRect(0, 0, w, h);   // (tan, darker down the sides)
+      for (let i = 0; i < 900; i++){ g.fillStyle = `rgba(${r() < 0.5 ? '40,20,8' : '170,110,60'},${0.04 + r() * 0.05})`; g.beginPath(); g.ellipse(r() * w, r() * h, 2 + r() * 10, 1 + r() * 5, r() * 3, 0, TAU); g.fill(); }   // the grain, mottled
+      const tg = g.createRadialGradient(X(0.9, w), Y(0, h), 0, X(0.9, w), Y(0, h), X(0.12, w)); tg.addColorStop(0, 'rgba(200,140,80,0.35)'); tg.addColorStop(1, 'rgba(200,140,80,0)'); g.fillStyle = tg; g.fillRect(0, 0, w, h);   // (the toe, rubbed lighter)
+      g.strokeStyle = 'rgba(40,20,8,0.35)'; g.lineWidth = 2; for (let i = 0; i < 6; i++){ const u = 0.64 + i * 0.012 + r() * 0.006; g.beginPath(); g.moveTo(X(u, w), Y(0.9, h)); g.quadraticCurveTo(X(u + 0.02, w), Y(0, h), X(u, w), Y(-0.9, h)); g.stroke(); }   // (creased across the flex)
+      g.fillStyle = '#6a3f24'; g.fillRect(X(0.36, w), Y(0.33, h), X(0.3, w), Y(-0.33, h) - Y(0.33, h));   // the padded tongue
+      g.fillStyle = '#9a6234'; g.fillRect(X(0.4, w), Y(0.08, h), X(0.04, w), Y(-0.08, h) - Y(0.08, h));   // (its leather tab)
+      g.fillStyle = '#24160d'; g.beginPath(); g.ellipse(X(0.17, w), Y(0, h), X(0.155, w), Y(-0.62, h) - Y(0, h), 0, 0, TAU); g.fill();   // where the leg goes in
+      g.strokeStyle = '#5a3620'; g.lineWidth = 12; g.stroke();   // (the padded collar)
+      g.strokeStyle = 'rgba(225,180,120,0.6)'; g.lineWidth = 1.6; g.setLineDash([6, 4]);
+      for (const sd of [-1, 1]) for (const o of [0.52, 0.6]){ g.beginPath(); g.moveTo(X(0.32, w), Y(sd * o, h)); g.lineTo(X(0.64, w), Y(sd * o * 0.8, h)); g.lineTo(X(0.68, w), Y(0, h)); g.stroke(); }   // the facings, stitched twice
+      g.beginPath(); g.ellipse(X(0.17, w), Y(0, h), X(0.175, w), Y(-0.62, h) - Y(0, h) + X(0.02, w), 0, 0, TAU); g.stroke();
+      for (const sd of [-1, 1]){ g.beginPath(); g.moveTo(X(0.3, w), Y(sd * 1.5, h)); g.quadraticCurveTo(X(0.4, w), Y(sd * 0.9, h), X(0.33, w), Y(sd * 0.62, h)); g.stroke(); } });   // (the quarters' seams)
+    const kedsM = new THREE.MeshStandardMaterial({ map: kedsTex, roughness: 0.9 }), rubberM = new THREE.MeshStandardMaterial({ color: '#e8e1cd', roughness: 0.62 }), laceM = new THREE.MeshStandardMaterial({ color: '#ebe5d4', roughness: 0.92 }), eyeM = new THREE.MeshStandardMaterial({ color: '#cfcfca', metalness: 0.9, roughness: 0.3 });
+    const leatherM = new THREE.MeshPhysicalMaterial({ map: bootTex, roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.4 }), weltM = new THREE.MeshStandardMaterial({ color: '#3a2416', roughness: 0.7 }), bSoleM = new THREE.MeshStandardMaterial({ color: '#1f1712', roughness: 0.85 });
+    const redLaceM = new THREE.MeshStandardMaterial({ color: '#7a3220', roughness: 0.85 }), gunM = new THREE.MeshStandardMaterial({ color: '#4c4b4a', metalness: 0.85, roughness: 0.35 }), loopM = new THREE.MeshStandardMaterial({ color: '#5a3620', roughness: 0.7 });
+    const kedsGeo = [[kd.upper, kedsM], [kd.slab(0.004, 0, 0.025, 0.003), rubberM], [kd.eyelets, eyeM], [kd.laces, laceM]];
+    const loop = new THREE.TorusGeometry(0.009, 0.0028, 6, 16, Math.PI).rotateZ(Math.PI / 2).translate(-0.171, 0.125, 0);   // (the pull loop at the heel)
+    const bootGeo = [[bt.upper, leatherM], [bt.slab(0.005, 0, 0.022, 0.003), bSoleM], [bt.slab(0.0065, 0.021, 0.009, 0.002), weltM], [bt.eyelets, gunM], [bt.laces, redLaceM], [loop, loopM]];
+    const make = (parent) => { const grp = (L) => { const g = new THREE.Group(); for (const [geo, m] of L){ const o = new THREE.Mesh(geo, m); o.castShadow = true; g.add(o); } parent.add(g); return g; };
+      return { keds: grp(kedsGeo), boots: grp(bootGeo) }; };
+    return { make }; })();
+  const legs = [-1, 1].map(s => ({ s, skinT: tubeMesh(skin), clothT: tubeMesh(trouserM), sock: limb(0.032, 0.03, sockM), shoe: (() => { const g = new THREE.Group(); me.add(g); g.userData.v = SHOE.make(g); return g; })() }));
   const EYE = P(-0.05, 1.39);   // (where the eye is, on the bike)
   // the rest of me: the pelvis on the saddle, the torso leaning a little forward over the bars, the shoulders; the neck and the head drawn
   // only into the shadows (the eye is inside it), with hair, or in the cold the fur hat with its ear flaps tied up
   const ghost = new THREE.MeshBasicMaterial({ color: '#e0aa88', colorWrite: false, depthWrite: false });
+  const SHO = sd => P(EYE.x - 0.055, EYE.y - 0.168, sd * 0.145);   // (the shoulders: the sleeves grow out of them)
+  // the torso and the shoulders as one smooth skin (the shirt, the jacket): the trunk leaning a little forward over the bars, the shoulders
+  // rounding off out of it, sloping up to the neck; the sleeves grow out of the shoulders' balls. Built the first time it's needed, once
+  // for the shirt and once for the jacket (fuller)
+  const surfNets = (sdf, x0, y0, z0, sx, sy, sz, h) => { const NX = Math.ceil(sx / h) + 1, NY = Math.ceil(sy / h) + 1, NZ = Math.ceil(sz / h) + 1, C = 4;
+    const V = new Float32Array(NX * NY * NZ), at = (i, j, k) => i + NX * (j + NY * k);
+    for (let K = 0; K < NZ; K += C) for (let Jj = 0; Jj < NY; Jj += C) for (let I = 0; I < NX; I += C){ const dc = sdf(x0 + (I + C / 2) * h, y0 + (Jj + C / 2) * h, z0 + (K + C / 2) * h), far = Math.abs(dc) > h * C * 1.2;
+      for (let k = K; k < Math.min(K + C, NZ); k++) for (let j = Jj; j < Math.min(Jj + C, NY); j++) for (let i = I; i < Math.min(I + C, NX); i++) V[at(i, j, k)] = far ? dc : sdf(x0 + i * h, y0 + j * h, z0 + k * h); }
+    const cellV = new Int32Array((NX - 1) * (NY - 1) * (NZ - 1)).fill(-1), ci = (i, j, k) => i + (NX - 1) * (j + (NY - 1) * k), pos = [], nor = [], idx = [];
+    const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]], e = h * 0.4;
+    const grad = (x, y, z) => new V3(sdf(x + e, y, z) - sdf(x - e, y, z), sdf(x, y + e, z) - sdf(x, y - e, z), sdf(x, y, z + e) - sdf(x, y, z - e)).normalize();
+    for (let k = 0; k < NZ - 1; k++) for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++){ const v = []; let mask = 0;
+      for (let c = 0; c < 8; c++){ const val = V[at(i + (c & 1), j + (c >> 1 & 1), k + (c >> 2 & 1))]; v.push(val); if (val < 0) mask |= 1 << c; }
+      if (mask === 0 || mask === 255) continue; let sx_ = 0, sy_ = 0, sz_ = 0, n = 0;
+      for (const [a, b] of EDGES){ if ((v[a] < 0) === (v[b] < 0)) continue; const t = v[a] / (v[a] - v[b]); sx_ += (a & 1) + ((b & 1) - (a & 1)) * t; sy_ += (a >> 1 & 1) + ((b >> 1 & 1) - (a >> 1 & 1)) * t; sz_ += (a >> 2 & 1) + ((b >> 2 & 1) - (a >> 2 & 1)) * t; n++; }
+      let x = x0 + (i + sx_ / n) * h, y = y0 + (j + sy_ / n) * h, z = z0 + (k + sz_ / n) * h; const g = grad(x, y, z), d = sdf(x, y, z); x -= g.x * d; y -= g.y * d; z -= g.z * d;
+      const gn = grad(x, y, z); cellV[ci(i, j, k)] = pos.length / 3; pos.push(x, y, z); nor.push(gn.x, gn.y, gn.z); }
+    for (let k = 1; k < NZ - 1; k++) for (let j = 1; j < NY - 1; j++) for (let i = 1; i < NX - 1; i++){ const inside = V[at(i, j, k)] < 0;
+      for (let a = 0; a < 3; a++){ const i2 = i + (a === 0), j2 = j + (a === 1), k2 = k + (a === 2); if ((V[at(i2, j2, k2)] < 0) === inside) continue;
+        const q = a === 0 ? [ci(i, j - 1, k - 1), ci(i, j, k - 1), ci(i, j, k), ci(i, j - 1, k)] : a === 1 ? [ci(i - 1, j, k - 1), ci(i, j, k - 1), ci(i, j, k), ci(i - 1, j, k)] : [ci(i - 1, j - 1, k), ci(i, j - 1, k), ci(i, j, k), ci(i - 1, j, k)];
+        const vs = q.map(c => cellV[c]); if (vs.some(w => w < 0)) continue;
+        for (const [a0, a1, a2] of [[vs[0], vs[1], vs[2]], [vs[0], vs[2], vs[3]]]){ const A = new V3().fromArray(pos, a0 * 3), B = new V3().fromArray(pos, a1 * 3).sub(A), Cc = new V3().fromArray(pos, a2 * 3).sub(A);
+          const nn = new V3().fromArray(nor, a0 * 3).add(new V3().fromArray(nor, a1 * 3)).add(new V3().fromArray(nor, a2 * 3)); if (B.cross(Cc).dot(nn) < 0) idx.push(a0, a2, a1); else idx.push(a0, a1, a2); } } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setIndex(idx); return g; };
+  const ksm = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+  const TORSO_PROF = [[0, -0.02], [0.112, -0.016], [0.121, 0.04], [0.126, 0.12], [0.138, 0.2], [0.146, 0.25], [0.139, 0.282], [0.1, 0.305], [0.052, 0.316], [0, 0.318]].map(([r, y]) => [r * 0.86, y / 0.318]);   // (a twelve-year-old's chest: 25 cm across, 16 deep)
+  const SHO_R = 0.044, torsoGeos = {};
+  const torsoGeo = (cold) => { const key = cold ? 'cold' : 'warm'; if (torsoGeos[key]) return torsoGeos[key]; const T0 = performance.now(), puff = cold ? 1.08 : 1, rS = cold ? SHO_R * 1.12 : SHO_R;
+    const W = P(SC.x + 0.018, SC.y + 0.13), N = P(EYE.x - 0.062, EYE.y - 0.13), a = N.clone().sub(W), L = a.length(); a.normalize(); const f = new V3(a.y, -a.x, 0), DEP = 0.62;
+    const PR = TORSO_PROF, R = t => { if (t <= PR[0][1] || t >= PR[PR.length - 1][1]) return 0; let i = 0; while (t > PR[i + 1][1]) i++;   // (the profile, smoothed through its points)
+      const u = (t - PR[i][1]) / (PR[i + 1][1] - PR[i][1]), r0 = PR[Math.max(0, i - 1)][0], r1 = PR[i][0], r2 = PR[i + 1][0], r3 = PR[Math.min(PR.length - 1, i + 2)][0];
+      return Math.max(0, 0.5 * (2 * r1 + (r2 - r0) * u + (2 * r0 - 5 * r1 + 4 * r2 - r3) * u * u + (3 * r1 - r0 - 3 * r2 + r3) * u * u * u)) * puff; };
+    const S1 = SHO(1), S2 = SHO(-1), NB = N.clone().addScaledVector(a, -0.035);
+    const capd = (x, y, z, A, B, r0, r1) => { const abx = B.x - A.x, aby = B.y - A.y, abz = B.z - A.z, px = x - A.x, py = y - A.y, pz = z - A.z, t = clamp((px * abx + py * aby + pz * abz) / (abx * abx + aby * aby + abz * abz)); return Math.hypot(px - abx * t, py - aby * t, pz - abz * t) - lerp(r0, r1, t); };
+    const sdf = (x, y, z) => { const qx = x - W.x, qy = y - W.y, t = (qx * a.x + qy * a.y) / L, df = (qx * f.x + qy * f.y) / DEP, dz = z, rs = Math.hypot(df, dz) || 1e-6, gm = Math.max(0.35, Math.hypot(df / DEP, dz) / rs);
+      let d = (rs - R(t)) / gm; if (t < PR[0][1]) d = Math.max(d, (PR[0][1] - t) * L); if (t > 1) d = Math.max(d, (t - 1) * L);   // the trunk
+      for (const S of [S1, S2]){ const ball = Math.hypot(x - S.x, y - S.y, z - S.z) - rS, trap = capd(x, y, z, NB, S, 0.032 * puff, rS * 0.86); d = ksm(d, ksm(ball, trap, 0.03), 0.055); }   // the shoulders, and the slope up from each to the neck
+      return d; };
+    const g = surfNets(sdf, -0.4, 0.86, -0.22, 0.46, 0.48, 0.44, 0.0045);
+    if (new URLSearchParams(location.search).has('bikelog')) console.log('TORSO', key, g.attributes.position.count, 'verts', (performance.now() - T0).toFixed(0), 'ms');
+    return torsoGeos[key] = g; };
   const body = (() => { const W = P(SC.x + 0.018, SC.y + 0.13), N = P(EYE.x - 0.062, EYE.y - 0.13), d = N.clone().sub(W), L = d.length(), ang = Math.atan2(d.x, d.y);
-    const prof = [[0, -0.02], [0.112, -0.016], [0.121, 0.04], [0.126, 0.12], [0.138, 0.2], [0.146, 0.25], [0.139, 0.282], [0.1, 0.305], [0.052, 0.316], [0, 0.318]];
-    const torso = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y / 0.318)), 28), sleeveM); torso.position.copy(W); torso.rotation.z = -ang; torso.castShadow = true; me.add(torso);
-    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), trouserM); pelvis.position.set(SC.x + 0.005, SC.y + 0.095, 0); pelvis.scale.set(0.094, 0.074, 0.122); pelvis.castShadow = true; me.add(pelvis);
-    const shoulders = [-1, 1].map(sd => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.043, 16, 10), sleeveM); m.position.set(EYE.x - 0.055, EYE.y - 0.168, sd * 0.158); m.castShadow = true; me.add(m); return m; });
+    const prof = [[0, -0.02], [0.112, -0.016], [0.121, 0.04], [0.126, 0.12], [0.138, 0.2], [0.146, 0.25], [0.139, 0.282], [0.1, 0.305], [0.052, 0.316], [0, 0.318]].map(([r, y]) => [r * 0.86, y]);   // (a twelve-year-old's chest: 25 cm across, 16 deep)
+    const torso = new THREE.Mesh(new THREE.BufferGeometry(), sleeveM); torso.castShadow = true; me.add(torso);   // (its skin made when it's first needed)
+    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), trouserM); pelvis.position.set(SC.x + 0.005, SC.y + 0.095, 0); pelvis.scale.set(0.09, 0.072, 0.112); pelvis.castShadow = true; me.add(pelvis);
+    const shoulders = [];   // (in the torso's skin now)
     const head = new THREE.Group(); head.position.set(EYE.x - 0.058, EYE.y + 0.018, 0); head.rotation.z = -0.12; me.add(head);
     const part = (geo, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, ghost); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; head.add(m); return m; };
     part(new THREE.CylinderGeometry(0.042, 0.045, 0.12, 14), -0.012, -0.12, 0);   // the neck
@@ -5812,16 +5977,17 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const side = hint.clone().addScaledVector(dn, -hint.dot(dn)).normalize(); return a.clone().addScaledVector(dn, x).addScaledVector(side, h); };
   // where it leans: against the wall to the right of our entrance (the second, 10-17), the front wheel turned in to the wall
   const DOOR = new V3(9, 0, BZ), LEAN = { p: new V3(), rx: -0.24, ry: 0, steer: 0.42 };
+  const benchIn = (x, z, m) => BENCHES.some(b => { const dx = x - b.x, dz = z - b.z, c = Math.cos(b.ry), sn = Math.sin(b.ry), lx = dx * c - dz * sn, lz = dx * sn + dz * c; return Math.abs(lx) < 0.97 + m && lz > -0.36 - m && lz < 0.25 + m; });   // (a bench: 1.9 m of slats, its back behind)
   const blocked = (x, z) => x < -33.6 || x > 33.6 || z < BZ + 0.85 || z > STABU_FAR - 1.4 || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6)   // (the garden fence: the plots, their flower beds)
     || Math.hypot(x - TREE.x, z - TREE.z) < 0.95 || Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.35 || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.8
-    || BENCHES.some(b => Math.hypot(x - b.x, z - b.z) < 0.95) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
+    || benchIn(x, z, 0.3) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
   const st = { riding: false, v: 0, steer: 0, head: Math.PI, lean: 0, crank: 0, roll: 0, x: 0, z: 0, bob: 0, tick: 0, pedal: 0, bump: 0 };
   const pose = (steerA) => { steer.quaternion.setFromAxisAngle(axis.clone().negate(), steerA); };
   const park = () => { root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); pose(LEAN.steer); root.rotation.set(LEAN.rx, LEAN.ry, 0); root.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(frame, true); root.position.set(DOOR.x + 1.95, -bb.min.y, BZ + 0.015 - bb.min.z); drive(0.6); me.visible = false; for (const h of hands) h.visible = false; st.riding = false; };
   park();
   // ride: pedal, brake, steer; it leans into the turns; the cranks go round only while you pedal (and back a little when you brake: the coaster brake)
-  const L = 1.045, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null, prevFov = 62;
+  const L = 1.045 * SCL, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null, prevFov = 62;
   // where it can lean: the chestnut, the rowan, the garden fence (from the lane), the garages' fronts, the building, the workshops
   const supports = (x, z) => { const out = [];
     const round = (c, r, k) => { const dx = x - c.x, dz = z - c.z, d0 = Math.hypot(dx, dz) || 1; out.push({ d: d0 - r, n: P(dx / d0, 0, dz / d0), w: P(c.x + dx / d0 * r, 0, c.z + dz / d0 * r), k }); };
@@ -5835,15 +6001,90 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
     wall: 'I leaned my bike against the wall.', workshop: 'I leaned my bike against the workshop wall.' };
   const getOff = () => { st.riding = false; st.v = 0; me.visible = false; for (const h of hands) h.visible = false; camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix(); };
-  const parkHere = () => { if (!st.riding) return; const sp = supports(st.x, st.z).sort((a, b) => a.d - b.d)[0], c = sp && sp.d < 1.6 ? sp : null;
-    fadeThen(() => { getOff(); const fw = P(-Math.sin(st.head), 0, -Math.cos(st.head)); let n, head;
-      if (c){ n = c.n; const a = Math.atan2(n.x, n.z), f1 = P(Math.cos(a), 0, -Math.sin(a)), side = fw.dot(f1) >= 0 ? 1 : -1;   // (it faces the way I was riding, more or less)
-        root.position.set(0, 0, 0); pose(side * LEAN.steer); root.rotation.set(side * LEAN.rx, side > 0 ? 0 : Math.PI, 0); root.updateMatrixWorld(true);
-        const bb = new THREE.Box3().setFromObject(frame, true); root.rotation.y += a; root.position.copy(c.w).addScaledVector(n, 0.012 - bb.min.z); root.position.y = -bb.min.y;
-        const f = f1.multiplyScalar(side); head = Math.atan2(-f.x, -f.z); }
-      else { head = st.head; n = P(Math.cos(head), 0, -Math.sin(head));   // nothing near: down on its left side, the chain up, the bars turned
-        root.position.set(0, 0, 0); pose(0.32); drive(1.2); root.rotation.set(-1.32, head + Math.PI / 2, 0); root.updateMatrixWorld(true);
-        const bb = new THREE.Box3().setFromObject(frame, true); root.position.set(st.x, -bb.min.y, st.z); }
+  // against the chestnut: its trunk flares at the foot and six buttress roots run out two metres from it, so there the bike is fitted to the
+  // wood itself: a height map of the trunk and the roots (and for each height, how far it is to the wood), the bike's own shape turned this
+  // way and that and pushed in sideways until it touches. It has to touch high up (the bars, the saddle, the top tube, a mudguard), never
+  // stand with a wheel in a root
+  const HC = 0.025, HE = 2.6, HN = Math.ceil(2 * HE / HC), LV = [];
+  for (let y = 0; y < 0.89; y += 0.03) LV.push(y); for (let y = 0.9; y < 1.66; y += 0.1) LV.push(y);
+  let wood = null;
+  const woodMaps = () => { if (wood) return wood; const h = new Float32Array(HN * HN).fill(-9), a = new V3(), b = new V3(), c = new V3(), N2 = HN * HN;
+    for (const g of [tree.perch.get('trunk'), ...tree.perchRoots]){ if (!g) continue; const pa = g.attributes.position, ix = g.index ? g.index.array : null, nt = ix ? ix.length : pa.count;
+      for (let t = 0; t < nt; t += 3){ a.fromBufferAttribute(pa, ix ? ix[t] : t); b.fromBufferAttribute(pa, ix ? ix[t + 1] : t + 1); c.fromBufferAttribute(pa, ix ? ix[t + 2] : t + 2);
+        if (Math.min(a.y, b.y, c.y) > 2.4 || Math.max(a.y, b.y, c.y) < -0.05) continue;
+        const m = Math.max(1, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / (HC * 0.45)));   // (the surface sampled finer than the cells)
+        for (let i = 0; i <= m; i++) for (let j = 0; i + j <= m; j++){ const u = i / m, v = j / m, x = a.x + (b.x - a.x) * u + (c.x - a.x) * v, y = a.y + (b.y - a.y) * u + (c.y - a.y) * v, z = a.z + (b.z - a.z) * u + (c.z - a.z) * v;
+          const ci = Math.floor((x + HE) / HC), cj = Math.floor((z + HE) / HC); if (ci < 0 || cj < 0 || ci >= HN || cj >= HN) continue; const k = cj * HN + ci; if (y > h[k]) h[k] = y; } } }
+    const out = new Uint8Array(N2), todo = [];   // (inside the trunk is wood all the way up: whatever the open ground can't reach)
+    const seed = k => { if (!out[k] && h[k] < 0.02){ out[k] = 1; todo.push(k); } };
+    for (let i = 0; i < HN; i++){ seed(i); seed((HN - 1) * HN + i); seed(i * HN); seed(i * HN + HN - 1); }
+    while (todo.length){ const k = todo.pop(), i = k % HN, j = (k - i) / HN; if (i > 0) seed(k - 1); if (i < HN - 1) seed(k + 1); if (j > 0) seed(k - HN); if (j < HN - 1) seed(k + HN); }
+    for (let k = 0; k < N2; k++) if (!out[k] && h[k] < 0.02) h[k] = 9;
+    const R2 = Math.SQRT2, D = LV.map(L => { const d = new Float32Array(N2); for (let k = 0; k < N2; k++) d[k] = h[k] > L ? 0 : 1e6;   // how far to the wood at this height (a chamfer distance)
+      for (let j = 0; j < HN; j++) for (let i = 0; i < HN; i++){ const k = j * HN + i; let v = d[k]; if (!v) continue;
+        if (i > 0) v = Math.min(v, d[k - 1] + 1); if (j > 0){ v = Math.min(v, d[k - HN] + 1); if (i > 0) v = Math.min(v, d[k - HN - 1] + R2); if (i < HN - 1) v = Math.min(v, d[k - HN + 1] + R2); } d[k] = v; }
+      for (let j = HN - 1; j >= 0; j--) for (let i = HN - 1; i >= 0; i--){ const k = j * HN + i; let v = d[k]; if (!v) continue;
+        if (i < HN - 1) v = Math.min(v, d[k + 1] + 1); if (j < HN - 1){ v = Math.min(v, d[k + HN] + 1); if (i < HN - 1) v = Math.min(v, d[k + HN + 1] + R2); if (i > 0) v = Math.min(v, d[k + HN - 1] + R2); } d[k] = v; }
+      for (let k = 0; k < N2; k++) d[k] = d[k] * HC / 1.0824 - HC * 1.42;   // (never more than the truth: the chamfer's overestimate, and the cells' own size)
+      return d; });
+    return wood = { h, D }; };
+  // the bike's shape as points (every 3 cm of its surface), in its own frame, posed as it will stand: the front wheel turned in
+  const shapePts = (cell) => { root.updateMatrixWorld(true); const m = new THREE.Matrix4(), mi = new THREE.Matrix4(), v = new V3(), seen = new Map();
+    frame.traverseVisible(o => { if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return; const pa = o.geometry.attributes.position, cnt = o.isInstancedMesh ? o.count : 1;
+      for (let k = 0; k < cnt; k++){ m.copy(o.matrixWorld); if (o.isInstancedMesh){ o.getMatrixAt(k, mi); m.multiply(mi); }
+        for (let i = 0; i < pa.count; i++){ v.fromBufferAttribute(pa, i).applyMatrix4(m); const key = Math.round(v.x / cell) * 1e6 + Math.round(v.y / cell) * 1e3 + Math.round(v.z / cell); if (!seen.has(key)) seen.set(key, [v.x, v.y, v.z]); } } });
+    return [...seen.values()]; };
+  const bikePts = (side) => { root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); pose(side * LEAN.steer); drive(0.6); return shapePts(0.03); };
+  const woodAt = (x, z) => { const ci = Math.floor((x - TREE.x + HE) / HC), cj = Math.floor((z - TREE.z + HE) / HC); return ci < 0 || cj < 0 || ci >= HN || cj >= HN ? -9 : woodMaps().h[cj * HN + ci]; };
+  // whatever else might be in its way where it stands (the benches, the fire, a lilac, a snowman, the rowan, the chestnut's roots), but what it leans on
+  const othersHit = (x, z, y, skip) => (y < 0.95 && benchIn(x, z, 0.02)) || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.6 || (skip !== 'rowan' && Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.21)
+    || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.75 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.04)
+    || (skip !== 'chestnut' && woodAt(x, z) > y + 0.004);
+  const standsClear = (skip) => shapePts(0.05).every(([x, y, z]) => !othersHit(x, z, y, skip));
+  const clearOf = (x, z) => Math.hypot(x - TREE.x, z - TREE.z) < 1.2 || !blocked(x, z);   // (benches, the fire, a lilac, a snowman; the tree itself is the wood)
+  const fitChestnut = (fw) => { const W = woodMaps(), t0 = performance.now(), mx = st.x - TREE.x, mz = st.z - TREE.z, mr = Math.hypot(mx, mz) || 1; let best = null, tried = 0; const cands = [];
+    for (const side of [1, -1]){ const pts = bikePts(side), N = pts.length, qx = new Float32Array(N), qz = new Float32Array(N), qy = new Float32Array(N), rz = new Float32Array(N), lv = new Uint8Array(N);
+      for (const lam of [0.2, 0.26, 0.32, 0.38]){ const rx = -side * lam, cx = Math.cos(rx), sx = Math.sin(rx); let y0 = 9;
+        for (let i = 0; i < N; i++){ const p = pts[i]; qy[i] = p[1] * cx - p[2] * sx; rz[i] = p[1] * sx + p[2] * cx; y0 = Math.min(y0, qy[i]); }   // (leaning: turned about its length)
+        for (let i = 0; i < N; i++){ qy[i] -= y0; let l = 0; while (l + 1 < LV.length && LV[l + 1] <= qy[i]) l++; lv[i] = l; }   // (standing on the ground)
+        for (let k = 0; k < 48; k++){ const yaw = k / 48 * TAU, cy = Math.cos(yaw), sy = Math.sin(yaw), ux = -side * sy, uz = -side * cy, ex = cy, ez = -sy;   // (u: the way it leans, to the wood; e: the way it faces)
+          if (ux * mx + uz * mz > 0.25 * mr) continue;   // (on my side of the tree)
+          for (let i = 0; i < N; i++){ const x = pts[i][0]; qx[i] = x * cy + rz[i] * sy + HE; qz[i] = -x * sy + rz[i] * cy + HE; }
+          for (const s of [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45]){ let d = 2.9; tried++;
+            for (let it = 0; it < 80; it++){ const ox = -ux * d + ex * s, oz = -uz * d + ez * s; let mn = 9;   // in it comes, as far as is surely clear each time
+              for (let i = 0; i < N; i++){ const ci = Math.floor((ox + qx[i]) / HC), cj = Math.floor((oz + qz[i]) / HC); if (ci < 0 || cj < 0 || ci >= HN || cj >= HN) continue; const v = W.D[lv[i]][cj * HN + ci]; if (v < mn) mn = v; }
+              if (mn < 0.008) break; d -= mn; }
+            const top = dd => { const ox = -ux * dd + ex * s, oz = -uz * dd + ez * s; let t = -1;   // (the highest part of the bike in the wood, if any)
+              for (let i = 0; i < N; i++){ const ci = Math.floor((ox + qx[i]) / HC), cj = Math.floor((oz + qz[i]) / HC); if (ci < 0 || cj < 0 || ci >= HN || cj >= HN) continue; if (qy[i] < W.h[cj * HN + ci] - 0.004 && qy[i] > t) t = qy[i]; } return t; };
+            let t = -1; for (let it = 0; it < 50 && (t = top(d - 0.005)) < 0; it++) d -= 0.005;   // and the last few millimetres, against the wood itself
+            if (t < 0.5) continue;   // (what touches first must be high up: it leans, it doesn't stand on a root)
+            const bx = -ux * d + ex * s, bz = -uz * d + ez * s;
+            if (!clearOf(TREE.x + bx, TREE.z + bz) || !clearOf(TREE.x + bx + ex * 0.55, TREE.z + bz + ez * 0.55) || !clearOf(TREE.x + bx - ex * 0.55, TREE.z + bz - ez * 0.55)) continue;
+            const sc = Math.hypot(bx - mx, bz - mz) + 3 * Math.abs(lam - 0.26) + 0.4 * (1 - (ex * fw.x + ez * fw.z)) + 0.3 * Math.abs(s);   // (near me, leaning not too much, facing my way, touching near its middle)
+            cands.push({ sc, side, lam, yaw, x: TREE.x + bx, z: TREE.z + bz, y: -y0, n: P(-ux, 0, -uz), head: Math.atan2(-ex, -ez), top: t }); } } } }
+    cands.sort((a, b) => a.sc - b.sc);
+    const put = f => { root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); pose(f.side * LEAN.steer); drive(0.6); root.rotation.set(-f.side * f.lam, f.yaw, 0); root.position.set(f.x, f.y, f.z); root.updateMatrixWorld(true); };
+    for (const f of cands.slice(0, 40)){ put(f); if (standsClear('chestnut')){ best = f; break; } }
+    if (new URLSearchParams(location.search).has('bikelog')) console.log('chestnut fit', tried, 'tries', (performance.now() - t0).toFixed(0), 'ms', best ? `side ${best.side} lean ${best.lam} yaw ${best.yaw.toFixed(2)} at ${best.x.toFixed(2)},${best.z.toFixed(2)} touches at ${best.top.toFixed(2)} m` : 'none');
+    return best; };
+  // nothing to lean it on: down on its left side, the chain up, the bars turned, where I am, or the nearest place near it with room for it
+  const layDown = (x0, z0, head) => { root.position.set(0, 0, 0); root.rotation.set(-1.32, 0, 0); pose(0.32); drive(1.2);
+    const foot = new Map(); let y0 = 9; for (const p of shapePts(0.05)){ y0 = Math.min(y0, p[1]); const k = Math.round(p[0] / 0.08) * 1000 + Math.round(p[2] / 0.08), q = foot.get(k); if (!q || p[1] < q[1]) foot.set(k, p); }   // (its outline on the ground, the lowest point over each spot)
+    const F = [...foot.values()];
+    for (const r of [0, 0.2, 0.4, 0.6, 0.85, 1.1, 1.4, 1.7, 2.1]) for (let k = 0; k < (r ? 16 : 1); k++) for (const dy of [0, 0.3, -0.3, 0.7, -0.7, 1.2, -1.2]){
+      const x = x0 + r * Math.cos(k / 16 * TAU), z = z0 + r * Math.sin(k / 16 * TAU), Y = head + dy + Math.PI / 2, c = Math.cos(Y), sn = Math.sin(Y);
+      if (F.every(p => { const px = x + p[0] * c + p[2] * sn, pz = z - p[0] * sn + p[2] * c; return !blocked(px, pz) && woodAt(px, pz) <= p[1] - y0 + 0.004; })){ root.rotation.set(-1.32, Y, 0); root.position.set(x, -y0, z); root.updateMatrixWorld(true); return head + dy; } }
+    root.rotation.set(-1.32, head + Math.PI / 2, 0); root.position.set(x0, -y0, z0); root.updateMatrixWorld(true); return head; };
+  const parkHere = () => { if (!st.riding) return; const sps = supports(st.x, st.z).filter(q => q.d < 1.6).sort((a, b) => a.d - b.d);
+    fadeThen(() => { getOff(); const fw = P(-Math.sin(st.head), 0, -Math.cos(st.head)); let n, head, c = null;
+      for (const q of sps){   // (the nearest it can lean on with nothing else in the way; the chestnut fitted to its trunk and roots)
+        if (q.k === 'chestnut'){ const f = fitChestnut(fw); if (f){ c = q; n = f.n; head = f.head; break; } continue; }
+        const a = Math.atan2(q.n.x, q.n.z), f1 = P(Math.cos(a), 0, -Math.sin(a)), side = fw.dot(f1) >= 0 ? 1 : -1;   // (it faces the way I was riding, more or less)
+        root.position.set(0, 0, 0); pose(side * LEAN.steer); drive(0.6); root.rotation.set(side * LEAN.rx, side > 0 ? 0 : Math.PI, 0); root.updateMatrixWorld(true);
+        const bb = new THREE.Box3().setFromObject(frame, true); root.rotation.y += a; root.position.copy(q.w).addScaledVector(q.n, 0.012 - bb.min.z); root.position.y = -bb.min.y;
+        if (!standsClear(q.k)) continue;
+        c = q; n = q.n; const f = f1.multiplyScalar(side); head = Math.atan2(-f.x, -f.z); break; }
+      if (!c){ head = layDown(st.x, st.z, st.head); n = P(Math.cos(head), 0, -Math.sin(head)); }
       root.updateMatrixWorld(true); st.parked = { n: n.clone(), head };
       let stand = null; const a0 = Math.atan2(n.z, n.x); for (const r of [0.95, 1.3, 1.8, 2.4]) for (const da of [0, 0.5, -0.5, 1.1, -1.1, 1.8, -1.8, Math.PI]){ const q = root.position.clone().add(P(Math.cos(a0 + da) * r, 0, Math.sin(a0 + da) * r)); if (!stand && !blocked(q.x, q.z) && !lilacData.some(L => Math.hypot(q.x - L.p.x, q.z - L.p.z) < L.s + 0.35)) stand = q; }   // (and I stand beside it)
       stand = stand || root.position.clone().addScaledVector(n, 1.2); stand.y = 1.6; const look = root.position.clone().setY(0.45); place(stand, yawTo(stand, look), -Math.atan2(1.15, stand.distanceTo(look))); resetBody();
@@ -5854,12 +6095,12 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     for (let r = 0; r < 2.6; r += 0.1) for (const sd of [1, -1]){ const x = o.x + n.x * r * sd, z = o.z + n.z * r * sd; if (!blocked(x, z) && !blocked(x + f.x * 0.75, z + f.z * 0.75) && !blocked(x - f.x * 0.65, z - f.z * 0.65)) return [x, z, head]; }
     return [DOOR.x + 1.6, BZ + 1.7, Math.PI]; };
   const mount = () => { if (st.riding || mode !== 'walk') return; fadeThen(() => { st.riding = true; st.v = 0; st.steer = 0; st.lean = 0; [st.x, st.z, st.head] = startFrom(); cam.yaw = st.head; cam.pitch = -0.48;
-      me.visible = true; if (new URLSearchParams(location.search).has('bikebody')){ ghost.colorWrite = ghost.depthWrite = true; } if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
+      me.visible = true; if (new URLSearchParams(location.search).has('bikebody')){ const furM = new THREE.MeshStandardMaterial({ color: '#4a3a2c', roughness: 1 }), hairM = new THREE.MeshStandardMaterial({ color: '#6a4a2a', roughness: 0.9 }); body.head.traverse(o => { if (o.isMesh) o.material = o.parent === body.hat ? furM : o === body.hair ? hairM : skin; }); } if (!handGeo){ handGeo = buildHand(); for (const h of hands) h.geometry = handGeo; } for (const h of hands) h.visible = true; seasonWear(); prevFov = camera.fov; camera.fov = 74; camera.near = 0.04; camera.updateProjectionMatrix(); resetBody(); step(0, 0, 0);
       if (!st.said){ st.said = 1; caption('My own Orlyonok. The year I turned twelve, my parents finally bought me one.', 6); } }); };
   const dismount = (toDoor = true) => { if (!st.riding) return; const go = () => { st.parked = null; park(); camera.fov = prevFov; camera.near = 0.1; camera.updateProjectionMatrix();
       if (toDoor){ const p = new V3(DOOR.x + 0.4, 1.6, BZ + 2.6); place(p, yawTo(p, root.position), -0.12); resetBody(); } };
     toDoor ? fadeThen(go) : go(); };
-  const step = (dt, mx, mz) => { const kL = keys.has('ArrowLeft') ? 1 : 0, kR = keys.has('ArrowRight') ? 1 : 0, sIn = clamp(-mx + kL - kR, -1, 1);
+  const step = (dt, mx, mz) => { const kL = keys.has('ArrowLeft') ? 1 : 0, kR = keys.has('ArrowRight') ? 1 : 0, sIn = window.__bs ?? clamp(-mx + kL - kR, -1, 1);
     const pedal = mz > 0.15 ? Math.min(1, mz) : 0, brake = mz < -0.15 ? Math.min(1, -mz) : 0;
     st.v += (pedal * (2.8 - 0.36 * st.v) - brake * 5.5 * Math.sign(st.v) * Math.min(1, Math.abs(st.v) * 4) - Math.sign(st.v) * (0.12 + 0.02 * st.v * st.v)) * dt; if (!pedal && Math.abs(st.v) < 0.05) st.v = 0;
     if (brake && st.v <= 0.02 && mz < -0.5) st.v = Math.max(-0.7, st.v - 1.2 * dt);   // (walking it backwards, a little)
@@ -5870,17 +6111,24 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     if (!blocked(nx + fx * ahead, nz + fz * ahead) && !blocked(nx - fx * ahead * 0.85, nz - fz * ahead * 0.85)){ st.x = nx; st.z = nz; }
     else if (Math.abs(st.v) > 0.05){ if (Math.abs(st.v) > 1.2) sfx.thunk(Math.min(0.3, Math.abs(st.v) * 0.05)); st.v *= -0.15; st.bump = 0.3; }
     const targ = -Math.atan(st.v * st.v * Math.tan(st.steer) / (9.8 * L)); st.lean += (clamp(targ, -0.5, 0.5) - st.lean) * Math.min(1, dt * 5);
-    if (pedal) st.crank -= st.v / Rw / 2.4 * dt; else if (brake && st.v > 0.05) st.crank += dt * 0.6 * Math.max(0, 0.25 - (st.pedal += dt)); if (!brake) st.pedal = 0;
-    rearW.rotation.z -= st.v / Rw * dt; frontW.rotation.z -= st.v / Rw * dt; drive(st.crank);
+    if (pedal) st.crank -= st.v / (Rw * SCL) / 2.4 * dt; else if (brake && st.v > 0.05) st.crank += dt * 0.6 * Math.max(0, 0.25 - (st.pedal += dt)); if (!brake) st.pedal = 0;
+    rearW.rotation.z -= st.v / (Rw * SCL) * dt; frontW.rotation.z -= st.v / (Rw * SCL) * dt; drive(st.crank);
     pose(st.steer); st.bump = Math.max(0, st.bump - dt);
     root.position.set(st.x, 0, st.z); root.rotation.set(st.lean, st.head + Math.PI / 2, 0); root.updateMatrixWorld(true);
     // me on it: the hips on the saddle, the feet on the pedals, the knees forward; the shoulders behind the bars, the elbows out
     frame.updateMatrixWorld(true); const toMe = (v) => me.worldToLocal(v);
-    for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.06, 0.075, 0));
-      const knee = ik(hip, ank, 0.39, 0.38, P(1, 0.15, lg.s * 0.25)); span(lg.thigh, hip, knee); span(lg.shin, knee, ank); span(lg.sock, ank.clone().add(P(0, -0.02, 0)), ank.clone().add(P(0, 0.05, 0)));
-      lg.shoe.position.copy(foot.clone().add(P(-0.02, 0.008, 0))); lg.shoe.rotation.set(0, 0, 0); }
-    for (const am of arms){ const h = hands[am.s > 0 ? 1 : 0]; const wrist = toMe(h.localToWorld(P(-0.076, 0.044, -0.002))), sh = P(EYE.x - 0.05, EYE.y - 0.17, am.s * 0.17), elb = ik(sh, wrist, 0.25, 0.22, P(-0.3, -0.6, am.s * 1));
-      span(am.upper, sh, elb); span(am.fore, elb, wrist); span(am.sleeve, elb, elb.clone().lerp(wrist, st.cold ? 0.92 : 0.25)); am.sleeve.visible = true; }
+    for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.105, 0.088, 0));
+      const knee = ik(hip, ank, 0.39, 0.38, P(1, 0.15, lg.s * 0.25)), Lp = limbPath(hip.clone().addScaledVector(knee.clone().sub(hip).normalize(), -0.02), knee, ank, LEG_UP, LEG_LO, 0.08, null, ZL);
+      if (st.summer){ const c = Lp.sA * 0.72; fillTube(lg.clothT, Lp, 0, c, 0.011, 0.006); fillTube(lg.skinT, Lp, c - 0.04, Lp.sEnd, 0, 0); lg.skinT.visible = true; }   // (shorts, and bare knees)
+      else { fillTube(lg.clothT, Lp, 0, Lp.sEnd, 0.005, 0.003); lg.skinT.visible = false; }
+      span(lg.sock, ank.clone().add(P(0, -0.02, 0)), ank.clone().add(P(0, 0.05, 0)));
+      lg.shoe.position.copy(foot.clone().add(P(0, 0.012, 0))); lg.shoe.rotation.set(0, 0, 0); }
+    for (const am of arms){ const h = hands[am.s > 0 ? 1 : 0], sh = SHO(am.s); me.getWorldQuaternion(meQ).invert();
+      const Win = toMe(h.localToWorld(P(-0.058, 0.035, -0.002))), Wst = toMe(h.localToWorld(P(-0.1, 0.056, -0.002))), ax = Win.clone().sub(Wst).normalize(), zh = new V3().setFromMatrixColumn(h.matrixWorld, 2).applyQuaternion(meQ).normalize();   // (the hand's own line at its wrist, and across it)
+      const hint = Wst.clone().addScaledVector(ax, -0.2).sub(sh).normalize().multiplyScalar(0.65).addScaledVector(P(-0.3, -0.6, am.s).normalize(), 0.35), elb = ik(sh, Wst, 0.25, 0.2, hint);   // (the elbow where the forearm lines up with the hand, near enough)
+      const Ap = limbPath(sh.clone(), elb, Wst, ARM_UP, ARM_LO, 0.05, ax, zh, Win, ARM_IN);
+      const cuff = st.summer ? Ap.sA * 0.45 : st.cold ? Ap.sW - 0.022 : Ap.sJ + (Ap.sW - Ap.sJ) * 0.25;   // (a T-shirt's short sleeve; the shirt's rolled up below the elbow; the jacket's to the wrist)
+      fillTube(am.clothT, Ap, 0, cuff, st.cold ? 0.011 : 0.006, 0.004); fillTube(am.skinT, Ap, Math.max(0, cuff - 0.04), Ap.sEnd, 0, 0); }
     // the eye, on the bike, with it leaning; a little bob with the pedalling and the bumps
     const e = root.localToWorld(EYE.clone().add(P(0, Math.sin(st.crank * 2) * 0.006 * (pedal ? 1 : 0) + Math.sin(st.bump * 40) * 0.01 * st.bump, 0)));
     camera.position.copy(e); const off = clamp(wrapA(cam.yaw - st.head), -1.45, 1.45); cam.yaw = st.head + off; cam.pitch = clamp(cam.pitch, -1.05, 0.45); st.roll = -st.lean * 0.85;
@@ -5888,13 +6136,13 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   };
   const seasonWear = () => { const cold = S < 0.95 || S > 3.4, summer = S > 1.7 && S < 2.95; st.cold = cold;   // a T-shirt and shorts in summer, a jacket and trousers otherwise
     trouserM.color.set(summer ? '#30406a' : '#2a3048'); sleeveM.color.set(cold ? '#3a4a3a' : '#c8b896');
-    for (const lg of legs){ lg.shin.material = summer ? skin : trouserM; } for (const am of arms) am.fore.material = cold ? sleeveM : skin;
-    const puff = cold ? 1.08 : 1; body.torso.scale.set(0.62 * puff, (body.torso.userData.L ??= P(EYE.x - 0.062, EYE.y - 0.13).distanceTo(P(SC.x + 0.018, SC.y + 0.13))), puff); for (const m of body.shoulders) m.scale.setScalar(puff); body.hat.visible = cold; body.hair.visible = !cold; };
+    st.summer = summer; const warm = Math.floor(S) % 4 === 1 || Math.floor(S) % 4 === 2; for (const lg of legs){ lg.shoe.userData.v.keds.visible = warm; lg.shoe.userData.v.boots.visible = !warm; }   // (Keds in spring and summer, boots in autumn and winter)
+    body.torso.geometry = torsoGeo(cold); body.hat.visible = cold; body.hair.visible = !cold; };
   const pickBike = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); const h = ray.intersectObject(frame, true); return h.length && h[0].distance < 4; };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'walk' || st.riding || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return; if (camera.position.distanceTo(root.position) < 6 && pickBike(e)) mount(); });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'walk' || st.riding || camera.position.distanceTo(root.position) > 6) return; const on = pickBike(e); if (on !== st.hover){ st.hover = on; renderer.domElement.style.cursor = on ? 'pointer' : ''; } });
-  return { get riding(){ return st.riding; }, get roll(){ return st.roll; }, st, root, mount, dismount, step, parkHere, bell(){ if (st.riding) sfx.bell(); }, update(){ if (st.riding) seasonWear(); const kd = 0.25 + 0.75 * env.day; paint.envMapIntensity = paintDS.envMapIntensity = 0.5 * kd; chrome.envMapIntensity = kd; leather.envMapIntensity = 0.3 * kd; }, blocked };
+  return { get riding(){ return st.riding; }, get roll(){ return st.roll; }, st, root, mount, dismount, step, parkHere, paint, paintDS, set paintEnv(v){ paintEnv = v; }, bell(){ if (st.riding) sfx.bell(); }, update(){ if (st.riding) seasonWear(); const kd = 0.25 + 0.75 * env.day; paint.envMapIntensity = paintDS.envMapIntensity = paintEnv * kd; chrome.envMapIntensity = kd; leather.envMapIntensity = 0.3 * kd; }, blocked };
 })();
 
 /* ============================== season & time ============================== */
@@ -6644,6 +6892,7 @@ function frame(){
       p.position.copy(cat.root.position); p.position.y += 0.0005; p.receiveShadow = true; scene.add(p); window.__studioP = p; }
     for (const o of scene.children) if (!o.isLight && o !== cat.root && o !== window.__studioP) o.visible = false;
     scene.background = new THREE.Color('#77756f'); scene.fog.density = 0; }   // debug: ?studio=1
+  if (window.__camLock){ const [c, y, p] = typeof window.__camLock === 'function' ? window.__camLock() : window.__camLock; camera.position.copy(c); camera.rotation.set(p, y, 0); camera.updateMatrixWorld(); }   // (debug: a fixed view)
   CHESS.reflect(); renderer.render(scene, camera);   // (the pieces in the chessboard's lacquer first)
 }
 
@@ -6711,9 +6960,10 @@ function frame(){
       if (q.has('chesstap')) setTimeout(() => { clk(); setTimeout(clk, 150); setTimeout(() => { clk(); console.log('CHESSCT tapped thrice: playing', CHESS.G.on); }, 300);
         setTimeout(() => { console.log('CHESSCT after 8s: ply', CHESS.G.i, 'moved', CHESS.G.moved, 'wait', CHESS.G.wait.toFixed(2), 'clock', CHESS.G.clock.toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc: playing', CHESS.G.on, 'moved', CHESS.G.moved, 'still seated', desk.on, desk.f); }, 8300); }, 2500);
       else setTimeout(() => { console.log('CHESSCT seated at', camera.position.distanceTo(wp).toFixed(2)); dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); console.log('CHESSCT esc', 'on', desk.on, 'view', desk.f, camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode); }, +(q.get('chessctt') || 3000)); }, 50); }
-    if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { if (q.get('bikeat')){ const v = q.get('bikeat').split(',').map(Number); BIKE.st.x = v[0]; BIKE.st.z = v[1]; if (v.length > 2) BIKE.st.head = cam.yaw = v[2]; } const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.get('bikep')) cam.pitch = +q.get('bikep'); if (q.get('bikey')) cam.yaw += +q.get('bikey');
-      console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikepark')){ BIKE.parkHere(); setTimeout(() => console.log('BIKE parked at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'rot', [BIKE.root.rotation.x, BIKE.root.rotation.y].map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'riding', BIKE.riding), 1200); }
+    if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { if (q.get('bikeat')){ const v = q.get('bikeat').split(',').map(Number); BIKE.st.x = v[0]; BIKE.st.z = v[1]; if (v.length > 2) BIKE.st.head = cam.yaw = v[2]; } const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.has('bikehold')) window.__bs = sx; if (q.has('noui')){ const st_ = document.createElement('style'); st_.textContent = 'body > *:not(canvas){ display: none !important; }'; document.head.appendChild(st_); } const waitRide = fn => { const iv = setInterval(() => { if (BIKE.riding){ clearInterval(iv); setTimeout(fn, 1500); } }, 200); }; if (q.get('bikeside')) waitRide(() => window.__camLock = () => { const [an, di, hh, ly] = q.get('bikeside').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(ly || 0.3); return [c, yawTo(c, lk), -Math.atan2(hh - (ly || 0.3), Math.hypot(c.x - lk.x, c.z - lk.z))]; }); if (q.get('bikedown')) waitRide(() => window.__camLock = () => [camera.position.clone(), cam.yaw + +(q.get('bikedy') || 0), +q.get('bikedown')]); if (q.get('bikep')){ cam.pitch = +q.get('bikep'); setTimeout(() => { cam.pitch = +q.get('bikep'); }, 1500); } if (q.get('bikey')) cam.yaw += +q.get('bikey');
+      console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikepark')){ BIKE.parkHere(); setTimeout(() => console.log('BIKE parked at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'rot', [BIKE.root.rotation.x, BIKE.root.rotation.y].map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'riding', BIKE.riding), 1200); if (q.get('bikecam')) setTimeout(() => { const [an, di, hh] = q.get('bikecam').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.4); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.4, di)]; }, 1300); }
       if (q.has('bikeesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => console.log('BIKE after Esc: riding', BIKE.riding, 'bike at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode), 1200); } }, 900); }, 400);   // debug: ?bikeride[&bikesim=frames&bikesteer=-1..1&bikep=pitch&bikey=look]
+    if (q.get('bikelook')) setTimeout(() => { if (q.get('bikepaint')){ const [m, r, e, cr] = q.get('bikepaint').split(',').map(Number); for (const M of [BIKE.paint, BIKE.paintDS]){ M.metalness = m; M.roughness = r; if (cr >= 0) M.clearcoatRoughness = cr; } BIKE.paintEnv = e; } if (q.get('bikeput')){ const [x, z, y] = q.get('bikeput').split(',').map(Number); BIKE.root.position.x = x; BIKE.root.position.z = z; BIKE.root.rotation.y = y; } const [an, di, hh] = q.get('bikelook').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.5); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.5, di)]; }, 600);   // debug: look at the bike
     if (q.has('smokelog')) console.log('SMOKE chimneys', CHIMNEYS.length, 'smoking', CHSMOKE.CH.filter(c => c.k > 0.3).length, 'puffs', CHSMOKE.mesh.geometry.instanceCount);
     if (q.get('mariat')){ const it = MARIGOLD.items[+q.get('mariat') || 0], d = +(q.get('marid') || 1.0), e = new V3(it.p.x + d * 0.8, 1.6, it.p.z + d * 0.6); const cy = +(q.get('maricamy') || 0.9); place(e, yawTo(e, it.p), -Math.atan2(cy - it.p.y - 0.15, d)); setTimeout(() => { mode = 'free'; camera.position.y = cy; }, 300); }
     if (q.has('marilog')) console.log('MARIGOLD', MARIGOLD.items.length, 'tris near/far', MARIGOLD.tris.map(t => t.join('/')).join(' '), 'meshes', MARIGOLD.SET.meshes.length);
