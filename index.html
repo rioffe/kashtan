@@ -489,7 +489,13 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     const pave = new THREE.Mesh(mergeGeometries(kb), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 }))); pave.receiveShadow = true; scene.add(pave); }
   // (no bare yard: in front of the house it is grass, with narrow asphalt paths — see 'paths and overgrowth' below)
   const ct = dirtTex.clone(); ct.repeat.set(3, 3); ct.needsUpdate = true;
-  const worn = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40).rotateX(-Math.PI / 2), flatMat(ct, '#d8ccb8', 0.9, -3));
+  const worn = (() => { const er = mkRng(6161), N = 2400, P_ = [0, 0, 0], NN = [0, 1, 0], U_ = [0.5, 0.5], I_ = []; let d = 0, bl = 0, bn = 1, bd = 0;   // the trampled ring under the tree, its edge as ragged as the paths' and the lane's:
+    for (let i = 0; i < N; i++){ const a = i / N * TAU; d += (er() - 0.5) * 0.05 - d * 0.015;   // wandering in and out,
+      if (bl <= 0 && er() < 0.006){ bn = bl = 8 + (er() * 40 | 0); bd = 0.15 + er() * 0.35; } const bite = bl > 0 ? bd * Math.sin(Math.PI * (1 - --bl / bn)) : 0;   // here and there bitten deeper by the grass,
+      const r = 6.25 + d - bite - (0.01 + 0.08 * er() * er()); P_.push(Math.cos(a) * r, 0, Math.sin(a) * r); NN.push(0, 1, 0); U_.push(Math.cos(a) * r / 13 + 0.5, -Math.sin(a) * r / 13 + 0.5); }   // and ragged every couple of centimetres
+    for (let i = 0; i < N; i++) I_.push(0, 1 + (i + 1) % N, 1 + i);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U_, 2)); g.setIndex(I_);
+    return new THREE.Mesh(g, flatMat(ct, '#d8ccb8', 0.9, -3)); })();
   worn.position.set(TREE.x, 0.014, TREE.z); worn.receiveShadow = true; scene.add(worn);
 }
 
@@ -3423,18 +3429,62 @@ const VINE = { leaves: [], berries: [] };
   const stems = new THREE.Mesh(mergeGeometries(wood), woodM); stems.castShadow = stems.receiveShadow = true; scene.add(stems);
   const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(twigs, 3));
   scene.add(new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: '#2e2622', transparent: true, opacity: 0.7 })));
-  // the leaf: five toothed leaflets from one point, drawn pale so the season can colour it
-  const vineLeafTex = tex(128, 128, (g, w, h) => { const bx = w / 2, by = h * 0.9;
-    for (let i = 0; i < 5; i++){ const a = (i - 2) * 0.62, L = h * (0.72 - Math.abs(i - 2) * 0.1), W = L * 0.24;
-      g.save(); g.translate(bx, by); g.rotate(a); g.beginPath(); g.moveTo(0, 0);
-      for (let k = 0; k <= 12; k++){ const t = k / 12, y = -L * t, x = W * Math.sin(Math.PI * Math.pow(t, 0.8)) * (k % 2 ? 1.08 : 0.94); g.lineTo(x, y); }
-      for (let k = 12; k >= 0; k--){ const t = k / 12, y = -L * t, x = -W * Math.sin(Math.PI * Math.pow(t, 0.8)) * (k % 2 ? 1.08 : 0.94); g.lineTo(x, y); }
-      g.fillStyle = '#d4dcc8'; g.fill(); g.strokeStyle = 'rgba(255,255,240,.55)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -L * 0.92); g.stroke();
-      g.strokeStyle = 'rgba(80,90,70,.35)'; g.lineWidth = 0.8; for (let k = 1; k < 6; k++){ const y = -L * k / 6.5; g.beginPath(); g.moveTo(0, y); g.lineTo(W * 0.8, y - 5); g.moveTo(0, y); g.lineTo(-W * 0.8, y - 5); g.stroke(); }
-      g.restore(); } });
-  const leafGeo = new THREE.PlaneGeometry(1, 1).translate(0, 0.42, 0);
-  VINE.leafMesh = new THREE.InstancedMesh(leafGeo, swayify(new THREE.MeshStandardMaterial({ map: vineLeafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.55 }), 0.22, 0.6), VINE.leaves.length);   // (the leaves are only 10-17 cm: a stronger sway, so their tips move a couple of cm, and a flutter of their own)
-  VINE.leafMesh.castShadow = VINE.leafMesh.receiveShadow = true; VINE.leafMesh.frustumCulled = false; scene.add(VINE.leafMesh);
+  // the leaf, after the plant: palmately compound, five leaflets on a long stalk, each leaflet elliptic with a wedge-shaped base and a
+  // drawn-out point, coarsely toothed along its upper two-thirds, eight or nine pairs of veins curving up to the teeth, the midrib pale;
+  // each leaflet on a short stalk of its own, a little folded along the midrib, its tip drooping. Drawn pale, so the season colours it
+  // (dark green all summer, crimson in autumn); in relief for the light; the sun shining through it from behind, the veins brightest; wet
+  // and beaded in the rain, like the chestnut's
+  const drawCreeper = (g, cx, by, hw0, L, mode = 'color') => {
+    const hw = t => (t < 0.58 ? 0.07 + 0.93 * Math.pow(Math.sin(t / 0.58 * Math.PI / 2), 1.5) : Math.pow(Math.max(0, Math.cos((t - 0.58) / 0.42 * Math.PI / 2)), 1.35)) * hw0;
+    const saw = x => x - Math.floor(x), tooth = t => t < 0.3 ? 1 : 1 + 0.13 * smooth((t - 0.3) / 0.08) * (1 - 0.4 * t) * (1 - saw((t - 0.3) * 17));   // (coarse teeth, pointing to the tip)
+    const veins = []; for (let k = 0; k < 9; k++){ const t0 = 0.07 + k * 0.086, t1 = Math.min(0.96, t0 + 0.17), x1 = hw(t1) * 0.97; for (const s of [-1, 1]) veins.push([cx, by - t0 * L, cx + s * x1 * 0.42, by - (t0 + 0.05) * L, cx + s * x1, by - t1 * L]); }
+    const vein = (v, dx = 0, dy = 0) => { g.beginPath(); g.moveTo(v[0] + dx, v[1] + dy); g.quadraticCurveTo(v[2] + dx, v[3] + dy, v[4] + dx, v[5] + dy); g.stroke(); };
+    g.save(); g.beginPath(); const N = 220;
+    for (let i = 0; i <= N; i++){ const t = i / N; g.lineTo(cx - hw(t) * tooth(t), by - t * L); }
+    for (let i = N; i >= 0; i--){ const t = i / N; g.lineTo(cx + hw(t) * tooth(t + 0.021), by - t * L); }
+    g.closePath();
+    if (mode === 'height'){ g.clip(); g.lineCap = 'round'; g.filter = `blur(${Math.max(1, hw0 / 30)}px)`;
+      g.strokeStyle = 'rgb(176,176,176)'; g.lineWidth = hw0 / 5; for (const v of veins) vein(v, 0, -hw0 / 9);   // (the blade puckered up between the veins)
+      g.strokeStyle = 'rgb(92,92,92)'; g.lineWidth = Math.max(2, hw0 / 13); for (const v of veins) vein(v);
+      g.strokeStyle = 'rgb(58,58,58)'; g.lineWidth = Math.max(3, hw0 / 7); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.96); g.stroke();
+      g.filter = 'none'; g.restore(); return; }
+    const gr = g.createLinearGradient(cx - hw0, 0, cx + hw0, 0); gr.addColorStop(0, '#d6dec4'); gr.addColorStop(0.5, '#ebf0de'); gr.addColorStop(1, '#d6dec4');
+    g.fillStyle = gr; g.fill(); g.save(); g.clip(); g.lineCap = 'round'; const r = mkRng(5157);
+    for (let i = 0; i < 40; i++){ g.fillStyle = r() < 0.5 ? 'rgba(110,128,88,0.07)' : 'rgba(255,255,240,0.08)'; g.beginPath(); g.ellipse(cx + (r() - 0.5) * hw0 * 1.6, by - r() * L, 4 + r() * 14, 3 + r() * 10, r() * 3, 0, TAU); g.fill(); }   // (dull, a little mottled)
+    g.strokeStyle = 'rgba(122,140,96,0.26)'; g.lineWidth = Math.max(1.5, hw0 / 8); for (const v of veins) vein(v, 0, -hw0 / 15);   // the blade bulging between the veins
+    g.strokeStyle = 'rgba(250,250,224,0.85)'; g.lineWidth = Math.max(0.9, hw0 / 30); for (const v of veins) vein(v);   // the veins, pale
+    g.strokeStyle = 'rgba(170,182,132,0.55)'; g.lineWidth = Math.max(2.4, hw0 / 10); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.96); g.stroke();
+    g.strokeStyle = 'rgba(252,250,220,1)'; g.lineWidth = Math.max(1.6, hw0 / 16); g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - L * 0.96); g.stroke();   // the midrib
+    g.restore(); g.strokeStyle = 'rgba(132,148,110,0.6)'; g.lineWidth = 1.1; g.stroke(); g.restore(); };
+  const creeperTex = tex(320, 512, (g, w, h) => { g.clearRect(0, 0, w, h); drawCreeper(g, 190, h - 3, 112, h - 12); g.fillStyle = '#cdbf9c'; g.fillRect(0, 0, 24, h); }, {});   // (the leaflet in x 64-320; a strip of stalk colour at x 0-24)
+  const creeperNrm = reliefNormals(320, 512, (g, w, h) => drawCreeper(g, 190, h - 3, 112, h - 12, 'height'));
+  creeperTex.wrapS = creeperTex.wrapT = creeperNrm.wrapS = creeperNrm.wrapT = THREE.ClampToEdgeWrapping;
+  const U0 = 64 / 320, US = 256 / 320, LP = 0.3, LC = 0.62;   // (a leaf is about a unit at its scale: the stalk 0.3, the middle leaflet 0.62, half as wide as long)
+  // one leaf: the stalk up and out from the wall, the leaflets fanned round its end in the blade's plane (x, y); z faces the yard
+  const build = (droop, fold, seed) => { const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), Pp = [], U = [], I = [];
+    const v = (x, y, z, u, w) => { Pp.push(x, y, z); U.push(u, w); return Pp.length / 3 - 1; };
+    const C = new V3(0, LP * 0.72, LP * 0.7);
+    for (const sd of [new V3(1, 0, 0), new V3(0, -0.7, 0.72)]){ const a = v(-sd.x * 0.006, -sd.y * 0.006, -sd.z * 0.006, 0.01, 0.1), b = v(sd.x * 0.006, sd.y * 0.006, sd.z * 0.006, 0.08, 0.1), c = v(C.x + sd.x * 0.004, C.y + sd.y * 0.004, C.z + sd.z * 0.004, 0.08, 0.9), d = v(C.x - sd.x * 0.004, C.y - sd.y * 0.004, C.z - sd.z * 0.004, 0.01, 0.9);
+      I.push(a, b, c, a, c, d); }   // the stalk: two crossed ribbons
+    const ang = [0, -0.92, 0.92, -1.85, 1.85], len = [1, 0.86, 0.86, 0.64, 0.64];   // (the middle one forward, a pair either side, the smallest pair out to the sides and back)
+    ang.forEach((a0, k) => { const a = a0 + rn(-0.1, 0.1), L = LC * len[k] * rn(0.93, 1.05), W = L * 0.51, d = new V3(Math.sin(a), Math.cos(a), 0), e = new V3(Math.cos(a), -Math.sin(a), 0);
+      const dr = droop * rn(0.8, 1.2) * (0.75 + 0.25 * len[k]), tw = rn(-0.15, 0.15), base = Pp.length / 3, S0 = C.clone().addScaledVector(d, 0.025);
+      for (const t of [0, 0.33, 0.66, 1]) for (const u of [-1, 0, 1]){   // rising a little from its stalk, then drooping; folded up along the midrib; a slight twist
+        const z = L * (0.14 * t - dr * t * t) + Math.abs(u) * W * 0.5 * fold * (0.35 + t) + u * tw * W * 0.5 * t, p = S0.clone().addScaledVector(d, t * L).addScaledVector(e, u * W * 0.5);
+        v(p.x, p.y, p.z + z, U0 + US * (0.5 + u * 0.5), t); }
+      for (let rI = 0; rI < 3; rI++) for (let cI = 0; cI < 2; cI++){ const q = base + rI * 3 + cI; I.push(q, q + 1, q + 3, q + 1, q + 4, q + 3); } });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); g.computeVertexNormals(); return g; };
+  const vmat = leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: creeperTex, normalMap: creeperNrm, normalScale: new THREE.Vector2(1, 1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5 }), 0.22, 0.6)), true, false, [0.6, 0.6]);   // (the leaves are only 10-17 cm: a stronger sway, so their tips move a couple of cm, and a flutter of their own)
+  shaderChain(vmat, 'mipA0.45', (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', `#ifdef USE_MAP
+    { vec2 ts = vec2(textureSize(map, 0)), gx = dFdx(vMapUv * ts), gy = dFdy(vMapUv * ts); diffuseColor.a *= 1.0 + max(0.0, 0.5 * log2(max(max(dot(gx, gx), dot(gy, gy)), 1e-8))) * 0.45; }
+    #endif
+    #include <alphatest_fragment>`); });   // (further off, a thin leaflet's averaged alpha would fall under the test and it would vanish: made up for)
+  const vgeos = [build(0.16, 0.22, 31), build(0.3, 0.27, 32), build(0.46, 0.3, 33)], vr2 = mkRng(4417), vmap = VINE.leaves.map(() => (vr2() * 3) | 0), cnt = [0, 0, 0], jm = vmap.map(k => cnt[k]++);   // (three shapes, the leaves dealt among them by their own random numbers)
+  const vmeshes = vgeos.map((g, k) => { const m = new THREE.InstancedMesh(g, vmat, Math.max(1, cnt[k])); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
+  VINE.leafMeshes = vmeshes;
+  VINE.leafMesh = { setMatrixAt(i, M){ vmeshes[vmap[i]].setMatrixAt(jm[i], M); }, setColorAt(i, c){ vmeshes[vmap[i]].setColorAt(jm[i], c); },
+    instanceMatrix: { set needsUpdate(b){ for (const m of vmeshes) m.instanceMatrix.needsUpdate = b; } }, instanceColor: { set needsUpdate(b){ for (const m of vmeshes) if (m.instanceColor) m.instanceColor.needsUpdate = b; } },
+    set visible(b){ for (const m of vmeshes) m.visible = b; } };
   const e = new THREE.Euler(), q = new THREE.Quaternion();
   for (const L of VINE.leaves){ e.set(L.tilt, -Math.PI / 2 + L.yaw, L.roll, 'YXZ'); L.q = new THREE.Quaternion().setFromEuler(e); }   // facing the yard
   VINE.leafMesh.setColorAt(0, new THREE.Color());
@@ -4561,8 +4611,8 @@ var blockMats = [];
       const dome = colorize(new THREE.ConeGeometry(3.0, 5.5, 14).toNonIndexed(), pick(ROOF)); dome.translate(cx, 23.75, cz); roofs.push(dome); }
   }
   { const sv = seed; seed = 19840777;   // the gaps at the corners of the blocks near us closed (so no courtyard shows through, and nothing leans on air): a facade just behind the houses' own, drawn apart
-    for (let gx = -3; gx <= 3; gx++) for (let gz = 0; gz <= 2; gz++){ const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK, t = 0.3, i_ = 0.12, Hf = 18.9;
-      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 + i_ + t / 2, BLOCK - 2 * i_, t], [(x0 + x1) / 2, z1 - i_ - t / 2, BLOCK - 2 * i_, t], [x0 + i_ + t / 2, (z0 + z1) / 2, t, BLOCK - 2 * i_], [x1 - i_ - t / 2, (z0 + z1) / 2, t, BLOCK - 2 * i_]]){
+    for (let gx = -3; gx <= 3; gx++) for (let gz = 0; gz <= 2; gz++){ const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK, t = 0.3, i_ = 0.35, Hf = 18.9, sd = BLOCK - 2 * (i_ + t);   // (well behind the fronts, and the four never overlapping: no two faces in one plane to flicker)
+      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 + i_ + t / 2, BLOCK - 2 * i_, t], [(x0 + x1) / 2, z1 - i_ - t / 2, BLOCK - 2 * i_, t], [x0 + i_ + t / 2, (z0 + z1) / 2, t, sd], [x1 - i_ - t / 2, (z0 + z1) / 2, t, sd]]){
         const g = boxUV(w, Hf, d, 3.6); colorize(g, pick(PAL)); g.translate(cx, Hf / 2, cz); bodies.push(g); } }
     seed = sv; }
   // our side of Stabu iela: the street-front houses whose backs close the yard, with the gateway the lane runs out through
@@ -6995,6 +7045,7 @@ function frame(){
     if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { if (q.get('bikeat')){ const v = q.get('bikeat').split(',').map(Number); BIKE.st.x = v[0]; BIKE.st.z = v[1]; if (v.length > 2) BIKE.st.head = cam.yaw = v[2]; } const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.has('bikehold')) window.__bs = sx; if (q.has('noui')){ const st_ = document.createElement('style'); st_.textContent = 'body > *:not(canvas){ display: none !important; }'; document.head.appendChild(st_); } const waitRide = fn => { const iv = setInterval(() => { if (BIKE.riding){ clearInterval(iv); setTimeout(fn, 1500); } }, 200); }; if (q.get('bikeside')) waitRide(() => window.__camLock = () => { const [an, di, hh, ly] = q.get('bikeside').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(ly || 0.3); return [c, yawTo(c, lk), -Math.atan2(hh - (ly || 0.3), Math.hypot(c.x - lk.x, c.z - lk.z))]; }); if (q.get('bikedown')) waitRide(() => window.__camLock = () => [camera.position.clone(), cam.yaw + +(q.get('bikedy') || 0), +q.get('bikedown')]); if (q.get('bikep')){ cam.pitch = +q.get('bikep'); setTimeout(() => { cam.pitch = +q.get('bikep'); }, 1500); } if (q.get('bikey')) cam.yaw += +q.get('bikey');
       console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikepark')){ BIKE.parkHere(); setTimeout(() => console.log('BIKE parked at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'rot', [BIKE.root.rotation.x, BIKE.root.rotation.y].map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'riding', BIKE.riding), 1200); if (q.get('bikecam')) setTimeout(() => { const [an, di, hh] = q.get('bikecam').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.4); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.4, di)]; }, 1300); }
       if (q.has('bikeesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => console.log('BIKE after Esc: riding', BIKE.riding, 'bike at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode), 1200); } }, 900); }, 400);   // debug: ?bikeride[&bikesim=frames&bikesteer=-1..1&bikep=pitch&bikey=look]
+    if (q.get('cam')){ const [x, y, z, yw, pt] = q.get('cam').split(',').map(Number); window.__camLock = [new V3(x, y, z), yw, pt]; } if (q.has('noui')){ const st_ = document.createElement('style'); st_.textContent = 'body > *:not(canvas){ display: none !important; }'; document.head.appendChild(st_); }   // debug: a fixed view
     if (q.get('bikelook')) setTimeout(() => { if (q.get('bikepaint')){ const [m, r, e, cr] = q.get('bikepaint').split(',').map(Number); for (const M of [BIKE.paint, BIKE.paintDS]){ M.metalness = m; M.roughness = r; if (cr >= 0) M.clearcoatRoughness = cr; } BIKE.paintEnv = e; } if (q.get('bikeput')){ const [x, z, y] = q.get('bikeput').split(',').map(Number); BIKE.root.position.x = x; BIKE.root.position.z = z; BIKE.root.rotation.y = y; } const [an, di, hh] = q.get('bikelook').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.5); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.5, di)]; }, 600);   // debug: look at the bike
     if (q.has('smokelog')) console.log('SMOKE chimneys', CHIMNEYS.length, 'smoking', CHSMOKE.CH.filter(c => c.k > 0.3).length, 'puffs', CHSMOKE.mesh.geometry.instanceCount);
     if (q.get('mariat')){ const it = MARIGOLD.items[+q.get('mariat') || 0], d = +(q.get('marid') || 1.0), e = new V3(it.p.x + d * 0.8, 1.6, it.p.z + d * 0.6); const cy = +(q.get('maricamy') || 0.9); place(e, yawTo(e, it.p), -Math.atan2(cy - it.p.y - 0.15, d)); setTimeout(() => { mode = 'free'; camera.position.y = cy; }, 300); }
