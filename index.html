@@ -519,7 +519,7 @@ function drawDoor(g, w, X, Y, S){
   const pwid = S(0.34), ph = S(0.12), px = x0 + dw / 2 - pwid / 2, py = yt + S(0.1);                       // the enamelled number plate
   g.fillStyle = '#e8e8e8'; g.fillRect(px - 1.5, py - 1.5, pwid + 3, ph + 3); g.fillStyle = '#1d3b86'; g.fillRect(px, py, pwid, ph);
   g.fillStyle = '#f2f2f2'; g.font = `bold ${Math.round(ph * 0.78)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(w.cx < BW / 2 ? '1-12' : '13-24', px + pwid / 2, py + ph / 2 + 0.5); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillText(w.cx < BW / 2 ? '1-9' : '10-17', px + pwid / 2, py + ph / 2 + 0.5); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   const gap = S(0.035), lw = (dw - gap) / 2, ly = yt + tr, lh = yb - ly;
   for (let k = 0; k < 2; k++){ const lx = x0 + k * (lw + gap), m = S(0.12), iw = lw - 2 * m, at = v => ly + S(v);
     g.fillStyle = dark; g.fillRect(lx + m - S(0.02), at(0.1) - S(0.02), iw + S(0.04), S(0.42));                 // the glass, in its rebate
