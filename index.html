@@ -3226,14 +3226,15 @@ const ROWAN_FB = (() => { const fr = mkRng(6171), frn = (a, b) => a + (b - a) * 
     sh.fragmentShader = 'uniform float uSnow; varying vec2 vCorner; varying vec3 vPole; varying float vBerry;\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec3 nS = vec3(0.0, 0.0, 1.0);
-        if (vBerry > 0.5){ float rr = dot(vCorner, vCorner) * 1.1236; if (rr > 1.0) discard; nS = normalize(vec3(vCorner * 1.06, sqrt(1.0 - rr)));   // the berry's round face
+        if (vBerry > 0.5){ float rr = dot(vCorner, vCorner) * 1.1236; if (rr > 1.0) discard; nS = normalize(vec3(vCorner * 0.95, sqrt(1.0 - rr * 0.8)));   // the berry's round face (its rim not quite edge-on: no glints round it)
           vec3 Pl = normalize(vPole), W = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0)), T = normalize(cross(Pl, W + vec3(1e-3, 0.0, 0.0))), B = cross(Pl, T);
           float sa = acos(clamp(dot(nS, Pl), -1.0, 1.0)), ph = atan(dot(nS, B), dot(nS, T)), lim = 0.17 + 0.11 * max(0.0, cos(5.0 * ph));   // the star of the calyx, five-pointed
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035, 0.02, 0.012), 1.0 - smoothstep(lim - 0.035, lim + 0.01, sa));
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.98), clamp(uSnow * 1.3, 0.0, 1.0) * smoothstep(0.45, 0.9, dot(nS, W))); }   // (and a cap of snow in winter)`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n if (vBerry > 0.5) roughnessFactor = mix(roughnessFactor, 0.8, clamp(fwidth(vCorner.x) * 2.5, 0.0, 1.0));')   // (the smaller a berry on the screen, the duller: its highlight would only sparkle)
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n if (vBerry > 0.5) normal = nS;'); });
   const flMat = (near) => lodify(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: flTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 }), 0.22, 0.15)), near);
-  const beN = lodify(berryShade(swayify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.26 }), 0.22, 0.1)), true, lodU.d);
+  const beN = lodify(berryShade(swayify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32 }), 0.22, 0.1)), true, lodU.d);
   const litUp = (mat) => shaderChain(mat, 'rowanCardUp', (sh) => { sh.uniforms.uSnow = snowU; sh.fragmentShader = 'uniform float uSnow;\n' + sh.fragmentShader
     .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz) + vec3(0.0, 0.0, 0.7));')
     .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.98), clamp(uSnow * 1.3, 0., 1.) * 0.35 * smoothstep(0.6, 1.0, diffuseColor.r + diffuseColor.g));'); });
