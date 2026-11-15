@@ -5636,6 +5636,8 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const sp = []; for (let i = 0; i < 36; i++){ const side = i % 2 ? 1 : -1, a = i / 36 * TAU, lead = (i % 4 < 2 ? 1 : -1) * 3 * TAU / 36;   // thirty-six spokes, laced three-cross
       sp.push(rod(P(Math.cos(a + lead) * 0.024, Math.sin(a + lead) * 0.024, side * 0.03), P(Math.cos(a) * (Rw - 0.042), Math.sin(a) * (Rw - 0.042), 0), 0.0011, 0.0011, 3)); }
     for (let i = 0; i < 36; i++){ const a = i / 36 * TAU, c = Math.cos(a), sn = Math.sin(a); sp.push(rod(P(c * (Rw - 0.05), sn * (Rw - 0.05), 0), P(c * (Rw - 0.04), sn * (Rw - 0.04), 0), 0.0019, 0.0016, 6)); }   // the spokes' nipples
+    { const vd = P(Math.cos(TAU / 72), Math.sin(TAU / 72)), at = r => vd.clone().multiplyScalar(r);   // the valve, for pumping up the tyre
+      sp.push(rod(at(Rw - 0.041), at(Rw - 0.068), 0.0027, 0.0027, 10), rod(at(Rw - 0.0472), at(Rw - 0.0506), 0.0054, 0.0054, 6), rod(at(Rw - 0.0655), at(Rw - 0.0805), 0.0043, 0.0041, 12), rod(at(Rw - 0.0805), at(Rw - 0.0822), 0.0035, 0.0026, 12)); }
     sp.push(rod(P(0, 0, -0.045), P(0, 0, 0.045), 0.015), rod(P(0, 0, -0.033), P(0, 0, -0.028), 0.028), rod(P(0, 0, 0.028), P(0, 0, 0.033), 0.028)); add(sp, chrome, g); return g; };
   const rearW = wheel(frame); rearW.position.copy(RH);
   const axleNuts = (c, z) => [rod(P(c.x, c.y, -z - 0.012), P(c.x, c.y, z + 0.012), 0.0042), ...[-1, 1].flatMap(sd => [nut(0.0108, 0.0075, sd * (z + 0.006), c.x, c.y), new THREE.CylinderGeometry(0.0128, 0.0128, 0.0018, 20).rotateX(Math.PI / 2).translate(c.x, c.y, sd * (z + 0.0012))])];
@@ -5647,8 +5649,12 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Pp, 3)); g.setIndex(I); g.computeVertexNormals();
     const m = new THREE.Mesh(g, paintDS); m.castShadow = true; parent.add(m); return m; };
   guard(RH, -0.12, 2.75, Rw + 0.03, frame);
-  add([-1, 1].map(s => rod(P(RH.x + Math.cos(2.45) * (Rw + 0.025), RH.y + Math.sin(2.45) * (Rw + 0.025), s * 0.034), P(RH.x, RH.y, s * 0.06), 0.0022)), chrome);   // its stays
-  { const rr = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.008, 16).rotateZ(Math.PI / 2), red); rr.position.set(RH.x + Math.cos(2.5) * (Rw + 0.045), RH.y + Math.sin(2.5) * (Rw + 0.045), 0); rr.rotation.z = 2.5 - Math.PI; frame.add(rr); }   // the red reflector
+  add([-1, 1].map(s => rod(P(RH.x + Math.cos(2.45) * (Rw + 0.025), RH.y + Math.sin(2.45) * (Rw + 0.025), s * 0.034), P(RH.x, RH.y, s * 0.06), 0.0024)), paint);   // its stays, painted like the frame
+  { const a = 2.58, n = P(Math.cos(a), Math.sin(a)), pg = RH.clone().addScaledVector(n, Rw + 0.03), dir = n.clone().multiplyScalar(0.35).add(P(-0.65, 0)).normalize(), c = pg.clone().addScaledVector(dir, 0.014);   // the red reflector, bolted to the mudguard's tail
+    add([new THREE.BoxGeometry(0.022, 0.0018, 0.015).applyQuaternion(qFrom(up, n)).translate(...pg.clone().addScaledVector(n, 0.0009).toArray()), rod(pg.clone().addScaledVector(n, -0.004), c.clone().addScaledVector(dir, -0.003), 0.0042),
+      nut(0.0045, 0.0035, 0).applyQuaternion(qFrom(Z, n)).translate(...pg.clone().addScaledVector(n, -0.0055).toArray()), new THREE.CylinderGeometry(0.0215, 0.0205, 0.008, 28).applyQuaternion(qFrom(up, dir)).translate(c.x, c.y, c.z),
+      new THREE.TorusGeometry(0.0196, 0.0018, 6, 32).applyQuaternion(qFrom(Z, dir)).translate(...c.clone().addScaledVector(dir, 0.004).toArray())], chrome);
+    const rr = new THREE.Mesh(new THREE.CylinderGeometry(0.0188, 0.0188, 0.004, 28).applyQuaternion(qFrom(up, dir)).translate(...c.clone().addScaledVector(dir, 0.0035).toArray()), red); rr.castShadow = true; frame.add(rr); }
   const ZC = 0.047, RC = 0.0127 / (2 * Math.sin(Math.PI / 48)), RS = 0.0127 / (2 * Math.sin(Math.PI / 18));   // (a half-inch chain: 48 teeth in front, 18 behind)
   const sprocket = new THREE.Mesh(new THREE.ExtrudeGeometry(gearShape(18, RS + 0.0036, RS - 0.0036, 0.012), { depth: 0.0026, bevelEnabled: false }).translate(0, 0, ZC - 0.0013), steelDk); sprocket.position.set(RH.x, RH.y, 0); sprocket.castShadow = true; frame.add(sprocket);
   const chain = (() => { const pts = [];
@@ -5698,7 +5704,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   add([new THREE.CylinderGeometry(0.0215, 0.0215, 0.011, 28).applyQuaternion(qFrom(up, axis)).translate(...HT.clone().addScaledVector(axis, -0.0145).toArray()), new THREE.CylinderGeometry(0.0195, 0.0195, 0.0075, 6).applyQuaternion(qFrom(up, axis)).translate(...HT.clone().addScaledVector(axis, -0.0235).toArray())], chrome);   // the top cup and the locknut
   add([...[-1, 1].map(s => tube([S_(crown).add(P(0, 0, s * 0.045)), S_(P(0.455, 0.47, s * 0.048)), S_(P(0.53, 0.37, s * 0.05)), S_(FH).add(P(0, 0, s * 0.05))], 0.0105, 16, 8))], paint, steer);
   const frontW = wheel(steer); frontW.position.copy(S_(FH));
-  { const fg = guard(S_(FH), 1.25, 3.55, Rw + 0.03, steer); add([-1, 1].map(s => rod(S_(P(FH.x + Math.cos(3.2) * (Rw + 0.025), FH.y + Math.sin(3.2) * (Rw + 0.025), s * 0.034)), S_(FH).add(P(0, 0, s * 0.06)), 0.0022)), chrome, steer); }
+  { const fg = guard(S_(FH), 1.25, 3.55, Rw + 0.03, steer); add([-1, 1].map(s => rod(S_(P(FH.x + Math.cos(3.2) * (Rw + 0.025), FH.y + Math.sin(3.2) * (Rw + 0.025), s * 0.034)), S_(FH).add(P(0, 0, s * 0.06)), 0.0024)), paint, steer); add(axleNuts(S_(FH), 0.06), chrome, steer); }   // (its stays painted; the axle's chrome nuts and washers outside the fork ends)
   const clamp0 = S_(P(0.31, 0.918)), grips = [];
   add([rod(S_(HT).addScaledVector(axis, -0.02), S_(HT).addScaledVector(axis, -0.075), 0.0125), rod(S_(HT).addScaledVector(axis, -0.07), clamp0, 0.0115), rod(clamp0.clone().add(P(0, 0, -0.035)), clamp0.clone().add(P(0, 0, 0.035)), 0.016),
     ...[-1, 1].map(s => tube([clamp0.clone().add(P(0, 0, s * 0.03)), clamp0.clone().add(P(-0.002, 0.008, s * 0.085)), clamp0.clone().add(P(-0.018, 0.075, s * 0.17)), clamp0.clone().add(P(-0.06, 0.122, s * 0.218)), clamp0.clone().add(P(-0.075, 0.127, s * 0.238))], 0.0108, 32, 8))], chrome, steer);
