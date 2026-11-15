@@ -3101,7 +3101,157 @@ const FRUITS = (() => { const fr = mkRng(9403), up = new V3(0, 1, 0);
           g.copy(t.g0).lerp(t.g1, ripe); t.ground.setXYZ(i, g.r, g.g, g.b); if (t.over) c.copy(t.over); else c.copy(g).lerp(F.c, ripe); t.n.setColorAt(i, c); t.f.setColorAt(i, c); });
         t.ground.needsUpdate = true; for (const m of [t.n, t.f]){ m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.visible = any; } } } };
 })();
-const LEAFY = [LILAC, HAZEL, ELDER, MOCK, CURRANT, GOOSE, APPLE_L, PEAR_L, PLUM_L, APPLE_B, PEAR_B, PLUM_B, MOCK_B, ELDERFLOW, CURRANT_STRINGS, VEG];
+/* ---------- the rowan just past the last garage, on the left of the building: one trunk, tall (to the top of the second floor) and
+   narrow, its branches climbing steeply; smooth grey bark dashed with lenticels. Its leaves are pinnate, a dozen toothed leaflets in
+   pairs along a stalk and one at the tip; out in early May, gold and orange-red in October, gone in November. In late May it is
+   covered in flat cream heads of tiny flowers; the berries set green in June, turn orange in August and scarlet in September, and stay
+   on all winter with snow on them, the birds taking them a few at a time until spring. From the last garage's roof you could reach them.
+   Own random numbers ---------- */
+const ROWAN = new V3(-14.7, 0, -131.15);
+const ROWAN_T = (() => { const rr = mkRng(6161), rn = (a, b) => a + (b - a) * rr(), up = new V3(0, 1, 0), segs = [], tips = [], H = 6.6;
+  const env = h => 1.8 * Math.pow(Math.max(0, 1 - Math.abs((h - 4.4) / 2.95) ** 2.6), 1 / 2.6);   // the crown's outline: a narrow oval, round at the top, from 1.45 m up
+  const seg = (a, b, r0, r1) => segs.push({ a: a.clone(), b: b.clone(), r0, r1 });
+  // the leader, wandering a little as it rises
+  let p = ROWAN.clone(), d = new V3(0.03, 1, -0.02).normalize(); const nodes = [];
+  for (let i = 0, n = 10; i < n; i++){ const t0 = i / n, t1 = (i + 1) / n, nx = p.clone().addScaledVector(d, H * 0.94 / n);
+    seg(p, nx, i === 0 ? 0.19 : lerp(0.135, 0.03, t0), lerp(0.135, 0.03, t1)); nodes.push({ p: p.clone(), d: d.clone(), t: t0 }); p = nx;
+    d.x += rn(-0.05, 0.05); d.z += rn(-0.05, 0.05); d.x -= (p.x - ROWAN.x) * 0.08; d.z -= (p.z - ROWAN.z) * 0.08; d.normalize(); }
+  tips.push({ p: p.clone(), d: d.clone() });
+  // a branch climbing out and up, forking twice, kept inside the crown's outline
+  const branch = (a, dir, len, rad, depth) => { let cur = a.clone(), dd = dir.clone(); const n = depth === 0 ? 3 : 2, mids = [];
+    for (let i = 0; i < n; i++){ dd.y += 0.06; dd.normalize(); let step = len / n, nx = cur.clone().addScaledVector(dd, step);
+      for (let it = 0; it < 4; it++){ const R = Math.hypot(nx.x - ROWAN.x, nx.z - ROWAN.z), lim = env(nx.y) * 1.02; if (R <= lim || R < 0.05) break;   // (bending up and in, and shorter, to stay inside the crown)
+        const inw = new V3(ROWAN.x - nx.x, 0, ROWAN.z - nx.z).normalize(); dd.multiplyScalar(0.6).addScaledVector(up, 0.35).addScaledVector(inw, 0.25).normalize(); step *= 0.8; nx = cur.clone().addScaledVector(dd, step); }
+      seg(cur, nx, lerp(rad, rad * 0.55, i / n), lerp(rad, rad * 0.55, (i + 1) / n)); dd = nx.clone().sub(cur).normalize();
+      if (nx.y > 2.2) for (let k = 0; k < 1; k++){ const q = cur.clone().lerp(nx, rn(0.2, 0.9)); tips.push({ p: q.add(new V3(rn(-0.15, 0.15), rn(0, 0.12), rn(-0.15, 0.15))), d: dd.clone().add(new V3(rn(-0.6, 0.6), 0.2, rn(-0.6, 0.6))).normalize(), spur: true }); }
+      cur = nx; mids.push({ p: cur.clone(), d: dd.clone() }); }
+    tips.push({ p: cur.clone(), d: dd.clone() });
+    if (depth >= 2) return;
+    const kids = 2;
+    for (let k = 0; k < kids; k++){ const m = mids[Math.min(mids.length - 1, k % mids.length)], [u, v] = perpBasis(m.d), az = rr() * TAU, sp = rn(0.35, 0.7);
+      const cd = m.d.clone().multiplyScalar(Math.cos(sp)).addScaledVector(u, Math.sin(sp) * Math.cos(az)).addScaledVector(v, Math.sin(sp) * Math.sin(az)); cd.y = Math.abs(cd.y) * 0.8 + 0.25; cd.normalize();
+      branch(m.p, cd, len * rn(0.45, 0.6), rad * 0.55, depth + 1); }
+    if (depth === 1) for (let k = 0; k < 2; k++){ const m = mids[k % mids.length]; tips.push({ p: m.p.clone().add(new V3(rn(-0.12, 0.12), rn(-0.05, 0.1), rn(-0.12, 0.12))), d: m.d.clone() }); } };   // (and leaves along the way)
+  // the scaffold branches, one round the leader after another, steep, the lower ones longer
+  for (let i = 0, n = 17, az = rr() * TAU; i < n; i++){ const h = lerp(1.75, 6.5, i / (n - 1)) + rn(-0.12, 0.12), nd = nodes.reduce((b, x) => Math.abs(x.p.y - h) < Math.abs(b.p.y - h) ? x : b), a = nd.p.clone().addScaledVector(nd.d, h - nd.p.y);
+    az += 2.4 + rn(-0.25, 0.25); const ang = lerp(0.85, 0.4, i / (n - 1)) + rn(-0.08, 0.08), dir = new V3(Math.sin(ang) * Math.cos(az), Math.cos(ang), Math.sin(ang) * Math.sin(az));
+    const reach = Math.max(0.5, env(h + 0.6) * 0.95), len = Math.min(2.6, reach / Math.sin(ang)) * rn(0.85, 1.05), rad = lerp(0.055, 0.022, i / (n - 1));
+    branch(a, dir, len, rad, 0); }
+  for (const t of tips){ if (t.spur) continue; for (let k = 0; k < 3; k++){ const [u, v] = perpBasis(t.d), az = rr() * TAU, sp = rn(0.3, 0.8), dd = t.d.clone().multiplyScalar(Math.cos(sp)).addScaledVector(u, Math.sin(sp) * Math.cos(az)).addScaledVector(v, Math.sin(sp) * Math.sin(az)); dd.y = Math.abs(dd.y) * 0.7 + 0.2; dd.normalize();
+    const a = t.p.clone().addScaledVector(t.d, -rn(0, 0.15)), m = a.clone().addScaledVector(dd, rn(0.14, 0.22)), e = m.clone().addScaledVector(dd.add(new V3(rn(-0.2, 0.2), 0.15, rn(-0.2, 0.2))).normalize(), rn(0.1, 0.18)); seg(a, m, 0.007, 0.005); seg(m, e, 0.005, 0.003); } }   // (the year's twigs)
+  // the wood: tapered tubes, the bark's lenticels the same size everywhere; the snow lies along the tops
+  const bark = tex(256, 512, (g, w, h) => { const r = mkRng(5151); g.fillStyle = '#6c665e'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 300; i++){ const x = r() * w, y = r() * h; g.fillStyle = `rgba(${r() < 0.5 ? '64,58,52' : '176,172,162'},${0.05 + r() * 0.1})`; g.fillRect(x, y, 2 + r() * 10, 30 + r() * 140); }   // faint streaks along it
+    for (let i = 0; i < 620; i++){ const x = r() * w, y = r() * h, l = 3 + r() * 10;   // the lenticels: short pale-rimmed dashes across
+      for (const dx of [0, -w]){ g.fillStyle = `rgba(66,58,50,${0.35 + r() * 0.35})`; g.fillRect(x + dx, y, l, 1.3 + r() * 1.3); g.fillStyle = 'rgba(206,200,188,0.28)'; g.fillRect(x + dx, y + 1.8, l, 0.9); } } });
+  const geos = segs.map(sg => { if ((sg.r0 + sg.r1) / 2 > 0.012) SNOWSEGS.push([sg.a.x, sg.a.y, sg.a.z, sg.b.x, sg.b.y, sg.b.z, (sg.r0 + sg.r1) / 2, 0]);
+    const len = sg.a.distanceTo(sg.b), rs = sg.r0 > 0.1 ? 12 : sg.r0 > 0.04 ? 8 : sg.r0 > 0.008 ? 5 : 3, g = new THREE.CylinderGeometry(sg.r1, sg.r0, len * 1.04, rs, 1, true), uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.max(1, Math.round(TAU * sg.r0 / 0.25)), uv.getY(i) * len / 0.5);
+    g.translate(0, len / 2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, sg.b.clone().sub(sg.a).normalize())); g.translate(sg.a.x, sg.a.y, sg.a.z); return g; });
+  const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: bark, roughness: 0.85 }), 1.3)); wood.castShadow = wood.receiveShadow = true; scene.add(wood);
+  // the leafy shoots round every twig's end, turned out from the trunk and up
+  const spots = [];
+  for (const t of tips){ const out = t.p.clone().sub(new V3(ROWAN.x, 4.2, ROWAN.z)); out.y *= 0.45; if (out.lengthSq() < 1e-4) out.set(rn(-1, 1), 0.3, rn(-1, 1)); out.normalize();
+    for (let k = 0; k < (t.spur ? 4 : 8); k++){ const off = new V3(rn(-1, 1), rn(-0.6, 0.9), rn(-1, 1)).normalize().multiplyScalar(rn(0.06, t.spur ? 0.25 : 0.45));
+      const dir = out.clone().multiplyScalar(0.75).addScaledVector(t.d, 0.45).addScaledVector(off.clone().normalize(), 0.6).addScaledVector(up, 0.25).normalize();
+      spots.push({ p: t.p.clone().add(off).addScaledVector(dir, -0.1), dir, k: rn(1.05, 1.3) }); } }
+  return { segs, tips, spots, wood, H };
+})();
+
+/* the leaf: some thirteen leaflets, six pairs along the stalk and one at the end, each long and narrow, sharply toothed but for its
+   base, a pale midrib and fine veins; the stalk reddish where it joins the twig */
+const rowanProf = t => t < 0.16 ? 0.42 + 0.58 * Math.sin(t / 0.16 * Math.PI / 2) : t < 0.66 ? 1 : Math.pow(Math.cos((t - 0.66) / 0.34 * Math.PI / 2), 0.8);
+const ROWAN_L = leafyBushes({ name: 'rowan', seed: 6163, tex: { w: 300, h: 512, len: 0.23 }, stemTex: '#9a8a6a',
+  draw: (g, mode) => { const RL = 400, leaflet = (len, mode) => paintBlade(g, { L: len, H: 15, prof: rowanProf, teeth: (t, s) => t < 0.22 || t > 0.96 ? 0 : 0.11 * saw(t * 15 + (s > 0 ? 0 : 0.5)) ** 1.6,
+      veins: pinnate(rowanProf, [0.14, 0.26, 0.38, 0.5, 0.62, 0.74], 0.1, 0.85), col: ['#d4dcbe', '#e2e8ca'], vc: 'rgba(246,248,222,0.36)' }, mode);
+    if (mode === 'color') stalk(g, 0, RL + 6, 6, 3, '#b8b48a'); else { g.strokeStyle = 'rgb(96,96,96)'; g.lineWidth = 4; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -RL); g.stroke(); }
+    for (let k = 0; k < 6; k++){ const t = 0.16 + k * 0.142, len = 108 * [0.72, 0.88, 0.97, 1, 1, 0.96][k], ang = 1.2 - k * 0.05;
+      for (const s of [-1, 1]){ g.save(); g.translate(0, -t * RL); g.rotate(s * ang); leaflet(len, mode); g.restore(); } }
+    g.save(); g.translate(0, -RL); leaflet(98, mode); g.restore(); },
+  shoot: { spiral: true, nodes: [[0.16, 0.86], [0.36, 0.96], [0.56, 1], [0.76, 0.96], [0.95, 0.88, true]], len: [0.24, 0.32], bend: 0.22, fwd: 0.5, face: [0.78, 0.6], droop: [0.16, 0.36], fold: [0.02, 0.1], stemW: 0.005, stemC: [0.62, 0.5, 0.4] },
+  spots: ROWAN_T.spots,
+  amt: [1.45, 1.78, 3.4, 3.64], keys: [[0.5, C('#5e6046')], [1.45, C('#a6c060')], [1.75, C('#78a448')], [2.1, C('#4c7e36')], [2.9, C('#4a7a34')], [3.1, C('#6a8632')]],
+  turn: { at: 3.02, span: 0.42, k: 0.92, yel: '#e8a426', brn: '#d2462a' }, rough: 0.55, nScale: 0.7, sway: [0.14, 0.32] });
+
+/* its flowers and berries, at the ends of the shoots. The flowers: a flat head of a hundred little cream flowers, five round petals and
+   a fuzz of stamens each, a few buds round the rim. The berries: a hanging dome of thirty or so, each with a dark five-pointed star at
+   its tip, on a stalk that reddens with them; drawn berry by berry near the eye, a painted card further off */
+const ROWAN_FB = (() => { const fr = mkRng(6171), frn = (a, b) => a + (b - a) * fr(), up = new V3(0, 1, 0), heads = [], bunch = [];
+  for (const sh of ROWAN_L.shoots){ if (sh.v < 0.8 || fr() > 0.4) continue; const out = sh.tip.clone().sub(sh.p); out.y = 0; if (out.lengthSq() < 1e-6) out.set(1, 0, 0); out.normalize();
+    heads.push({ p: sh.tip.clone(), q: new THREE.Quaternion().setFromUnitVectors(up, out.clone().multiplyScalar(frn(0.3, 0.8)).add(up).normalize()).multiply(new THREE.Quaternion().setFromAxisAngle(up, fr() * TAU)), s: frn(0.85, 1.15), r: fr(), vI: 0 });
+    if (fr() > 0.72) continue; const hang = out.clone().multiplyScalar(frn(0.35, 0.8)).add(new V3(0, -1, 0)).normalize();   // the berries hang, heavier
+    bunch.push({ p: sh.tip.clone().add(new V3(0, -0.015, 0)), q: new THREE.Quaternion().setFromUnitVectors(new V3(0, -1, 0), hang).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, -1, 0), fr() * TAU)), s: frn(0.85, 1.12), r: fr(), r2: fr(), vI: fr() * 3 | 0 }); }
+  const flTex = tex(256, 256, (g) => { g.clearRect(0, 0, 256, 256); g.fillStyle = '#a4ac6c'; g.fillRect(0, 0, 12, 12); const r = mkRng(43);   // (the stalks' colour in the corner)
+    const subs = [[128, 128, 40]].concat([0, 1, 2, 3, 4, 5].map(k => { const a = k * TAU / 6 + r() * 0.4; return [128 + Math.cos(a) * 72, 128 + Math.sin(a) * 72, 42]; }));
+    for (const [x, y, R] of subs) for (let i = 0; i < R * 1.5; i++){ const a = r() * TAU, dd = Math.sqrt(r()) * R, fx = x + Math.cos(a) * dd, fy = y + Math.sin(a) * dd, s = 5 + r() * 1.6;
+      if (dd > R * 0.82 && r() < 0.5){ g.fillStyle = '#eeeacc'; g.beginPath(); g.arc(fx, fy, 2.6, 0, TAU); g.fill(); continue; }   // a bud
+      g.fillStyle = ['#fdfbf0', '#f8f4e2', '#fffef6'][r() * 3 | 0]; for (let k = 0; k < 5; k++){ const b = k * TAU / 5 + fx; g.beginPath(); g.arc(fx + Math.cos(b) * s * 0.55, fy + Math.sin(b) * s * 0.55, s * 0.5, 0, TAU); g.fill(); }
+      g.fillStyle = '#d8d098'; g.beginPath(); g.arc(fx, fy, s * 0.3, 0, TAU); g.fill(); g.fillStyle = '#c8b468'; for (let k = 0; k < 7; k++){ const b = r() * TAU; g.fillRect(fx + Math.cos(b) * s * 0.55, fy + Math.sin(b) * s * 0.55, 1.2, 1.2); } } }, {});   // (the stamens' tips)
+  const beTex = tex(256, 256, (g) => { g.clearRect(0, 0, 256, 256); g.fillStyle = '#a07060'; g.fillRect(0, 0, 12, 12); const r = mkRng(47);   // (painted pale: the season colours them)
+    for (let i = 0; i < 110; i++){ const a = r() * TAU, dd = Math.sqrt(r()) * 108, x = 128 + Math.cos(a) * dd, y = 128 + Math.sin(a) * dd, s = 11 + r() * 3, gr = g.createRadialGradient(x - s * 0.35, y - s * 0.35, s * 0.1, x, y, s);
+      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, '#f0f0f0'); gr.addColorStop(1, '#9a9a9a'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, s, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(40,24,14,0.85)'; for (let k = 0; k < 5; k++){ const b = k * TAU / 5; g.fillRect(x + Math.cos(b) * 2 - 1, y + Math.sin(b) * 2 - 1, 2, 2); } } }, {});
+  // a head of flowers (domed up) or the far card of a bunch (hanging): a grid over a disc, with a few stalks
+  const Rh = 0.095, dome = (hang) => { const A = { P: [], U: [], I: [] }, F = { P: [], U: [], I: [] }, vtx = (B, p, u, v) => { B.P.push(p.x, p.y, p.z); B.U.push(u, v); return B.P.length / 3 - 1; };
+    const cy = (x, z) => { const q = 1 - Math.min(1, (x * x + z * z) / (Rh * Rh)); return hang ? -0.03 - 0.035 * q : 0.035 + 0.045 * q; };
+    const rib = (a, b, w) => { const s = new V3().crossVectors(b.clone().sub(a).normalize(), new V3(1, 0, 0)).normalize().multiplyScalar(w), i0 = vtx(A, a.clone().sub(s), 0.02, 0.98), i1 = vtx(A, a.clone().add(s), 0.03, 0.98), i2 = vtx(A, b.clone().add(s), 0.03, 0.96), i3 = vtx(A, b.clone().sub(s), 0.02, 0.96); A.I.push(i0, i1, i2, i0, i2, i3); };
+    if (!hang){ rib(new V3(), new V3(0, 0.03, 0), 0.0025); for (let k = 0; k < 5; k++){ const a = k * TAU / 5 + 0.3, x = Math.cos(a) * Rh * 0.55, z = Math.sin(a) * Rh * 0.55; rib(new V3(0, 0.03, 0), new V3(x, cy(x, z) - 0.005, z), 0.0013); } }
+    const base = A.P.length / 3; for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++){ const x = (i - 1) * Rh, z = (j - 1) * Rh; vtx(A, new V3(x, cy(x, z), z), i / 2, j / 2); }
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++){ const q = base + j * 3 + i; A.I.push(q, q + 1, q + 4, q, q + 4, q + 3); }
+    for (const [i, j] of [[0, 0], [2, 0], [2, 2], [0, 2]]){ const x = (i - 1) * Rh, z = (j - 1) * Rh; vtx(F, new V3(x, cy(0, 0) * 0.5 + cy(x, z) * 0.5, z), i / 2, j / 2); } F.I.push(0, 1, 2, 0, 2, 3);
+    return [A, F].map(B => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.U, 2)); g.setIndex(B.I); g.computeVertexNormals(); return g; }); };
+  // a bunch near to: thirty-odd berries packed over a dome hanging under the stalk, each a card that turns to the eye and is drawn as a
+  // round glossy berry, its dark star turned outwards, a little different in size and shade; the stalk and a few little stalks
+  const bunchGeo = (seed) => { const r = mkRng(seed), rn = (a, b) => a + (b - a) * r(), n = 46 + (r() * 16 | 0), Cc = new V3(0, -0.012, 0), Rc = 0.05, cmax = 1 - Math.cos(1.4);
+    const P = [], N = [], U = [], Co = [], K = [], BR = [], PO = [], I = [];
+    const stick = (a, b, w, c) => { const len = a.distanceTo(b), g = new THREE.CylinderGeometry(w * 0.7, w, len, 4, 1, true).translate(0, len / 2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, b.clone().sub(a).normalize())); g.translate(a.x, a.y, a.z);
+      const b0 = P.length / 3, pa = g.attributes.position, na = g.attributes.normal; for (let i = 0; i < pa.count; i++){ P.push(pa.getX(i), pa.getY(i), pa.getZ(i)); N.push(na.getX(i), na.getY(i), na.getZ(i)); U.push(0.5, 0.5); Co.push(...c); K.push(0, 0); BR.push(0); PO.push(0, 1, 0); }
+      for (const ix of g.index.array) I.push(b0 + ix); };
+    const hub = new V3(0, -0.026, 0); stick(new V3(0, 0.012, 0), hub, 0.0017, [0.42, 0.3, 0.24]);
+    for (let i = 0; i < n; i++){ const th = Math.acos(1 - (i + 0.5) / n * cmax), ph = i * 2.39996 + rn(-0.2, 0.2), dir = new V3(Math.sin(th) * Math.cos(ph), -Math.cos(th), Math.sin(th) * Math.sin(ph));
+      const c = Cc.clone().addScaledVector(dir, Rc * rn(0.84, 1.06)), br = rn(0.005, 0.0064), k = rn(0.86, 1.06), col = [k, k * rn(0.94, 1.03), k * rn(0.92, 1.02)]; if (i % 4 === 0) stick(hub, c, 0.0007, [0.45, 0.3, 0.24]);
+      const b0 = P.length / 3; for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]){ P.push(c.x, c.y, c.z); N.push(0, 0, 1); U.push(0.5 + 0.5 * cx, 0.5 + 0.5 * cy); Co.push(...col); K.push(cx, cy); BR.push(br); PO.push(dir.x, dir.y, dir.z); }
+      I.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); }
+    const g = new THREE.BufferGeometry(), A = (n_, a, k) => g.setAttribute(n_, new THREE.Float32BufferAttribute(a, k));
+    A('position', P, 3); A('normal', N, 3); A('uv', U, 2); A('color', Co, 3); A('aCorner', K, 2); A('aBR', BR, 1); A('aPole', PO, 3); g.setIndex(I); return g; };
+  const berryShade = (mat) => shaderChain(mat, 'rowanBerry', (sh) => { sh.uniforms.uSnow = snowU;
+    sh.vertexShader = 'attribute vec2 aCorner; attribute float aBR; attribute vec3 aPole; varying vec2 vCorner; varying vec3 vPole; varying float vBerry;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      vBerry = aBR > 0.0 ? 1.0 : 0.0; vCorner = aCorner;
+      if (aBR > 0.0 && dot(transformed, transformed) > 1e-10){ float isc = length(instanceMatrix[0].xyz); mvPosition.xy += aCorner * aBR * isc * 1.06; gl_Position = projectionMatrix * mvPosition; }   // (the card turned to the eye)
+      vPole = normalize(mat3(viewMatrix) * mat3(modelMatrix) * mat3(instanceMatrix) * aPole);`);
+    sh.fragmentShader = 'uniform float uSnow; varying vec2 vCorner; varying vec3 vPole; varying float vBerry;\n' + sh.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 nS = vec3(0.0, 0.0, 1.0);
+        if (vBerry > 0.5){ float rr = dot(vCorner, vCorner) * 1.1236; if (rr > 1.0) discard; nS = normalize(vec3(vCorner * 1.06, sqrt(1.0 - rr)));   // the berry's round face
+          vec3 Pl = normalize(vPole), W = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0)), T = normalize(cross(Pl, W + vec3(1e-3, 0.0, 0.0))), B = cross(Pl, T);
+          float sa = acos(clamp(dot(nS, Pl), -1.0, 1.0)), ph = atan(dot(nS, B), dot(nS, T)), lim = 0.17 + 0.11 * max(0.0, cos(5.0 * ph));   // the star of the calyx, five-pointed
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035, 0.02, 0.012), 1.0 - smoothstep(lim - 0.035, lim + 0.01, sa));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.98), clamp(uSnow * 1.3, 0.0, 1.0) * smoothstep(0.45, 0.9, dot(nS, W))); }   // (and a cap of snow in winter)`)
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n if (vBerry > 0.5) normal = nS;'); });
+  const flMat = (near) => lodify(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: flTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 }), 0.22, 0.15)), near);
+  const beN = lodify(berryShade(swayify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.26 }), 0.22, 0.1)), true, lodU.d);
+  const litUp = (mat) => shaderChain(mat, 'rowanCardUp', (sh) => { sh.uniforms.uSnow = snowU; sh.fragmentShader = 'uniform float uSnow;\n' + sh.fragmentShader
+    .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz) + vec3(0.0, 0.0, 0.7));')
+    .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.94, 0.98), clamp(uSnow * 1.3, 0., 1.) * 0.35 * smoothstep(0.6, 1.0, diffuseColor.r + diffuseColor.g));'); });
+  const beF = lodify(litUp(swayify(new THREE.MeshStandardMaterial({ map: beTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.35 }), 0.22, 0.1)), false, lodU.d);
+  const fl = lodSet(heads, [dome(false)], flMat(true), flMat(false), lodU.d, [3, 3]), card = dome(true)[1];
+  const be = lodSet(bunch, [0, 1, 2].map(k => [bunchGeo(6181 + k * 7), card]), beN, beF, lodU.d, [3, 3]);
+  // the berries' colours through the year: green in June and July, orange in August, scarlet in September, dark red in the snow, dull by spring
+  const BKEYS = [[1.95, C('#86a446')], [2.42, C('#a4ac3c')], [2.55, C('#e8a224')], [2.68, C('#f2701a')], [2.9, C('#e4461a')], [3.3, C('#d23418')], [4.4, C('#b42a16')], [5.3, C('#8e2a18')]];
+  const set = S => S >= 1.95 ? smooth((S - 1.95) / 0.14) : S < 1.45 ? 1 : 0, size = S => S >= 1.95 ? 0.45 + 0.55 * smooth((S - 1.95) / 0.45) : 1 - 0.08 * smooth((S - 0.6) / 0.6);
+  const left = S => S >= 1.95 ? 1 - 0.15 * smooth((S - 3.6) / 0.4) : 0.85 * (1 - smooth((S - 0.15) / 1.15));   // (the waxwings and the fieldfares take them through the winter)
+  const M = new THREE.Matrix4(), Sc = new V3(), col = new THREE.Color(), cream = C('#ffffff'), spent = C('#d8c8a0'), last = { s: -1 }, on = { f: false, b: false };
+  return { name: 'rowan flowers and berries', core: { count: 0 }, shoots: [], blocks: fl.blocks, tris: [[0, 0]], heads, bunch,
+    update(S){ if (Math.abs(S - last.s) < 0.002) return; last.s = S; const f = bump(S, 1.7, 1.78, 1.9, 1.99), st = set(S), lf = left(S), sz = size(S);
+      const only = !window.__bushonly || window.__bushonly === 'rowan'; on.f = f > 0 && only; on.b = st * lf > 0 && only;
+      col.copy(cream).lerp(spent, smooth((S - 1.88) / 0.1));
+      for (const h of heads){ const v = smooth(clamp((f * 1.25 - h.r) / 0.25)); M.compose(h.p, h.q, Sc.setScalar(h.s * v)); fl.set(h, M, col); }
+      cyc(S, BKEYS, col); const c2 = new THREE.Color();
+      for (const b of bunch){ const v = smooth(clamp((st * 1.25 - b.r) / 0.25)) * smooth(clamp((lf - b.r2 * 0.98) / 0.05)); M.compose(b.p, b.q, Sc.setScalar(b.s * v * sz)); be.set(b, M, c2.copy(col).multiplyScalar(0.94 + 0.12 * b.r)); }
+      fl.touch(); be.touch(); },
+    lod(){ fl.lod(on.f); be.lod(on.b); } };
+})();
+const LEAFY = [LILAC, HAZEL, ELDER, MOCK, CURRANT, GOOSE, APPLE_L, PEAR_L, PLUM_L, APPLE_B, PEAR_B, PLUM_B, MOCK_B, ELDERFLOW, CURRANT_STRINGS, VEG, ROWAN_L, ROWAN_FB];
 function updateOrchard(){
   const leafAmt = bump(S, 1.42, 1.85, 3.38, 3.93), young = 1 - smooth((S - 1.5) / 0.6), turnA = clamp((S - 3.0) / 0.5);
   FRUITS.update(S);
@@ -5621,6 +5771,9 @@ function jumpOrClimb(){
       body.mantle = { t: 0, dur: 0.55 + (top - body.feet) * 0.22, p0: p.clone(), p1, f0: body.feet, f1 }; sfx.step(surfKind, 1.2); return; } }
   body.vy = 5.2; body.fallFrom = body.feet;
 }
+// up on the last garage beside the rowan while it has berries
+function rowanCap(){ const said = body.roofSaid; if (mode !== 'walk' || said.rowan || body.feet < 1.5 || !(S >= 2.6 || S < 1.1)) return;
+  if (Math.hypot(camera.position.x - ROWAN.x, camera.position.z - ROWAN.z) < 2.7){ said.rowan = 1; caption('From the last garage you could reach the rowan. We often climbed up here to pick its berries.', 6); } }
 function onRoof(){ const k = surfKind, said = body.roofSaid;
   if (k === 'tar' && camera.position.x < -11 && !said.gar){ said.gar = 1; caption('Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.', 5); }
   else if (k === 'tin' && !said.tin){ said.tin = 1; caption('The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.', 6); }
@@ -5847,6 +6000,7 @@ const I18N = {   // English → [Russian, Latvian]
   'A chestnut — cool, glossy, the colour of a violin.': ['Каштан — прохладный, блестящий, цвета скрипки.', 'Kastanis — vēss, spīdīgs, vijoles krāsā.'],
   'Pockets full. Time for a fire.': ['Карманы полны. Пора разводить костёр.', 'Kabatas pilnas. Laiks kurt ugunskuru.'],
   // roofs
+  'From the last garage you could reach the rowan. We often climbed up here to pick its berries.': ['С последнего гаража можно было дотянуться до рябины. Мы часто залезали сюда за её ягодами.', 'No pēdējās garāžas varēja aizsniegt pīlādzi. Mēs bieži kāpām šeit augšā plūkt tā ogas.'],
   'Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.': ['На крышах гаражей — тёплый рубероид, ржавая жесть, вся дорога как на ладони.', 'Uz garāžu jumtiem — silts ruberoīds, rūsgans skārds, viss ceļš kā uz delnas.'],
   'The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.': ['Крыши мастерских: жесть гремит под ногами, а вокруг до горизонта — весь город.', 'Darbnīcu jumti: skārds dārd zem kājām, un visapkārt līdz apvārsnim — visa pilsēta.'],
   'We ran from roof to roof, and nobody could catch us.': ['Мы бегали с крыши на крышу, и никто не мог нас поймать.', 'Mēs skrējām no jumta uz jumtu, un neviens mūs nespēja noķert.'],
@@ -5978,6 +6132,7 @@ function walkStep(dt, mx, mz, sp_){
     } else body.push = 0;
     p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, STABU_FAR - 1.4);
     const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4 && body.feet < 1){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
+    { const rx = p.x - ROWAN.x, rz = p.z - ROWAN.z, rd = Math.hypot(rx, rz); if (rd < 0.45 && body.feet < 1.5){ p.x = ROWAN.x + rx / rd * 0.45; p.z = ROWAN.z + rz / rd * 0.45; } }   // (round the rowan's trunk)
     const gnd = surf(p.x, p.z);
     if (body.vy !== 0 || body.feet > gnd + 0.02){ if (body.vy === 0) body.fallFrom = body.feet; body.vy -= 17 * dt; body.feet += body.vy * dt; body.fallFrom = Math.max(body.fallFrom, body.feet);
       if (body.feet <= gnd){ const h = body.fallFrom - gnd; body.feet = gnd; body.vy = 0; sfx.step(surfKind, Math.min(2.5, 0.6 + h * 0.35));
@@ -6054,7 +6209,7 @@ function frame(){
   lastLeaf = sp.leaf;
   if (sp.nutfall > 0 && rng() < dt * 0.45 * sp.nutfall){ const t_ = pick(tree.tips); spawnNut(t_.p.clone().add(TREE)); }
   if (sp.petals > 0 && rng() < dt * 40 * sp.petals){ const t_ = pick(tree.tips); petals.spawn(TREE.x + t_.p.x + rnd(-0.8, 0.8), t_.p.y + rnd(0, 0.8), TREE.z + t_.p.z + rnd(-0.8, 0.8)); }
-  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod(); PANSY.lod(); MARIGOLD.lod(); CHESS.lod(); CHESS.play(dt);   // (near and far follow the eye as it moves)
+  petals.update(dt, t, wind); snowPuff.update(dt, t, wind * 0.3); lodU.eye.value.copy(camera.position); for (const B of LEAFY) B.lod(); GLAD.lod(); PANSY.lod(); MARIGOLD.lod(); CHESS.lod(); CHESS.play(dt); rowanCap();   // (near and far follow the eye as it moves)
   PETALFALL.update(dt, t, wind); CHSMOKE.update(dt, t, wind);
 
   // snowfall
