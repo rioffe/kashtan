@@ -2501,6 +2501,10 @@ function leafyBushes(o){
   const mkMat = (near) => lodify(leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafTex, normalMap: leafNrm, normalScale: new THREE.Vector2(o.nScale, o.nScale), vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: o.rough }), o.sway[0], o.sway[1])), true, false, ds), near);
   const mkDepth = (near) => lodify(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), near);   // (three copies the leaf's map and alpha test onto it)
   const matN = mkMat(true), matF = mkMat(false), depN = mkDepth(true), depF = mkDepth(false);
+  if (o.mipAlpha) for (const m of [matN, matF]) shaderChain(m, 'mipA' + o.mipAlpha, (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', `#ifdef USE_MAP
+    { vec2 ts = vec2(textureSize(map, 0)), gx = dFdx(vMapUv * ts), gy = dFdy(vMapUv * ts); diffuseColor.a *= 1.0 + max(0.0, 0.5 * log2(max(max(dot(gx, gx), dot(gy, gy)), 1e-8))) * ${o.mipAlpha}; }
+    #endif
+    #include <alphatest_fragment>`); });   // (leaves of thin leaflets: further off, their averaged alpha would fall under the test and they would vanish; the further, the more it is made up)
   const coreMat = new THREE.MeshStandardMaterial({ map: leafMassTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
   o.bushes = o.bushes || []; const core = new THREE.InstancedMesh(leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true; core.count = o.bushes.length;
 
@@ -3171,7 +3175,7 @@ const ROWAN_L = leafyBushes({ name: 'rowan', seed: 6163, tex: { w: 300, h: 512, 
   shoot: { spiral: true, nodes: [[0.16, 0.86], [0.36, 0.96], [0.56, 1], [0.76, 0.96], [0.95, 0.88, true]], len: [0.24, 0.32], bend: 0.22, fwd: 0.5, face: [0.78, 0.6], droop: [0.16, 0.36], fold: [0.02, 0.1], stemW: 0.005, stemC: [0.62, 0.5, 0.4] },
   spots: ROWAN_T.spots,
   amt: [1.45, 1.78, 3.4, 3.64], keys: [[0.5, C('#5e6046')], [1.45, C('#a6c060')], [1.75, C('#78a448')], [2.1, C('#4c7e36')], [2.9, C('#4a7a34')], [3.1, C('#6a8632')]],
-  turn: { at: 3.02, span: 0.42, k: 0.92, yel: '#e8a426', brn: '#d2462a' }, rough: 0.55, nScale: 0.7, sway: [0.14, 0.32] });
+  turn: { at: 3.02, span: 0.42, k: 0.92, yel: '#e8a426', brn: '#d2462a' }, rough: 0.55, nScale: 0.7, sway: [0.14, 0.32], mipAlpha: 0.45 });
 
 /* its flowers and berries, at the ends of the shoots. The flowers: a flat head of a hundred little cream flowers, five round petals and
    a fuzz of stamens each, a few buds round the rim. The berries: a hanging dome of thirty or so, each with a dark five-pointed star at
