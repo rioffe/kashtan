@@ -1342,20 +1342,20 @@ var roomLight, CHESS;
     const studG = new THREE.LatheGeometry([[0.0024, 0], [0.0024, 0.0015], [0.0022, 0.0017], [0, 0.0017]].map(([a, b]) => new THREE.Vector2(a, b)), 18).toNonIndexed();
     const studR = new THREE.LatheGeometry([[0.0024, 0], [0.0024, 0.0011], [0.00225, 0.00155], [0.0017, 0.00178], [0, 0.0018]].map(([a, b]) => new THREE.Vector2(a, b)), 18).toNonIndexed();   // (the caps' studs, rounded)
     const stud = (k, x, y, z, rz = 0, sg = studG) => { const g = sg.clone(); if (rz) g.rotateZ(rz); L[k].push(g.translate(x, y, z)); };
-    // the pieces: [kind, x0, x1, z0, z1, course, colour, which end slopes]; x across (studs from the middle), z from the tail to the nose
+    // the pieces: [kind, x0, x1, z0, z1, course, which way a slope faces]; x across (studs from the middle), z from the tail to the nose. A sloped
+    // brick is a row of studs (four, three or one) with a 45° slope beside it, two studs deep: red, or clear
     const PIECES = [
       ['axle', -2, 2, 1, 3, 0], ['brick', -2, 2, 3, 5, 0], ['brick', -2, 2, 5, 7, 0], ['brick', -2, 2, 7, 9, 0], ['brick', -2, 2, 9, 11, 0], ['axle', -2, 2, 11, 13, 0],
       ['brick', -1, 1, 13, 15, 0], ['brick', -4, 0, 15, 17, 0], ['brick', 0, 4, 15, 17, 0],                                     // the floor, the nose, the front wing
       ['brick', -2, 2, 0, 2, 1], ['brick', -1, 1, 2, 6, 1], ['brick', -3, -1, 4, 8, 1], ['brick', 1, 3, 4, 8, 1], ['brick', -1, 1, 6, 8, 1],   // gearbox, engine, sidepods
-      ['brick', -2, -1, 8, 10, 1], ['brick', 1, 2, 8, 10, 1], ['clear', -2, 2, 10, 12, 1],                                     // the cockpit's sides, the windscreen
-      ['slope', -1, 0, 12, 16, 1, 1], ['slope', 0, 1, 12, 16, 1, 1], ['brick', -4, -3, 15, 17, 1], ['brick', 3, 4, 15, 17, 1],   // the nose, the wing's endplates
-      ['brick', -1, 1, 0, 2, 2], ['slope', -1, 0, 2, 6, 2, -1], ['slope', 0, 1, 2, 6, 2, -1], ['brick', -1, 1, 6, 8, 2],         // the wing's post, the engine cover, the airbox
+      ['brick', -2, -1, 8, 10, 1], ['brick', 1, 2, 8, 10, 1], ['cslope', -2, 2, 10, 12, 1, '+z'],                              // the cockpit's sides, the windscreen (a clear 1x4)
+      ['brick', -1, 1, 12, 14, 1], ['slope', -1, 0, 14, 16, 1, '+z'], ['slope', 0, 1, 14, 16, 1, '+z'],                       // the nose: a 2x2, its sides two 1x1 slopes
+      ['brick', -4, -3, 15, 17, 1], ['brick', 3, 4, 15, 17, 1],                                                                 // the front wing's endplates
+      ['brick', -1, 1, 0, 2, 2], ['slope', -3, 0, 4, 6, 2, '-z'], ['slope', 0, 3, 4, 6, 2, '-z'], ['brick', -1, 1, 6, 8, 2],   // the wing's post, the tail (two 1x3 slopes), the airbox
       ['brick', -3, -2, 0, 2, 2], ['brick', 2, 3, 0, 2, 2], ['brick', -3, 0, 0, 2, 3], ['brick', 0, 3, 0, 2, 3]];               // the rear wing and its endplates
-    const occ = new Set(); for (const [kind, a, b, c, d, l] of PIECES) if (kind !== 'clear') for (let x = a; x < b; x++)   // (the studs under a clear piece show through it)
+    const occ = new Set(); for (const [kind, a, b, c, d, l] of PIECES) if (kind !== 'cslope') for (let x = a; x < b; x++)   // (the studs under a clear piece show through it)
       for (let z = c; z < d; z++) occ.add(x + ',' + z + ',' + l);
-    const prism = (k, pts, xA, wX, zA, yA) => { const sh = new THREE.Shape(pts.map(([u, v]) => new THREE.Vector2(u, v)));   // a profile in (along, up), extruded across
-      const g = new THREE.ExtrudeGeometry(sh, { depth: wX, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(xA + wX, yA, zA); L[k].push(g); };
-    // a clear piece as they were: walls a millimetre and a half thick round a hollow, open underneath (pts: its profile, along and up, anticlockwise from (0,0) along the bottom)
+    // a sloped brick as they were, red or clear: walls a millimetre and a half thick round a hollow, open underneath (pts: its profile, along and up, anticlockwise from (0,0) along the bottom)
     const shell = (pts, xA, xB, zA, t) => { const n = pts.length, E = i => [pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]];
       const M = pts.map((_, i) => { const [dx, dy] = E(i), l = Math.hypot(dx, dy); return [-dy / l, dx / l]; });                                  // each side's inward normal
       const Q = pts.map((_, j) => { const i = (j - 1 + n) % n, oi = i ? t : 0, oj = j ? t : 0, a = [pts[i][0] + M[i][0] * oi, pts[i][1] + M[i][1] * oi], b = [pts[j][0] + M[j][0] * oj, pts[j][1] + M[j][1] * oj];
@@ -1372,16 +1372,15 @@ var roomLight, CHESS;
       quad(V(xA, [q0, 0]), V(xA + t, [q0, 0]), V(xA + t, [q1, 0]), V(xA, [q1, 0]), Dn); quad(V(xB - t, [q0, 0]), V(xB, [q0, 0]), V(xB, [q1, 0]), V(xB - t, [q1, 0]), Dn);
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(PP, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(PP.length / 3 * 2), 2)); return g; };
-    const tubeG = new THREE.LatheGeometry([[0.0024, 0], [0.00325, 0], [0.00325, 1], [0.0024, 1]].map(([a, b]) => new THREE.Vector2(a, b)), 20).toNonIndexed();   // (the tubes inside that grip the studs below)
-    for (const [kind, a, b, c, d, l, end] of PIECES){ const y0 = B0 + l * H, X0 = a * P + G, X1 = b * P - G, Z0 = (c - ZC) * P + G, Z1 = (d - ZC) * P - G, k = kind === 'clear' ? 'clear' : 'red', tip = 0.0032;
+    for (const [kind, a, b, c, d, l, end] of PIECES){ const y0 = B0 + l * H, X0 = a * P + G, X1 = b * P - G, Z0 = (c - ZC) * P + G, Z1 = (d - ZC) * P - G, k = kind === 'cslope' ? 'clear' : 'red';
       let studs = [];
       if (kind === 'brick' || kind === 'axle'){ L.red.push(rbox3(X1 - X0, H, Z1 - Z0, 0.0004).translate((X0 + X1) / 2, y0 + H / 2, (Z0 + Z1) / 2)); for (let x = a; x < b; x++) for (let z = c; z < d; z++) studs.push([x, z]); }
-      else if (kind === 'slope'){ const len = Z1 - Z0, s = 2 * P - G;   // a 1x4 with its last two studs sloped away, to a thin edge
-        prism(k, end > 0 ? [[0, 0], [len, 0], [len, tip], [s, H], [0, H]] : [[0, 0], [len, 0], [len, H], [len - s, H], [0, tip]], X0, X1 - X0, Z0, y0);   // (each at its own course)
-        for (let z = end > 0 ? c : c + 2; z < (end > 0 ? c + 2 : d); z++) studs.push([a, z]); }
-      else { const len = Z1 - Z0, t = 0.0014; L.clear.push(shell([[0, 0], [len, 0], [len, tip], [P - G, H], [0, H]], X0, X1, Z0, t).translate(0, y0, 0));   // the clear slope: studs on its back row only
-        for (let x = a + 1; x < b; x++) L.clear.push(tubeG.clone().scale(1, H - t - 0.0012, 1).translate(x * P, y0, (c + 1 - ZC) * P));
-        for (let x = a; x < b; x++) studs.push([x, c]); }
+      else { const D = 2 * P - 2 * G, W = ((end === '+z' || end === '-z') ? b - a : d - c) * P - 2 * G, t = 0.0013, rh = H - t - 0.0005;   // a sloped brick, built facing +z, then turned
+        const parts = [shell([[0, 0], [D, 0], [D, 0.0016], [P - G, H], [0, H]], -W / 2, W / 2, -D / 2, t)];                                     // (45°, down to a thin lip)
+        for (const sx of [-1, 1]) for (const du of [-0.0008, 0.0008]) parts.push(new THREE.BoxGeometry(0.0008, rh, 0.0006).toNonIndexed().translate(sx * (W / 2 - t - 0.0004), rh / 2, -D / 2 + P / 2 + du));   // two little ribs inside each end
+        const g = mergeGeometries(parts); g.rotateY({ '+z': 0, '-z': Math.PI, '+x': Math.PI / 2, '-x': -Math.PI / 2 }[end]); L[k].push(g.translate((a + b) / 2 * P, y0, ((c + d) / 2 - ZC) * P));
+        const [xs, zs] = end === '+z' ? [[a, b], [c, c + 1]] : end === '-z' ? [[a, b], [d - 1, d]] : end === '+x' ? [[a, a + 1], [c, d]] : [[b - 1, b], [c, d]];   // the studs, on the row behind the slope
+        for (let x = xs[0]; x < xs[1]; x++) for (let z = zs[0]; z < zs[1]; z++) studs.push([x, z]); }
       for (const [x, z] of studs) if (!occ.has(x + ',' + z + ',' + (l + 1))) stud(k, (x + 0.5) * P, y0 + H, (z + 0.5 - ZC) * P); }
     // the wheels: black, with deep tread, on steel axles through the 2x4s' holes, each held by a grey 2x2 cap with its studs outward
     const R = 0.0145, TW = 0.0094, bev = 0.0006, N = 24, tread = [];
