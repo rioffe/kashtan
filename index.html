@@ -433,12 +433,18 @@ const GAR_X = -15.0, ROAD_X = -8.4, ROAD_W = 3.2, GX0 = -4.65, ROAD_Z0 = -126.4;
 // from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
 const LANE_END = -58, STABU_FRONT = -45, STABU_FAR = -33, GATE_X0 = -11.1, GATE_X1 = -4.7, PL = 17;   // back of the Stabu houses, their street front, the far kerb; the gateway; garden plot length
 const WOOD = { x0: GATE_X1, x1: 20.6, zb: -55.5, zf: -46.5 };   // the old wooden house on Stabu, right behind the gardens
-// the streets round our blocks (the town is a grid of blocks 46 m square, the streets 12 m between them), as far as I was allowed to ride:
-// out of the gateway onto Stabu iela, up the four cross streets north of it, and along the next two streets
-const CITY = { xs: [-88, -30, 28, 86], zs: [13, 71], x0: -88, x1: 98, z1: 83 };
-const onStreet = (x, z, m) => (x >= CITY.x0 + m && x <= CITY.x1 - m && (z <= STABU_FAR - m || CITY.zs.some(a => z >= a + m && z <= a + 12 - m))) || (z <= CITY.z1 - m && CITY.xs.some(a => x >= a + m && x <= a + 12 - m));
-const kerbY = (x, z) => { if (z < STABU_FRONT + 2.2) return z > STABU_FRONT - 0.01 && z < STABU_FRONT + 2.2 ? 0.14 : 0;   // (the pavement on our side of Stabu; elsewhere the ring round the nearest block)
-  const gx = Math.floor((x + 24) / 58), gz = Math.floor((z + 39) / 58), x0 = gx * 58 - 18, z0 = gz * 58 - 33; return gz >= 0 && x > x0 - 2.2 && x < x0 + 48.2 && z > z0 - 2.2 && z < z0 + 48.2 ? 0.14 : 0; };
+// the town: a grid of blocks 46 m square (block gx, gz: x from gx * 58 - 18, z from gz * 58 - 33), streets 12 m wide between them, cobbled,
+// with a pavement 2.2 m wide round every block. Ours is three by three blocks with no street through it: the Stabu houses, the yard, the
+// gardens, the workshops, our house, the lot behind it. I was allowed five blocks out from it every way, and no further
+const inHome = (x, z, m = 0) => x > -76 - m && x < 86 + m && z > -207 - m && z < -45 + m;
+const blockOn = (gx, gz) => gx >= -7 && gx <= 7 && gz >= -9 && gz <= 8 && !(gx >= -1 && gx <= 1 && gz >= -3 && gz <= -1) && (Math.hypot(gx * 58, gz * 58) <= 440 || gz <= 5);
+const TOWN = { x0: -6 * 58 - 18 - 12, x1: 6 * 58 + 28 + 12, z0: -8 * 58 - 33 - 12, z1: 4 * 58 + 13 + 12 };
+const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TOWN.z0 + m || z > TOWN.z1 - m || inHome(x, z, m)) return false;
+  const ax = Math.floor((x + 18) / 58), u = x + 18 - ax * 58, az = Math.floor((z + 33) / 58), v = z + 33 - az * 58;   // (not into a block, nor within m of its fronts)
+  for (const a of [u <= 46 + m ? ax : null, u >= 58 - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= 46 + m ? az : null, v >= 58 - m ? az + 1 : null]) if (b !== null && blockOn(a, b)) return false;
+  return true; };
+const kerbY = (x, z) => { if (inHome(x, z)) return 0; if (inHome(x, z, 2.2)) return 0.14;   // (our yard and lane on the ground; the pavement round our blocks; elsewhere the ring round the nearest block)
+  const gx = Math.floor((x + 24) / 58), gz = Math.floor((z + 39) / 58), x0 = gx * 58 - 18, z0 = gz * 58 - 33; return blockOn(gx, gz) && x > x0 - 2.2 && x < x0 + 48.2 && z > z0 - 2.2 && z < z0 + 48.2 ? 0.14 : 0; };
 const FIRE = new V3(TREE.x - 4.2, 0, TREE.z + 7.5);
 
 /* ============================== lights & sky ============================== */
@@ -482,6 +488,9 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
   gg.setAttribute('color', new THREE.BufferAttribute(col, 3));
   var groundMat = snowify(new THREE.MeshStandardMaterial({ map: grassTex, vertexColors: true, roughness: 1, color: '#7aa048' }));
   const ground = new THREE.Mesh(gg, groundMat); ground.receiveShadow = true; scene.add(ground);
+  { const g2 = new THREE.PlaneGeometry(900, 300, 120, 40); g2.rotateX(-Math.PI / 2); g2.translate(0, 0, -600); const p2 = g2.attributes.position, uv = g2.attributes.uv, c2 = new Float32Array(p2.count * 3);   // (on south past its edge, where the town goes on)
+    for (let i = 0; i < p2.count; i++){ const x = p2.getX(i), z = p2.getZ(i), n = 0.72 + 0.4 * fbm(x * 0.04 + 10, z * 0.04); c2[i * 3] = n * 1.02; c2[i * 3 + 1] = n; c2[i * 3 + 2] = n * 0.92; uv.setXY(i, x / 900 + 0.5, -z / 900 + 0.5); }
+    g2.setAttribute('color', new THREE.BufferAttribute(c2, 3)); const ground2 = new THREE.Mesh(g2, groundMat); ground2.receiveShadow = true; scene.add(ground2); }
 }
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
@@ -497,15 +506,16 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
   const st = dirtTex.clone(); st.repeat.set(160, 2.2); st.needsUpdate = true;   // Stabu iela: cobbles and old asphalt
   const street = new THREE.Mesh(new THREE.PlaneGeometry(900, STABU_FAR - STABU_FRONT).rotateX(-Math.PI / 2), flatMat(st, '#6c6862', 0.8, -1));
   street.position.set(0, 0.011, (STABU_FRONT + STABU_FAR) / 2); street.receiveShadow = true; scene.add(street);
-  for (const z of [STABU_FRONT + 1.1]){ const kerb = new THREE.Mesh(new THREE.BoxGeometry(900, 0.14, 2.2), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 })));
-    kerb.position.set(0, 0.07, z); kerb.receiveShadow = true; scene.add(kerb); } road.receiveShadow = true; scene.add(road);
+  road.receiveShadow = true; scene.add(road);   // (the pavement on our side of Stabu: the ring round our blocks, below)
   { // the town's other streets, cobbles and old asphalt between the blocks, and the pavement raised round every block near us
     const P_ = [], N_ = [], U_ = [], I_ = [], quad = (x0, x1, z0, z1) => { const b = P_.length / 3; for (const [x, z] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]){ P_.push(x, 0, z); N_.push(0, 1, 0); U_.push(x / 5.6, -z / 5.45); } I_.push(b, b + 2, b + 1, b, b + 3, b + 2); };
-    for (let gz = 0; gz <= 7; gz++){ quad(-450, 450, gz * 58 + 13, gz * 58 + 25); for (let gx = -7; gx <= 7; gx++) quad(gx * 58 + 28, gx * 58 + 40, gz * 58 - 33, gz * 58 + 13); }
+    for (let gz = -10; gz <= 7; gz++) if (gz !== -1){ const za = gz * 58 + 13; if (gz === -2 || gz === -3){ quad(-450, -76, za, za + 12); quad(86, 450, za, za + 12); } else quad(-450, 450, za, za + 12); }   // (along x; Stabu has its own)
+    for (let gz = -9; gz <= 7; gz++) for (let gx = -8; gx <= 7; gx++) if (!((gx === -1 || gx === 0) && gz >= -3 && gz <= -1)) quad(gx * 58 + 28, gx * 58 + 40, gz * 58 - 33, gz * 58 + 13);   // (along z, but not through ours)
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N_, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U_, 2)); g.setIndex(I_);
     const t2 = dirtTex.clone(); t2.repeat.set(1, 1); t2.needsUpdate = true; const town = new THREE.Mesh(g, flatMat(t2, '#6c6862', 0.8, -1)); town.position.y = 0.011; town.receiveShadow = true; scene.add(town);
-    const kb = []; for (let gx = -7; gx <= 7; gx++) for (let gz = 0; gz <= (Math.abs(gx) <= 3 ? 2 : 0); gz++){ const x0 = gx * 58 - 18, z0 = gz * 58 - 33, x1 = x0 + 46, z1 = z0 + 46;
-      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 - 1.1, 50.4, 2.2], [(x0 + x1) / 2, z1 + 1.1, 50.4, 2.2], [x0 - 1.1, (z0 + z1) / 2, 2.2, 46], [x1 + 1.1, (z0 + z1) / 2, 2.2, 46]]) kb.push(new THREE.BoxGeometry(w, 0.14, d).translate(cx, 0.07, cz)); }
+    const kb = [], rings = [[-76, 86, -207, -45]]; for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz)) rings.push([gx * 58 - 18, gx * 58 + 28, gz * 58 - 33, gz * 58 + 13]);
+    for (const [x0, z0_, x1, z1_] of rings.map(([a, b, c, d]) => [a, c, b, d])){ const z0 = z0_, z1 = z1_;   // (round every block, and round ours: the pavement on our side of Stabu)
+      for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 - 1.1, x1 - x0 + 4.4, 2.2], [(x0 + x1) / 2, z1 + 1.1, x1 - x0 + 4.4, 2.2], [x0 - 1.1, (z0 + z1) / 2, 2.2, z1 - z0], [x1 + 1.1, (z0 + z1) / 2, 2.2, z1 - z0]]) kb.push(new THREE.BoxGeometry(w, 0.14, d).translate(cx, 0.07, cz)); }
     const pave = new THREE.Mesh(mergeGeometries(kb), snowify(new THREE.MeshStandardMaterial({ color: '#9a958c', roughness: 0.95 }))); pave.receiveShadow = true; scene.add(pave); }
   // (no bare yard: in front of the house it is grass, with narrow asphalt paths — see 'paths and overgrowth' below)
   const ct = dirtTex.clone(); ct.repeat.set(3, 3); ct.needsUpdate = true;
@@ -3367,7 +3377,7 @@ function surf(x, z){
   for (const I of INDS){ if (Math.abs(x - I.cx) < I.hw && z > I.z0 - 0.35 && z < I.z1 + 0.35){ const y = I.H + I.peak * (1 - Math.abs(x - I.cx) / I.hw); if (y > h){ h = y; surfKind = 'tin'; } } }
   for (const s of SHEDS){ if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1){ const y = 2.25 - (z - s.zc) * 0.12; if (y > h){ h = y; surfKind = 'tar'; } } }
   if (Math.hypot(x + 27, z + 98) < 1.35){ h = 24; surfKind = 'tin'; }
-  if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3) && !(x > WOOD.x0 - 0.3 && x < WOOD.x1 + 0.3 && (z < WOOD.zb - 0.3 || z > WOOD.zf + 0.3))){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
+  if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && x > -76.3 && x < 86.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3) && !(x > WOOD.x0 - 0.3 && x < WOOD.x1 + 0.3 && (z < WOOD.zb - 0.3 || z > WOOD.zf + 0.3))){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
   return h;
 }
 // the soil of the raised beds and the round flower beds underfoot (0 off them), for the cat to walk over
@@ -4881,7 +4891,7 @@ var blockMats = [];
   const dome = (kind, R, segs, phi, x, y, z, col) => { const pr = DOMES[kind].map(([a, b]) => new THREE.Vector2(a * R, b * (kind === 'spire' ? 1 : Math.max(0.8, R / 1.6))));
     const g = new THREE.LatheGeometry(pr, segs, phi); g.translate(x, y, z); roofPiece(g, col);
     const cap = new THREE.CircleGeometry(pr[0].x, segs, Math.PI / 2 - phi); cap.rotateX(Math.PI / 2); cap.translate(x, y + 0.002, z); roofPiece(cap, col); };   // (closed underneath: no looking up into it)
-  const nearHome = (x, z) => Math.hypot(x - 5, z + 30) < 240, CORNER_H = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
+  const nearHome = (x, z) => x > TOWN.x0 - 30 && x < TOWN.x1 + 30 && z > TOWN.z0 - 30 && z < TOWN.z1 + 30, CORNER_H = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
 
   const building = (cx, cz, w, d, ry, col, rc, ends = {}) => {
     const off = Math.floor(rng() * 8);   // (the world's draws, as ever)
@@ -4961,10 +4971,8 @@ var blockMats = [];
     flat(FA, bot, [0, -1, 0], AN.UV(D.i * 4, 0.5, 28.6));
     dome(['helmet', 'onion', 'spire', 'lantern', 'helmet'][tr() * 5 | 0], R + 0.12, 8, Math.PI / 8, 0, yT, 0, DOMECOL[tr() * DOMECOL.length | 0].clone().multiplyScalar(0.85 + 0.2 * tr())); };
   const CELL = 58, BLOCK = 46, D = 13;
-  for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++){
+  const townBlock = (gx, gz) => {
     const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK;
-    if (x1 > -44 && x0 < 52 && z1 > -194 && z0 < LANE_END) continue;
-    if (Math.hypot((x0 + x1) / 2 - 5, (z0 + z1) / 2 + 10) > 440) continue;
     for (const [zz, ry] of [[z0 + D / 2, Math.PI], [z1 - D / 2, 0]]){ let x = x0;
       while (x1 - x >= 3.6){ const bays = Math.min(Math.floor((x1 - x) / 3.6), 3 + Math.floor(rng() * 4)), w0 = bays * 3.6, w = x1 - x - w0 < 3.6 ? x1 - x : w0; building(x + w / 2, zz, w, D, ry, pick(PAL), pick(ROOF), { lo: x === x0, hi: x1 - x - w < 0.01 }); x += w; } }
     for (const [xx, ry] of [[x0 + D / 2, -Math.PI / 2], [x1 - D / 2, Math.PI / 2]]){ let z = z0 + D;
@@ -4972,7 +4980,9 @@ var blockMats = [];
     { const tr = mkRng(gx * 7331 + gz * 977 + 11), corners = [[x0, z0, 1, 1], [x1, z0, -1, 1], [x0, z1, 1, -1], [x1, z1, -1, -1]]; let first = -1;
       if (rng() < 0.2){ const kx = rng() < 0.5 ? 0 : 1, kz = rng() < 0.5 ? 0 : 1, col = pick(PAL); pick(ROOF); first = kz * 2 + kx; const [kx_, kz_, ix, iz] = corners[first]; cornerTower(kx_, kz_, ix, iz, col, tr); }
       if (tr() < 0.32){ let k = tr() * 4 | 0; if (k === first) k = (k + 1) % 4; const [kx_, kz_, ix, iz] = corners[k]; cornerTower(kx_, kz_, ix, iz, PAL[tr() * PAL.length | 0], tr); } }
-  }
+  };
+  for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && Math.hypot(gx * CELL, gz * CELL) <= 440) townBlock(gx, gz);
+  { const sv = seed; seed = 19841117; for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && Math.hypot(gx * CELL, gz * CELL) > 440) townBlock(gx, gz); seed = sv; }
   { const sv = seed; seed = 19840777;   // the gaps at the corners of the blocks near us closed (so no courtyard shows through, and nothing leans on air): a facade just behind the houses' own, drawn apart
     for (let gx = -3; gx <= 3; gx++) for (let gz = 0; gz <= 2; gz++){ const x0 = gx * CELL - 18, z0 = gz * CELL - 33, x1 = x0 + BLOCK, z1 = z0 + BLOCK, t = 0.3, i_ = 0.35, Hf = 18.9, sd = BLOCK - 2 * (i_ + t);   // (well behind the fronts, and the four never overlapping: no two faces in one plane to flicker)
       for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 + i_ + t / 2, BLOCK - 2 * i_, t], [(x0 + x1) / 2, z1 - i_ - t / 2, BLOCK - 2 * i_, t], [x0 + i_ + t / 2, (z0 + z1) / 2, t, sd], [x1 - i_ - t / 2, (z0 + z1) / 2, t, sd]]){
@@ -6439,7 +6449,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   // where it leans: against the wall to the right of our entrance (the second, 10-17), the front wheel turned in to the wall
   const DOOR = new V3(9, 0, BZ), LEAN = { p: new V3(), rx: -0.24, ry: 0, steer: 0.42 };
   const benchIn = (x, z, m) => BENCHES.some(b => { const dx = x - b.x, dz = z - b.z, c = Math.cos(b.ry), sn = Math.sin(b.ry), lx = dx * c - dz * sn, lz = dx * sn + dz * c; return Math.abs(lx) < 0.97 + m && lz > -0.36 - m && lz < 0.25 + m; });   // (a bench: 1.9 m of slats, its back behind)
-  const blocked = (x, z) => (z > STABU_FRONT + 0.3 ? !onStreet(x, z, 0.35) : x < -33.6 || x > 33.6 || z < BZ + 0.85) || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6 && z < WOOD.zb - 0.3)   // (the garden fence: the plots, their flower beds)
+  const blocked = (x, z) => (!inHome(x, z, 0.3) ? !onStreet(x, z, 0.35) : x < -33.6 || x > 33.6 || z < BZ + 0.85) || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6 && z < WOOD.zb - 0.3)   // (the garden fence: the plots, their flower beds)
     || Math.hypot(x - TREE.x, z - TREE.z) < 0.95 || Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.35 || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.8
     || benchIn(x, z, 0.3) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
   const st = { riding: false, v: 0, steer: 0, head: Math.PI, lean: 0, crank: 0, roll: 0, x: 0, z: 0, bob: 0, tick: 0, pedal: 0, bump: 0 };
@@ -6458,8 +6468,8 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     if (z > -126 && z < LANE_END && x < GX0 - 0.215) out.push({ d: GX0 - 0.215 - x, n: P(-1, 0, 0), w: P(GX0 - 0.215, 0, z), k: 'fence' });
     if (Math.abs(x) < 17.9) box(-17.9, 17.9, BZ - 12, BZ + 0.015, 'wall');
     for (const I of INDS) box(I.x0, I.x1, I.z0, I.z1, 'workshop');
-    if (z > STABU_FRONT - 3){ box(-76, GATE_X0, LANE_END, STABU_FRONT, 'house'); box(WOOD.x1, 86, LANE_END, STABU_FRONT, 'house'); box(WOOD.x0, WOOD.x1, WOOD.zb, WOOD.zf, 'house');   // the houses in the town
-      for (let gx = -2; gx <= 2; gx++) for (let gz = 0; gz <= 2; gz++) box(gx * 58 - 18, gx * 58 + 28, gz * 58 - 33, gz * 58 + 13, 'house'); }
+    if (!inHome(x, z) || z > STABU_FRONT - 3){ box(-76, GATE_X0, LANE_END, STABU_FRONT, 'house'); box(-76, -63, -194, LANE_END, 'house'); box(73, 86, -194, LANE_END, 'house'); box(WOOD.x1, 86, LANE_END, STABU_FRONT, 'house'); box(WOOD.x0, WOOD.x1, WOOD.zb, WOOD.zf, 'house');   // the houses in the town
+      const ax = Math.floor((x + 24) / 58), az = Math.floor((z + 39) / 58); for (let gx = ax - 1; gx <= ax + 1; gx++) for (let gz = az - 1; gz <= az + 1; gz++) if (blockOn(gx, gz)) box(gx * 58 - 18, gx * 58 + 28, gz * 58 - 33, gz * 58 + 13, 'house'); }
     return out.filter(c => !lilacData.some(L => Math.hypot(c.w.x - L.p.x, c.w.z - L.p.z) < 0.95 * L.s + 0.8)); };   // (not into a lilac)
   const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
     wall: 'I leaned my bike against the wall.', house: 'I leaned my bike against the house.', workshop: 'I leaned my bike against the workshop wall.' };
@@ -6572,7 +6582,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const fx = -Math.sin(st.head), fz = -Math.cos(st.head), nx = st.x + fx * st.v * dt, nz = st.z + fz * st.v * dt;
     const ahead = Math.sign(st.v || 1) > 0 ? 0.7 : -0.6;
     if (!blocked(nx + fx * ahead, nz + fz * ahead) && !blocked(nx - fx * ahead * 0.85, nz - fz * ahead * 0.85)){ st.x = nx; st.z = nz; }
-    else if (Math.abs(st.v) > 0.05){ const bx = nx + fx * ahead, bz = nz + fz * ahead; if (bz > STABU_FRONT + 0.3 && (bx < CITY.x0 + 0.4 || bx > CITY.x1 - 0.4 || bz > CITY.z1 - 0.4) && clock.elapsedTime - (st.limitT ?? -99) > 9){ st.limitT = clock.elapsedTime; caption("That's as far as I was allowed to go: only round our blocks.", 3.5); }   // (the edge of where I could go)
+    else if (Math.abs(st.v) > 0.05){ const bx = nx + fx * ahead, bz = nz + fz * ahead; if (!inHome(bx, bz, 0.3) && (bx < TOWN.x0 + 0.4 || bx > TOWN.x1 - 0.4 || bz < TOWN.z0 + 0.4 || bz > TOWN.z1 - 0.4) && clock.elapsedTime - (st.limitT ?? -99) > 9){ st.limitT = clock.elapsedTime; caption("That's as far as I was allowed to go: five blocks from home, no further.", 3.5); }   // (the edge of where I could go)
       if (Math.abs(st.v) > 1.2) sfx.thunk(Math.min(0.3, Math.abs(st.v) * 0.05)); st.v *= -0.15; st.bump = 0.3; }
     const targ = -Math.atan(st.v * st.v * Math.tan(st.steer) / (9.8 * L)); st.lean += (clamp(targ, -0.5, 0.5) - st.lean) * Math.min(1, dt * 5);
     if (pedal) st.crank -= st.v / (Rw * SCL) / 2.4 * dt; else if (brake && st.v > 0.05) st.crank += dt * 0.6 * Math.max(0, 0.25 - (st.pedal += dt)); if (!brake) st.pedal = 0;
@@ -7083,7 +7093,7 @@ const I18N = {   // English → [Russian, Latvian]
   'I leaned my bike against the garden fence.': ['Я прислонил велосипед к забору огородов.', 'Es atbalstīju riteni pret dārziņu sētu.'],
   'I leaned my bike against the garages.': ['Я прислонил велосипед к гаражам.', 'Es atbalstīju riteni pret garāžām.'],
   'I leaned my bike against the house.': ['Я прислонил велосипед к стене дома.', 'Es atbalstīju riteni pret mājas sienu.'],
-  "That's as far as I was allowed to go: only round our blocks.": ['Дальше мне было нельзя: только вокруг наших кварталов.', 'Tālāk man nebija ļauts: tikai apkārt mūsu kvartāliem.'],
+  "That's as far as I was allowed to go: five blocks from home, no further.": ['Дальше мне было нельзя: не дальше пяти кварталов от дома.', 'Tālāk man nebija ļauts: ne tālāk par pieciem kvartāliem no mājām.'],
   'I leaned my bike against the wall.': ['Я прислонил велосипед к стене.', 'Es atbalstīju riteni pret sienu.'],
   'I leaned my bike against the workshop wall.': ['Я прислонил велосипед к стене мастерской.', 'Es atbalstīju riteni pret darbnīcas sienu.'],
   'I laid my bike down in the grass.': ['Я положил велосипед на траву.', 'Es noliku riteni zālē.'],
@@ -7219,7 +7229,8 @@ function walkStep(dt, mx, mz, sp_){
       walked = true; bob += dt * sp_ * 2.2;
       if (blockTop && mz > 0 && body.vy === 0 && (blockTop - body.feet < 2.95 || nearLadder())){ body.push += dt; if (body.push > 0.45) jumpOrClimb(); } else body.push = 0;
     } else body.push = 0;
-    if (p.z > STABU_FRONT + 0.3){ if (!onStreet(p.x, p.z, 0.3)){ if (onStreet(ox, p.z, 0.3)) p.x = ox; else if (onStreet(p.x, oz, 0.3)) p.z = oz; else { p.x = ox; p.z = oz; } } }   // (out in the town: the streets and the pavements)
+    if (!inHome(p.x, p.z, 0.3)){ if (!onStreet(p.x, p.z, 0.3)){ if (onStreet(ox, p.z, 0.3)) p.x = ox; else if (onStreet(p.x, oz, 0.3)) p.z = oz; else { p.x = ox; p.z = oz; } } }   // (out in the town: the streets and the pavements)
+    else if (!inHome(ox, oz, 0.3) && !(p.x > GATE_X0 && p.x < GATE_X1)){ p.x = ox; p.z = oz; }   // (into our yard only through the gateway)
     else { p.x = clamp(p.x, -33.6, 33.6); p.z = clamp(p.z, -148.6, STABU_FAR - 1.4); }
     const dx = p.x - TREE.x, dz = p.z - TREE.z, d = Math.hypot(dx, dz); if (d < 1.4 && body.feet < 1){ p.x = TREE.x + dx / d * 1.4; p.z = TREE.z + dz / d * 1.4; }
     { const rx = p.x - ROWAN.x, rz = p.z - ROWAN.z, rd = Math.hypot(rx, rz); if (rd < 0.45 && body.feet < 1.5){ p.x = ROWAN.x + rx / rd * 0.45; p.z = ROWAN.z + rz / rd * 0.45; } }   // (round the rowan's trunk)
