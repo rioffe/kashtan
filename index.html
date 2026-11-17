@@ -1255,7 +1255,7 @@ var roomLight, CHESS;
     room.add(fig);
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.036, 0.165, 12).translate(0, 0.0825, 0), new THREE.MeshBasicMaterial({ visible: false }));
     hit.userData.desk = 'fig'; fig.add(hit); desk.pick.push(hit);
-    desk.views.fig = { t: new THREE.Vector3(fx, ty + 0.085, fz), yaw: fig.rotation.y, pitch: 0.12, d: 0.3, yr: 1.35, p0: -0.25, p1: 1.2, d0: 0.13, d1: 0.5 };
+    desk.views.fig = { t: new THREE.Vector3(fx, ty + 0.085, fz), yaw: fig.rotation.y, pitch: 0.12, d: 0.3, yr: 1.35, y1: fig.rotation.y + 1.35 + Math.PI / 6, p0: -0.25, p1: 1.2, d0: 0.13, d1: 0.5 };   // (she turns 30° further clockwise than anticlockwise)
     { const fc = new URLSearchParams(location.search).get('figcam'); if (fc){ const v = fc.split(',').map(Number); window.__figcam = [v[0], v[1] || 0, v[2] || 0.09, { x: fx, y: ty, z: fz, ry: fig.rotation.y }, v[3]]; } }
     Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/libs/meshopt_decoder.module.js')]).then(([{ GLTFLoader }, { MeshoptDecoder }]) =>
       new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load('models/bather.glb', g => { const t0 = performance.now();
