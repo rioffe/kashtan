@@ -427,6 +427,7 @@ function drawStucco(g, w, h, ppm){
 /* ============================== world layout ============================== */
 const TREE = new V3(12, 0, -137);
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
+const DOWNPIPES = [-7.65, 7.65];   // (the downpipes: one by each stair, on its inner side)
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
 const GAR_X = -15.0, ROAD_X = -8.4, ROAD_W = 3.2, GX0 = -4.65, ROAD_Z0 = -126.4;   // the lane is 3.2 m wide and stops at the corner of the gardens (ROAD_Z0), where it splits into two paths;   // garages (x -18…-12) on the left brick row; 2 m verge; lane x -10…-5.8; 2 m verge; garden fence at -3.8
 // from the house to Stabu iela, scaled off the map: ~110 m to the middle of the street (it used to be 300)
@@ -522,7 +523,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
 const facadeData = (() => {
   const wins = []; const bays = 10, bw = BW / bays;
   for (let b = 0; b < bays; b++){ const cx = (b + 0.5) * bw;
-    if (b === 2 || b === 7){ for (const yb of [3.0, 6.3, 9.05]) wins.push({ cx, yb, w: 1.0, h: 1.1, stair: true, lit: rng() < 0.5 }); wins.push({ cx, door: true }); }
+    if (b === 2 || b === 7){ for (const yb of [3.4, 6.15, null]){ const lit = rng() < 0.5; wins.push(yb === null ? { cx, stair: true, gone: true } : { cx, yb, w: 1.15, h: 1.6, stair: true, lit }); } wins.push({ cx, door: true }); }
     else for (let f = 0; f < 3; f++){ const home = b === 6 && f === 2;
       wins.push({ cx, yb: 1.5 + f * 3.3, w: 1.4, h: 1.7, home, lit: home || rng() < 0.45, tulle: rng() < 0.7,
         drape: rng() < 0.6 ? pick(['#8a3b3b', '#c9a96b', '#5b6b8b', '#7b8b5b', '#a87fa0', '#b9774a']) : null,
@@ -581,11 +582,52 @@ function drawDoor(g, w, X, Y, S){
     blot(g, x, y, rr, r() < 0.6 ? 'rgba(150,90,70,.28)' : 'rgba(30,10,6,.35)'); }
   g.strokeStyle = 'rgba(170,120,95,.25)'; g.lineWidth = 0.6; for (let i = 0; i < 6; i++){ const x = x0 + r() * dw, y = Y(0.6) + r() * S(1.2); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y + r() * 14); g.stroke(); }
 }
+// a staircase window as they all were: weathered dark wood deep in the wall, a transom of two small panes over two tall lights, a plaster ledge
+function drawStair(g, w, X, Y, S, lit){
+  const x0 = X(w.cx - w.w / 2), y0 = Y(w.yb + w.h), pw = S(w.w), ph = S(w.h), r = mkRng(Math.round(w.cx * 71 + w.yb * 13) + 3);
+  const o = S(0.075), m = S(0.065), s = S(0.04), tb = ph * 0.27, bars = [[x0, y0, pw, o], [x0, y0 + ph - o, pw, o], [x0, y0, o, ph], [x0 + pw - o, y0, o, ph], [x0, y0 + tb - m / 2, pw, m], [x0 + pw / 2 - m / 2, y0, m, ph]];
+  for (const [ya, yb] of [[y0 + o, y0 + tb - m / 2], [y0 + tb + m / 2, y0 + ph - o]]) for (const [xa, xb] of [[x0 + o, x0 + pw / 2 - m / 2], [x0 + pw / 2 + m / 2, x0 + pw - o]])
+    bars.push([xa, ya, xb - xa, s], [xa, yb - s, xb - xa, s], [xa, ya, s, yb - ya], [xb - s, ya, s, yb - ya]);
+  if (lit){ if (w.lit){ const gr = g.createRadialGradient(x0 + pw / 2, y0 + ph * 0.45, 4, x0 + pw / 2, y0 + ph / 2, pw * 0.8); gr.addColorStop(0, '#c9b98a'); gr.addColorStop(1, '#5a5340');
+    g.fillStyle = gr; g.fillRect(x0, y0, pw, ph); g.fillStyle = '#000'; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh); } return; }
+  const sl = S(rnd(0.6, 1.5)), rv = S(0.12), lg = S(0.06);   // (the one draw from the world's sequence a window has always taken: its stain's length)
+  g.fillStyle = '#857d70'; g.fillRect(x0 - rv, y0 - rv, rv, ph + rv); g.fillStyle = '#6c655a'; g.fillRect(x0 + pw, y0 - rv, rv, ph + rv);   // the reveal: the jambs,
+  g.fillStyle = '#4f493f'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, rv);                                                                  // the head in shadow
+  g.fillStyle = 'rgba(40,34,28,.5)'; g.fillRect(x0 - rv - S(0.02), y0 - rv - S(0.02), pw + 2 * rv + S(0.04), S(0.02));
+  const gr = g.createLinearGradient(x0, y0, x0 + pw * 0.4, y0 + ph); gr.addColorStop(0, '#8c9ba6'); gr.addColorStop(0.35, '#55636c'); gr.addColorStop(0.7, '#323c43'); gr.addColorStop(1, '#262d32');   // (the same glass as the flats')
+  g.fillStyle = gr; g.fillRect(x0, y0, pw, ph);
+  for (let i = 0; i < 6; i++) blot(g, x0 + r() * pw, y0 + ph * (0.2 + r() * 0.7), S(0.08 + r() * 0.2), 'rgba(20,26,22,.25)');   // the yard, reflected; the dust
+  g.fillStyle = 'rgba(200,212,220,.10)'; g.beginPath(); g.moveTo(x0 + pw * 0.2, y0); g.lineTo(x0 + pw * 0.5, y0); g.lineTo(x0 + pw * 0.15, y0 + ph); g.lineTo(x0, y0 + ph); g.lineTo(x0, y0 + ph * 0.5); g.fill();
+  g.fillStyle = ['#4f443a', '#574a3f', '#4a4038'][r() * 3 | 0]; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh);                // the wood, dark and grey with age
+  g.fillStyle = 'rgba(20,16,12,.45)'; for (const [x, y, bw, bh] of bars) if (bw > bh) g.fillRect(x, y + bh - 0.8, bw, 0.8);
+  for (let i = 0; i < 14; i++){ const [x, y, bw, bh] = bars[r() * bars.length | 0]; blot(g, x + r() * bw, y + r() * bh, 0.5 + r() * 1.2, r() < 0.6 ? 'rgba(150,140,124,.4)' : 'rgba(25,20,16,.45)'); }   // bare grey wood, cracks
+  g.fillStyle = '#aaa393'; g.fillRect(x0 - rv - S(0.06), y0 + ph, pw + 2 * rv + S(0.12), lg); g.fillStyle = 'rgba(40,36,30,.4)'; g.fillRect(x0 - rv - S(0.06), y0 + ph + lg, pw + 2 * rv + S(0.12), S(0.025));   // the ledge
+  const st = g.createLinearGradient(0, y0 + ph + lg, 0, y0 + ph + lg + sl); st.addColorStop(0, 'rgba(60,52,40,.3)'); st.addColorStop(1, 'rgba(60,52,40,0)'); g.fillStyle = st; g.fillRect(x0 - rv, y0 + ph + lg, pw + 2 * rv, S(1.5));
+}
+// the bathrooms' little windows by each stair: a column of three on its inner side (by the door, and level with each stair window) and one on
+// its outer side, between the landings; the two stairs mirror each other. Deep in the wall, one pane, each on its plaster ledge
+const BATHS = [];
+for (const cs of [BW / 2 - 9, BW / 2 + 9]){ const d = cs < BW / 2 ? 1 : -1;
+  for (const yb of [1.95, 4.15, 7.35]) BATHS.push({ cx: cs + d * 2.15, yb, w: 0.46, h: 0.52 }); BATHS.push({ cx: cs - d * 1.9, yb: 5.5, w: 0.46, h: 0.52 }); }
+BATHS.forEach((b, i) => { const r = mkRng(4400 + i * 17); b.col = r() < 0.35 ? '#6a2a1c' : r() < 0.6 ? '#4b3a2e' : '#5c4a3c'; b.lit = r() < 0.3; b.r = mkRng(4500 + i * 23); });
+function drawBath(g, b, X, Y, S, lit){
+  const x0 = X(b.cx - b.w / 2), y0 = Y(b.yb + b.h), pw = S(b.w), ph = S(b.h), o = S(0.05), rv = S(0.07), lg = S(0.06), r = b.r;
+  if (lit){ if (b.lit){ g.fillStyle = '#9c865a'; g.fillRect(x0 + o, y0 + o, pw - 2 * o, ph - 2 * o); } return; }
+  g.fillStyle = '#7a7366'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, ph + rv); g.fillStyle = '#4b453c'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, rv * 0.85);   // the reveal, its head in shadow
+  g.fillStyle = b.col; g.fillRect(x0, y0, pw, ph);                                                                                                     // the frame
+  const gr = g.createLinearGradient(x0, y0, x0 + pw * 0.5, y0 + ph); gr.addColorStop(0, '#5e6a72'); gr.addColorStop(1, '#1c2226'); g.fillStyle = gr; g.fillRect(x0 + o, y0 + o, pw - 2 * o, ph - 2 * o);
+  g.fillStyle = 'rgba(200,215,225,.12)'; g.beginPath(); g.moveTo(x0 + o + pw * 0.15, y0 + o); g.lineTo(x0 + o + pw * 0.4, y0 + o); g.lineTo(x0 + o, y0 + ph - o); g.lineTo(x0 + o, y0 + ph * 0.6); g.fill();
+  for (let i = 0; i < 5; i++) blot(g, x0 + r() * pw, y0 + r() * ph, 0.5 + r(), r() < 0.5 ? 'rgba(160,140,120,.45)' : 'rgba(20,14,10,.45)');                // worn paint
+  g.fillStyle = '#aaa393'; g.fillRect(x0 - rv - S(0.04), y0 + ph, pw + 2 * rv + S(0.08), lg); g.fillStyle = 'rgba(40,36,30,.4)'; g.fillRect(x0 - rv - S(0.04), y0 + ph + lg, pw + 2 * rv + S(0.08), S(0.02));
+  const st = g.createLinearGradient(0, y0 + ph + lg, 0, y0 + ph + lg + S(0.4 + r() * 0.6)); st.addColorStop(0, 'rgba(60,52,40,.28)'); st.addColorStop(1, 'rgba(60,52,40,0)'); g.fillStyle = st; g.fillRect(x0 - rv, y0 + ph + lg, pw + 2 * rv, S(1));
+}
 function drawFacade(g, W, H, lit){
   const ppm = W / BW, X = x => x * ppm, Y = y => H - y * (H / BH), S = v => v * ppm;
   if (!lit) drawStucco(g, W, H, ppm); else { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
   for (const w of facadeData){
     if (w.door){ if (!lit) drawDoor(g, w, X, Y, S); continue; }
+    if (w.gone){ if (!lit) rnd(0.6, 1.5); continue; }   // (a window that was never there still takes its draw, so the rest of the world stays as it was)
+    if (w.stair){ drawStair(g, w, X, Y, S, lit); continue; }
     const x0 = X(w.cx - w.w / 2), y0 = Y(w.yb + w.h), pw = S(w.w), ph = S(w.h), wr = mkRng(w.cx * 131 + w.yb * 17 + 5);
     const bars = winBars(w, x0, y0, pw, ph, S);
     if (!lit){
@@ -615,6 +657,7 @@ function drawFacade(g, W, H, lit){
       g.fillStyle = '#000'; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh);
     }
   }
+  for (const b of BATHS) drawBath(g, b, X, Y, S, lit);
 }
 const facadeTex = tex(4096, 1200, (g, w, h) => { g.scale(2, 2); drawFacade(g, w / 2, h / 2, false); });   // drawn at 2x so frames and door panels stay crisp
 const facadeEm = tex(4096, 1200, (g, w, h) => { g.scale(2, 2); drawFacade(g, w / 2, h / 2, true); });
@@ -647,10 +690,28 @@ const roofTex = tex(512, 512, (g, w, h) => {
     const st = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.32, 1.3), concrete); st.position.set(x, 0.16, BZ + 0.65); st.receiveShadow = true; scene.add(st);
   }
   const sills = [];   // galvanised tin sills that stick out under every window, sloped to shed the rain
-  for (const w of facadeData) if (!w.door){ const g = new THREE.BoxGeometry(w.w + 0.18, 0.025, 0.15); g.rotateX(0.14); g.translate(w.cx - BW / 2, w.yb - 0.03, BZ + 0.07); sills.push(g); }
+  for (const w of facadeData) if (!w.door && !w.stair){ const g = new THREE.BoxGeometry(w.w + 0.18, 0.025, 0.15); g.rotateX(0.14); g.translate(w.cx - BW / 2, w.yb - 0.03, BZ + 0.07); sills.push(g); }
   const sm = new THREE.Mesh(mergeGeometries(sills), snowify(new THREE.MeshStandardMaterial({ color: '#8e9391', roughness: 0.5, metalness: 0.4 }), 1.2)); sm.castShadow = sm.receiveShadow = true; scene.add(sm);
+  { const ledges = [];   // the plaster ledges under the stairs' windows and the bathrooms' little ones
+    for (const w of [...facadeData.filter(w => w.stair && !w.gone), ...BATHS]) ledges.push(new THREE.BoxGeometry(w.w + (w.stair ? 0.36 : 0.22), 0.06, 0.09).translate(w.cx - BW / 2, w.yb - 0.03, BZ + 0.045));
+    const lm = new THREE.Mesh(mergeGeometries(ledges), snowify(new THREE.MeshStandardMaterial({ color: '#aaa393', roughness: 0.95 }), 1.2)); lm.castShadow = lm.receiveShadow = true; scene.add(lm); }
   const pipe = new THREE.MeshStandardMaterial({ color: '#5c5f62', roughness: 0.6, metalness: 0.4 });
-  for (const x of [-17.6, -0.2, 17.6]){ const p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, BH, 8), pipe); p.position.set(x, BH / 2, BZ + 0.12); scene.add(p); }
+  { // the downpipes, one by each stair on its inner side: galvanised, out of the gutter and back to the wall in a swan-neck, held by rusty
+    // clamps, and at the foot a brown plastic socket and a ribbed hose into the drain
+    const G = { galv: [], brown: [], rust: [] }, up = new V3(0, 1, 0);
+    const tube = (k, a, b, r) => { const d = b.clone().sub(a), g = new THREE.CylinderGeometry(r, r, d.length(), 14);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, d.normalize())); g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); G[k].push(g); };
+    for (const x of DOWNPIPES){ const zw = BZ + 0.13, zg = BZ + 0.5, yT = BH - 0.03, yN = BH - 0.3, yS = BH - 0.74, yB = 1.12, P = (y, z = zw) => new V3(x, y, z);
+      tube('galv', P(yT, zg), P(yN, zg), 0.06); tube('galv', P(yN, zg), P(yS), 0.064); tube('galv', P(yS), P(yB), 0.07);
+      for (const [y, z] of [[yN, zg], [yS, zw]]) G.galv.push(new THREE.SphereGeometry(0.066, 14, 8).translate(x, y, z));   // (the bends)
+      for (let y = yS - 0.6; y > yB + 0.4; y -= 1.0) tube('galv', P(y - 0.012), P(y + 0.012), 0.075);                       // the sleeves where the lengths join
+      for (const y of [2.35, 4.9, 7.45, yS - 0.2]){ tube('rust', P(y - 0.02), P(y + 0.02), 0.08); G.rust.push(new THREE.BoxGeometry(0.03, 0.03, 0.08).translate(x, y, BZ + 0.04)); }
+      tube('brown', P(yB - 0.13), P(yB + 0.05), 0.085); tube('brown', P(0.6), P(yB - 0.13), 0.077); tube('brown', P(0.47), P(0.62), 0.088);
+      const rib = []; for (let i = 0; i <= 48; i++){ const y = i / 48 * 0.5; rib.push(new THREE.Vector2(0.077 + 0.007 * Math.cos(y / 0.025 * TAU), y)); }
+      G.brown.push(new THREE.LatheGeometry(rib, 14).translate(x, -0.03, zw)); }
+    const mats = { galv: new THREE.MeshStandardMaterial({ color: '#b2b6b8', roughness: 0.4, metalness: 0.35 }), brown: new THREE.MeshStandardMaterial({ color: '#8a4630', roughness: 0.6 }),
+      rust: new THREE.MeshStandardMaterial({ color: '#6a3f27', roughness: 0.85, metalness: 0.2 }) };
+    for (const k in G){ const m = new THREE.Mesh(mergeGeometries(G[k]), mats[k]); m.castShadow = m.receiveShadow = true; scene.add(m); } }
   const gut = new THREE.Mesh(new THREE.BoxGeometry(BW + 0.8, 0.14, 0.18), pipe); gut.position.set(0, BH + 0.02, BZ + 0.5); scene.add(gut);
 }
 /* ---------- paths and overgrowth: narrow, cracked, mossy asphalt paths to the entrances, a trodden track to the tree,
@@ -4687,7 +4748,7 @@ function updateWeather(dt, t, sp){
 /* ============================== icicles on the apartment building ============================== */
 const ICES = [];
 {
-  const pipes = [-17.6, -0.2, 17.6];
+  const pipes = DOWNPIPES;
   for (let x = -18.3; x < 18.3; x += rnd(0.05, 0.2)){            // along the front eave
     const nearPipe = Math.max(...pipes.map(px => clamp(1 - Math.abs(x - px) / 1.8))), wave = 0.5 + fbm(x * 0.35 + 3, 1.7);
     ICES.push({ p: new V3(x + rnd(-0.03, 0.03), BH + 0.02, BZ + 0.47 + rnd(-0.03, 0.03)), len: rnd(0.2, 0.85) * wave * (1 + 2.6 * nearPipe * nearPipe) + (rng() < 0.08 ? rnd(0.8, 1.7) : 0), w: rnd(0.03, 0.075), r: rng() }); }
