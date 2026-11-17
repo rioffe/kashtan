@@ -3556,9 +3556,9 @@ function updateVines(){
         if (Bv.cross(Cv).dot(e3) * sgn > 0) ind.push(o2 + a, o2 + b, o2 + c); else ind.push(o2 + a, o2 + c, o2 + b); } }
     add(pos, base, ind); };
   // the house: ridge along x
-  blanket(BD / 2 + 0.4, 2.4, BW + 0.8, 0.22, (x, y, t) => [-BW / 2 - 0.4 + t, BH + y, BZ - BD / 2 + x]);
+  blanket(BD / 2 + 0.4, 2.4, BW + 0.86, 0.22, (x, y, t) => [-BW / 2 - 0.43 + t, BH + y, BZ - BD / 2 + x]);   // (3 cm over each gable)
   // the workshops: ridges along z
-  for (const I of INDS) blanket(I.hw, I.peak, I.z1 - I.z0 + 0.7, 0.2, (x, y, t) => [I.cx + x, I.H + y, I.z0 - 0.35 + t]);
+  for (const I of INDS) blanket(I.hw, I.peak, I.z1 - I.z0 + 0.76, 0.2, (x, y, t) => [I.cx + x, I.H + y, I.z0 - 0.38 + t]);
   // flat roofs: a slab with soft edges
   const slab = (cx, cy, cz, sx, sz, T, rx = 0, rz = 0, ry = 0) => { const g = new THREE.BoxGeometry(sx, T, sz, 6, 1, 4), pa = g.attributes.position, m = new THREE.Matrix4().compose(new V3(cx, cy + T / 2, cz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new V3(1, 1, 1));
     const pos = [], base = [];
