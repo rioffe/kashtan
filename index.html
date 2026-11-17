@@ -1409,7 +1409,7 @@ var roomLight, CHESS;
     for (const k in L){ const m = new THREE.Mesh(mergeGeometries(L[k]), mats[k]); m.castShadow = k !== 'clear'; m.receiveShadow = true; car.add(m); }
     const hit = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.052, 0.142).translate(0, 0.026, 0), new THREE.MeshBasicMaterial({ visible: false }));   // (what a click finds)
     hit.userData.desk = 'car'; car.add(hit); desk.pick.push(hit);
-    desk.views.car = { t: new THREE.Vector3(cx, ty + 0.02, cz), yaw: Math.PI / 2 + 0.6, pitch: 0.42, d: 0.26, yr: 1.4, p0: 0.08, p1: 1.35, d0: 0.11, d1: 0.5 };
+    desk.views.car = { t: new THREE.Vector3(cx, ty + 0.02, cz), yaw: Math.PI / 2 + 0.6, pitch: 0.42, d: 0.26, yr: 1.4, y0: Math.PI / 2 + 0.6 - 1.4 - Math.PI / 6,   /* (it turns 30° further counterclockwise than clockwise) */ p0: 0.08, p1: 1.35, d0: 0.11, d1: 0.5 };
   }
 
   /* the bookshelf, on the left: maths, physics and poetry */
