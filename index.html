@@ -4879,8 +4879,9 @@ var blockMats = [];
     lantern: [[1.05, 0], [1.0, 0.6], [0.75, 1.5], [0.4, 1.9], [0.4, 2.0], [0.32, 2.0], [0.32, 2.9], [0.42, 2.9], [0.2, 3.4], [0.04, 4.1], [0, 4.15]] };
   const DOMECOL = ['#5f8c7a', '#557f70', '#4c5054', '#6e3a2c', '#5f8c7a'].map(C);
   const dome = (kind, R, segs, phi, x, y, z, col) => { const pr = DOMES[kind].map(([a, b]) => new THREE.Vector2(a * R, b * (kind === 'spire' ? 1 : Math.max(0.8, R / 1.6))));
-    const g = new THREE.LatheGeometry(pr, segs, phi); g.translate(x, y, z); roofPiece(g, col); };
-  const nearHome = (x, z) => Math.hypot(x - 5, z + 30) < 240;
+    const g = new THREE.LatheGeometry(pr, segs, phi); g.translate(x, y, z); roofPiece(g, col);
+    const cap = new THREE.CircleGeometry(pr[0].x, segs, Math.PI / 2 - phi); cap.rotateX(Math.PI / 2); cap.translate(x, y + 0.002, z); roofPiece(cap, col); };   // (closed underneath: no looking up into it)
+  const nearHome = (x, z) => Math.hypot(x - 5, z + 30) < 240, CORNER_H = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
 
   const building = (cx, cz, w, d, ry, col, rc, ends = {}) => {
     const off = Math.floor(rng() * 8);   // (the world's draws, as ever)
@@ -4894,6 +4895,9 @@ var blockMats = [];
     if (bays >= 3){ if (hr() < 0.65){ if (bays % 2) L[bays >> 1] = 'A'; else if (bays >= 6) L[1] = L[bays - 2] = 'A'; else L[bays / 2 - (hr() < 0.5 ? 1 : 0)] = 'A'; } else L[hr() < 0.5 ? 1 : bays - 2] = 'A';
       const mid = (bays - 1) / 2, free = L.map((t, i) => t === 'N' ? i : -1).filter(i => i >= 0).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid)); if (free.length) L[free[Math.min(free.length - 1, hr() < 0.6 ? 0 : 1)]] = 'E'; }
     else L[hr() * bays | 0] = hr() < 0.5 ? 'E' : 'A';
+    const alongX = Math.abs(T.co) > 0.5, dir = alongX ? Math.sign(T.co) : Math.sign(-T.si), cornL = dir > 0 ? ends.lo : ends.hi, cornR = dir > 0 ? ends.hi : ends.lo;
+    if (cornL && L[0] === 'A') L[0] = 'N'; if (cornR && L[bays - 1] === 'A') L[bays - 1] = 'N';   // (no bay window or gable in a corner bay: a tower may stand there)
+    for (const [s_, c_] of [[-1, cornL], [1, cornR]]) if (c_){ const q = W3(s_ * w / 2, 0, z); CORNER_H.set(ckey(q[0], q[2]), H); }
     const sx = bw / 3.6;
     L.forEach((t, i) => { const c = N0 + (t === 'N' ? 0 : t === 'A' ? 1 : 2), x0 = -w / 2 + i * bw, x1 = x0 + bw, xc = x0 + bw / 2;
       rect4(FA, x0, 0, z, x1, H, z, [0, 0, 1], c, 0, 1, 0, H, i * 0.011);                                           // the front
@@ -4913,8 +4917,8 @@ var blockMats = [];
         flat(FA, [[xc - hb, yb, z], [xc + hb, yb, z], [xc + hf, yb, z + e], [xc - hf, yb, z + e]], [0, -1, 0], wallUV);
         const rcol = hpk([rc, rc, DOMECOL[hr() * DOMECOL.length | 0]]);
         if (D.top === 'dome') dome(hpk(['helmet', 'onion']), 0.95, 8, Math.PI / 8, xc, yt, z + e * 0.45, rcol);
-        else if (D.top === 'flat') flat(FA, [[xc - hb, yt, z], [xc + hb, yt, z], [xc + hf, yt, z + e], [xc - hf, yt, z + e]], [0, 1, 0], trimUV);
-        else { const ap = [xc, yt + 1.05, z + 0.05], FL = [xc - hf - 0.08, yt, z + e + 0.08], FR = [xc + hf + 0.08, yt, z + e + 0.08], BL = [xc - hb - 0.06, yt, z], BR = [xc + hb + 0.06, yt, z];
+        if (D.top === 'dome' || D.top === 'flat') flat(FA, [[xc - hb, yt, z], [xc + hb, yt, z], [xc + hf, yt, z + e], [xc - hf, yt, z + e]], [0, 1, 0], trimUV);
+        if (D.top !== 'dome' && D.top !== 'flat'){ const ap = [xc, yt + 1.05, z + 0.05], FL = [xc - hf - 0.08, yt, z + e + 0.08], FR = [xc + hf + 0.08, yt, z + e + 0.08], BL = [xc - hb - 0.06, yt, z], BR = [xc + hb + 0.06, yt, z];
           roofPiece(tris([FL, FR, ap, BL, FL, ap, FR, BR, ap]), rcol); } }
       else if (D.axis === 'balcony') for (const k of D.balc){ const yk = D.g + (k - 1) * D.f, hw = 1.15 * sx, e = 0.75;   // balconies, slab and railing
         flat(FA, [[xc - hw, yk, z + e], [xc + hw, yk, z + e], [xc + hw, yk - 0.15, z + e], [xc - hw, yk - 0.15, z + e]], [0, 0, 1], trimUV);
@@ -4928,7 +4932,7 @@ var blockMats = [];
     flat(FA, [[-w / 2, H + 0.06, z], [w / 2, H + 0.06, z], [w / 2, H + 0.06, z + D.cd], [-w / 2, H + 0.06, z + D.cd]], [0, 1, 0], trimUV);
     for (const s of [-1, 1]) flat(FA, [[s * w / 2, H - 0.42, z], [s * w / 2, H - 0.42, z + D.cd], [s * w / 2, H + 0.06, z + D.cd], [s * w / 2, H + 0.06, z]], [s, 0, 0], trimUV);
     // the ends: on a street corner a front again, between houses the blind wall
-    const alongX = Math.abs(T.co) > 0.5, dir = alongX ? Math.sign(T.co) : Math.sign(-T.si), cornL = dir > 0 ? ends.lo : ends.hi, cornR = dir > 0 ? ends.hi : ends.lo, nS = Math.max(2, Math.round(d / 3.6)), sw = d / nS;
+    const nS = Math.max(2, Math.round(d / 3.6)), sw = d / nS;
     for (const [s, corner] of [[-1, cornL], [1, cornR]]) for (let j = 0; j < nS; j++){ const za = -z + j * sw, zb2 = za + sw, c = corner ? N0 : AN.FIRE[hr() < 0.5 ? 0 : 1];
       if (s > 0) rect4(FA, s * w / 2, 0, zb2, s * w / 2, H, za, [1, 0, 0], c, 0, 1, 0, H, 0.7 + j * 0.011); else rect4(FA, s * w / 2, 0, za, s * w / 2, H, zb2, [-1, 0, 0], c, 0, 1, 0, H, 0.8 + j * 0.011); }
     // the roof: pitched, or a mansard (the height the town always drew for it)
@@ -4948,9 +4952,10 @@ var blockMats = [];
       face(SA, [[xc - 1.5, D.g - 1.03, z + 0.03], [xc + 1.5, D.g - 1.03, z + 0.03], [xc + 1.5, D.g - 0.47, z + 0.03], [xc - 1.5, D.g - 0.47, z + 0.03]], [0, 0, 1], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]); } };
   // a tower on a block's corner: eight-sided, from the first floor to a storey over the eaves, its windows the axis's, under a copper dome, a
   // helmet with a spire, an onion, or a lantern
-  const cornerTower = (kx, kz, ix, iz, col, tr) => { const D = AN.designs[tr() * AN.designs.length | 0], R = 2.3, cxT = kx + ix * 1.55, czT = kz + iz * 1.55, A = D.i * 4 + 1, H = D.Hc, yT = H + 3.0;
+  const cornerTower = (kx, kz, ix, iz, col, tr) => { const D = AN.designs[tr() * AN.designs.length | 0], R = 2.3, cxT = kx + ix * 1.2, czT = kz + iz * 1.2, A = D.i * 4 + 1, H = D.Hc;   // (set in 1.2 m: the corner house's corner, its cornice and its eaves all inside it)
+    const nUp = Math.max(1, Math.ceil((Math.max(H, CORNER_H.get(ckey(kx, kz)) ?? H) + 3.2 - H) / D.f)), yT = H + nUp * D.f;   // (a storey or more over the corner house's eaves, clear of its roof)
     T = { cx: cxT, cz: czT, co: 1, si: 0, col: col.clone().lerp(C('#a6a29a'), 0.3 * D.age).multiplyScalar(0.9), seed: Math.floor(tr() * 800) + 1 };
-    const segs = [[D.g, H - 0.45, D.g, H - 0.45], [H - 0.45, yT - 0.45, H - 0.45 - D.f, H - 0.45], [yT - 0.45, yT, H - 0.45, H]], bot = [];
+    const segs = [[D.g, H - 0.45, D.g, H - 0.45], ...Array.from({ length: nUp }, (_, k) => [H - 0.45 + k * D.f, H - 0.45 + (k + 1) * D.f, H - 0.45 - D.f, H - 0.45]), [yT - 0.45, yT, H - 0.45, H]], bot = [];
     for (let j = 0; j < 8; j++){ const a0 = j * Math.PI / 4 + Math.PI / 8, a1 = a0 + Math.PI / 4, am = (a0 + a1) / 2, p0 = [R * Math.cos(a0), R * Math.sin(a0)], p1 = [R * Math.cos(a1), R * Math.sin(a1)]; bot.push([p0[0], D.g, p0[1]]);
       for (const [y0, y1, v0, v1] of segs) face(FA, [[p0[0], y0, p0[1]], [p1[0], y0, p1[1]], [p1[0], y1, p1[1]], [p0[0], y1, p0[1]]], [Math.cos(am), 0, Math.sin(am)], [AN.UV(A, 0.26, v0), AN.UV(A, 0.74, v0), AN.UV(A, 0.74, v1), AN.UV(A, 0.26, v1)], j * 0.013); }
     flat(FA, bot, [0, -1, 0], AN.UV(D.i * 4, 0.5, 28.6));
