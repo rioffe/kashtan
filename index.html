@@ -3534,18 +3534,26 @@ function updateVines(){
     for (let i = 0; i <= NL; i++){ const t = i / NL, taper = Math.pow(Math.sin(Math.PI * (0.06 + 0.88 * t)), 0.35) * (0.85 + 0.3 * sr()), c = a.clone().addScaledVector(u, t * L).addScaledVector(up, r * 0.75);
       for (let k = 0; k <= K; k++){ const ph = k / K * Math.PI, x = Math.cos(ph) * W * (0.6 + 0.4 * taper), y = Math.sin(ph) * T * taper;
         const v = c.clone().addScaledVector(side, x).addScaledVector(up, y); pos.push(v.x, v.y, v.z); const bb = c.clone().addScaledVector(side, x * 0.85).addScaledVector(up, -r * 0.3); base.push(bb.x, bb.y, bb.z); } }
-    for (let i = 0; i < NL; i++) for (let k = 0; k < K; k++){ const q = i * (K + 1) + k; ind.push(q, q + K + 1, q + 1, q + 1, q + K + 1, q + K + 2); }
+    for (let i = 0; i < NL; i++) for (let k = 0; k < K; k++){ const q = i * (K + 1) + k; ind.push(q, q + 1, q + K + 1, q + 1, q + K + 2, q + K + 1); }   // (wound to face outwards, up)
     add(pos, base, ind); };
   treeG.updateMatrixWorld(true);
   for (const g of SNOWSEGS) ridge(g, g.slice(3, 6), g[6], g[7] === 1 ? treeG.matrixWorld : null);
-  // a blanket on a pitched roof: the roof's triangle grown by T on both slopes, with a rounded cornice along each eave;
-  // with no snow it sinks out of sight into the roof
+  // a blanket on a pitched roof: the roof's triangle grown by T on both slopes, with a rounded cornice along each eave, and closed: back
+  // underneath along the roof itself, and capped at both gables, so from the side or from under the eaves it shows its thickness and
+  // never anything under it; with no snow it sinks out of sight into the roof
   const blanket = (hw, pk, len, T, place) => {
     const sl = Math.hypot(hw, pk), apex = pk + T * sl / hw, ew = hw + 0.08, pos = [], base = [], ind = [], N = Math.max(2, Math.ceil(len / 0.5));
-    const prof = [[-ew + 0.03, -0.07], [-ew - 0.09, -0.02], [-ew - 0.11, T * 0.45], [-ew - 0.04, T * 1.05], [0, apex], [ew + 0.04, T * 1.05], [ew + 0.11, T * 0.45], [ew + 0.09, -0.02], [ew - 0.03, -0.07]];   // cornices curl over the eaves
-    for (let i = 0; i <= N; i++){ const t = i / N * len, wob = 0.02 * Math.sin(i * 2.1) + 0.015 * Math.sin(i * 5.3);
-      for (const [x, y] of prof){ const v = place(x, y + (y > 0.05 ? wob : 0), t); pos.push(...v); const bv = place(x * 0.98, y - T * 1.5 - 0.05, t); base.push(...bv); } }
-    const K = prof.length; for (let i = 0; i < N; i++) for (let k = 0; k < K - 1; k++){ const q = i * K + k; ind.push(q, q + 1, q + K, q + 1, q + K + 1, q + K); }
+    const prof = [[-ew + 0.03, -0.07], [-ew - 0.09, -0.02], [-ew - 0.11, T * 0.45], [-ew - 0.04, T * 1.05], [0, apex], [ew + 0.04, T * 1.05], [ew + 0.11, T * 0.45], [ew + 0.09, -0.02], [ew - 0.03, -0.07],   // cornices curl over the eaves
+      [hw, 0], [0, pk], [-hw, 0]], K = prof.length, NO = 9;   // (and back along the roof's own slopes)
+    const wobAt = i => 0.02 * Math.sin(i * 2.1) + 0.015 * Math.sin(i * 5.3), vp = (x, y, t, k, i) => place(x, y + (k < NO && y > 0.05 ? wobAt(i) : 0), t), bp = (x, y, t) => place(x * 0.98, y - T * 1.5 - 0.05, t);
+    const o = new V3(...place(0, 0, 0)), e1 = new V3(...place(1, 0, 0)).sub(o), e2 = new V3(...place(0, 1, 0)).sub(o), e3 = new V3(...place(0, 0, 1)).sub(o), flip = e1.dot(e2.clone().cross(e3)) > 0;   // (laid along x or along z: which way round is outwards)
+    for (let i = 0; i <= N; i++){ const t = i / N * len; prof.forEach(([x, y], k) => { pos.push(...vp(x, y, t, k, i)); base.push(...bp(x, y, t)); }); }
+    for (let i = 0; i < N; i++) for (let k = 0; k < K; k++){ const k2 = (k + 1) % K, q = i * K + k, q1 = i * K + k2, qK = q + K, qK1 = q1 + K;
+      if (flip) ind.push(q, qK, q1, q1, qK, qK1); else ind.push(q, q1, qK, q1, qK1, qK); }
+    const caps = THREE.ShapeUtils.triangulateShape(prof.map(([x, y]) => new THREE.Vector2(x, y)), []), A = new V3(), Bv = new V3(), Cv = new V3();   // the gable ends
+    for (const [i, sgn] of [[0, -1], [N, 1]]){ const t = i / N * len, o2 = pos.length / 3; prof.forEach(([x, y], k) => { pos.push(...vp(x, y, t, k, i)); base.push(...bp(x, y, t)); });
+      for (const [a, b, c] of caps){ A.fromArray(pos, (o2 + a) * 3); Bv.fromArray(pos, (o2 + b) * 3).sub(A); Cv.fromArray(pos, (o2 + c) * 3).sub(A);
+        if (Bv.cross(Cv).dot(e3) * sgn > 0) ind.push(o2 + a, o2 + b, o2 + c); else ind.push(o2 + a, o2 + c, o2 + b); } }
     add(pos, base, ind); };
   // the house: ridge along x
   blanket(BD / 2 + 0.4, 2.4, BW + 0.8, 0.22, (x, y, t) => [-BW / 2 - 0.4 + t, BH + y, BZ - BD / 2 + x]);
