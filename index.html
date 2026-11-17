@@ -1340,7 +1340,8 @@ var roomLight, CHESS;
         if (l > 1e-9){ p.setXYZ(i, q[0] + e[0] / l * r, q[1] + e[1] / l * r, q[2] + e[2] / l * r); n.setXYZ(i, e[0] / l, e[1] / l, e[2] / l); } }
       return g.toNonIndexed(); };
     const studG = new THREE.LatheGeometry([[0.0024, 0], [0.0024, 0.0015], [0.0022, 0.0017], [0, 0.0017]].map(([a, b]) => new THREE.Vector2(a, b)), 18).toNonIndexed();
-    const stud = (k, x, y, z, rz = 0) => { const g = studG.clone(); if (rz) g.rotateZ(rz); L[k].push(g.translate(x, y, z)); };
+    const studR = new THREE.LatheGeometry([[0.0024, 0], [0.0024, 0.0011], [0.00225, 0.00155], [0.0017, 0.00178], [0, 0.0018]].map(([a, b]) => new THREE.Vector2(a, b)), 18).toNonIndexed();   // (the caps' studs, rounded)
+    const stud = (k, x, y, z, rz = 0, sg = studG) => { const g = sg.clone(); if (rz) g.rotateZ(rz); L[k].push(g.translate(x, y, z)); };
     // the pieces: [kind, x0, x1, z0, z1, course, colour, which end slopes]; x across (studs from the middle), z from the tail to the nose
     const PIECES = [
       ['axle', -2, 2, 1, 3, 0], ['brick', -2, 2, 3, 5, 0], ['brick', -2, 2, 5, 7, 0], ['brick', -2, 2, 7, 9, 0], ['brick', -2, 2, 9, 11, 0], ['axle', -2, 2, 11, 13, 0],
@@ -1350,16 +1351,37 @@ var roomLight, CHESS;
       ['slope', -1, 0, 12, 16, 1, 1], ['slope', 0, 1, 12, 16, 1, 1], ['brick', -4, -3, 15, 17, 1], ['brick', 3, 4, 15, 17, 1],   // the nose, the wing's endplates
       ['brick', -1, 1, 0, 2, 2], ['slope', -1, 0, 2, 6, 2, -1], ['slope', 0, 1, 2, 6, 2, -1], ['brick', -1, 1, 6, 8, 2],         // the wing's post, the engine cover, the airbox
       ['brick', -3, -2, 0, 2, 2], ['brick', 2, 3, 0, 2, 2], ['brick', -3, 0, 0, 2, 3], ['brick', 0, 3, 0, 2, 3]];               // the rear wing and its endplates
-    const occ = new Set(); for (const [, a, b, c, d, l] of PIECES) for (let x = a; x < b; x++) for (let z = c; z < d; z++) occ.add(x + ',' + z + ',' + l);
-    const prism = (k, pts, xA, wX, zA) => { const sh = new THREE.Shape(pts.map(([u, v]) => new THREE.Vector2(u, v)));   // a profile in (along, up), extruded across
-      const g = new THREE.ExtrudeGeometry(sh, { depth: wX, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(xA + wX, 0, zA); L[k].push(g); };
+    const occ = new Set(); for (const [kind, a, b, c, d, l] of PIECES) if (kind !== 'clear') for (let x = a; x < b; x++)   // (the studs under a clear piece show through it)
+      for (let z = c; z < d; z++) occ.add(x + ',' + z + ',' + l);
+    const prism = (k, pts, xA, wX, zA, yA) => { const sh = new THREE.Shape(pts.map(([u, v]) => new THREE.Vector2(u, v)));   // a profile in (along, up), extruded across
+      const g = new THREE.ExtrudeGeometry(sh, { depth: wX, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(xA + wX, yA, zA); L[k].push(g); };
+    // a clear piece as they were: walls a millimetre and a half thick round a hollow, open underneath (pts: its profile, along and up, anticlockwise from (0,0) along the bottom)
+    const shell = (pts, xA, xB, zA, t) => { const n = pts.length, E = i => [pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]];
+      const M = pts.map((_, i) => { const [dx, dy] = E(i), l = Math.hypot(dx, dy); return [-dy / l, dx / l]; });                                  // each side's inward normal
+      const Q = pts.map((_, j) => { const i = (j - 1 + n) % n, oi = i ? t : 0, oj = j ? t : 0, a = [pts[i][0] + M[i][0] * oi, pts[i][1] + M[i][1] * oi], b = [pts[j][0] + M[j][0] * oj, pts[j][1] + M[j][1] * oj];
+        const da = E(i), db = E(j), s = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / (da[0] * db[1] - da[1] * db[0]); return [a[0] + da[0] * s, a[1] + da[1] * s]; });   // the hollow (the bottom stays open)
+      const PP = [], NN = [], V = (x, [u, v]) => new THREE.Vector3(x, v, zA + u), ab = new THREE.Vector3(), ac = new THREE.Vector3();
+      const tri = (a, b, c, nn) => { if (ab.subVectors(b, a).cross(ac.subVectors(c, a)).dot(nn) < 0) [b, c] = [c, b]; for (const q of [a, b, c]) PP.push(q.x, q.y, q.z), NN.push(nn.x, nn.y, nn.z); };
+      const quad = (a, b, c, d, nn) => { tri(a, b, c, nn); tri(a, c, d, nn); }, X = new THREE.Vector3(1, 0, 0), Xn = new THREE.Vector3(-1, 0, 0), Dn = new THREE.Vector3(0, -1, 0);
+      for (let i = 1; i < n; i++){ const j = (i + 1) % n, nn = new THREE.Vector3(0, M[i][1], M[i][0]);
+        quad(V(xA, pts[i]), V(xA, pts[j]), V(xB, pts[j]), V(xB, pts[i]), nn.clone().negate()); quad(V(xA + t, Q[i]), V(xA + t, Q[j]), V(xB - t, Q[j]), V(xB - t, Q[i]), nn); }   // outer walls, inner walls
+      for (let i = 1; i < n - 1; i++){ tri(V(xA, pts[0]), V(xA, pts[i]), V(xA, pts[i + 1]), Xn); tri(V(xB, pts[0]), V(xB, pts[i]), V(xB, pts[i + 1]), X);                   // the ends, outside
+        tri(V(xA + t, Q[0]), V(xA + t, Q[i]), V(xA + t, Q[i + 1]), X); tri(V(xB - t, Q[0]), V(xB - t, Q[i]), V(xB - t, Q[i + 1]), Xn); }                                   // and in
+      const [u0, u1, q0, q1] = [pts[0][0], pts[1][0], Q[0][0], Q[1][0]];                                                                                                // the rim underneath
+      quad(V(xA, [u0, 0]), V(xB, [u0, 0]), V(xB, [q0, 0]), V(xA, [q0, 0]), Dn); quad(V(xA, [q1, 0]), V(xB, [q1, 0]), V(xB, [u1, 0]), V(xA, [u1, 0]), Dn);
+      quad(V(xA, [q0, 0]), V(xA + t, [q0, 0]), V(xA + t, [q1, 0]), V(xA, [q1, 0]), Dn); quad(V(xB - t, [q0, 0]), V(xB, [q0, 0]), V(xB, [q1, 0]), V(xB - t, [q1, 0]), Dn);
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(PP, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(PP.length / 3 * 2), 2)); return g; };
+    const tubeG = new THREE.LatheGeometry([[0.0024, 0], [0.00325, 0], [0.00325, 1], [0.0024, 1]].map(([a, b]) => new THREE.Vector2(a, b)), 20).toNonIndexed();   // (the tubes inside that grip the studs below)
     for (const [kind, a, b, c, d, l, end] of PIECES){ const y0 = B0 + l * H, X0 = a * P + G, X1 = b * P - G, Z0 = (c - ZC) * P + G, Z1 = (d - ZC) * P - G, k = kind === 'clear' ? 'clear' : 'red', tip = 0.0032;
       let studs = [];
       if (kind === 'brick' || kind === 'axle'){ L.red.push(rbox3(X1 - X0, H, Z1 - Z0, 0.0004).translate((X0 + X1) / 2, y0 + H / 2, (Z0 + Z1) / 2)); for (let x = a; x < b; x++) for (let z = c; z < d; z++) studs.push([x, z]); }
       else if (kind === 'slope'){ const len = Z1 - Z0, s = 2 * P - G;   // a 1x4 with its last two studs sloped away, to a thin edge
-        prism(k, end > 0 ? [[0, 0], [len, 0], [len, tip], [s, H], [0, H]] : [[0, 0], [len, 0], [len, H], [len - s, H], [0, tip]], X0, X1 - X0, Z0);
+        prism(k, end > 0 ? [[0, 0], [len, 0], [len, tip], [s, H], [0, H]] : [[0, 0], [len, 0], [len, H], [len - s, H], [0, tip]], X0, X1 - X0, Z0, y0);   // (each at its own course)
         for (let z = end > 0 ? c : c + 2; z < (end > 0 ? c + 2 : d); z++) studs.push([a, z]); }
-      else { prism(k, [[0, 0], [Z1 - Z0, 0], [Z1 - Z0, tip], [P - G, H], [0, H]], X0, X1 - X0, Z0); for (let x = a; x < b; x++) studs.push([x, c]); }   // the clear slope: studs on its back row only
+      else { const len = Z1 - Z0, t = 0.0014; L.clear.push(shell([[0, 0], [len, 0], [len, tip], [P - G, H], [0, H]], X0, X1, Z0, t).translate(0, y0, 0));   // the clear slope: studs on its back row only
+        for (let x = a + 1; x < b; x++) L.clear.push(tubeG.clone().scale(1, H - t - 0.0012, 1).translate(x * P, y0, (c + 1 - ZC) * P));
+        for (let x = a; x < b; x++) studs.push([x, c]); }
       for (const [x, z] of studs) if (!occ.has(x + ',' + z + ',' + (l + 1))) stud(k, (x + 0.5) * P, y0 + H, (z + 0.5 - ZC) * P); }
     // the wheels: black, with deep tread, on steel axles through the 2x4s' holes, each held by a grey 2x2 cap with its studs outward
     const R = 0.0145, TW = 0.0094, bev = 0.0006, N = 24, tread = [];
@@ -1368,13 +1390,20 @@ var roomLight, CHESS;
     tyreG.translate(0, 0, -(TW - 2 * bev) / 2); tyreG.rotateY(Math.PI / 2);
     const hubG = new THREE.CylinderGeometry(0.0062, 0.0062, TW + 0.0008, 20).rotateZ(Math.PI / 2).toNonIndexed();   // (the hub's boss, standing a little proud of the tyre)
     const ay = B0 + 0.0025, wx = 2 * P + 0.0006 + TW / 2, capX = 2 * P + 0.0006 + TW + 0.0002 + 0.0016;
+    const capSh = new THREE.Shape(), cb = 0.0005;   // the grey cap: four round lobes, one under each stud, about a round middle, a hole for the axle
+    for (let i = 0; i < 120; i++){ const a = i / 120 * TAU, dx = Math.cos(a), dy = Math.sin(a); let r = 0.0064 - cb;
+      for (const [qx, qy] of [[0.004, 0.004], [-0.004, 0.004], [-0.004, -0.004], [0.004, -0.004]]){ const b = dx * qx + dy * qy, d = b * b - (qx * qx + qy * qy - (0.0039 - cb) ** 2); if (d >= 0) r = Math.max(r, b + Math.sqrt(d)); }
+      i ? capSh.lineTo(dx * r, dy * r) : capSh.moveTo(dx * r, dy * r); }
+    { const hole = new THREE.Path(); hole.absarc(0, 0, 0.0017, 0, TAU, true); capSh.holes.push(hole); }
+    const capG = new THREE.ExtrudeGeometry(capSh, { depth: 0.0032 - 2 * cb, bevelEnabled: true, bevelThickness: cb, bevelSize: cb, bevelSegments: 3, curveSegments: 24 }); capG.translate(0, 0, -(0.0032 - 2 * cb) / 2); capG.rotateY(Math.PI / 2);
     for (const zs of [2, 12]){ const z = (zs - ZC) * P;
       L.steel.push(new THREE.CylinderGeometry(0.0011, 0.0011, 2 * (capX + 0.0024), 10).rotateZ(Math.PI / 2).toNonIndexed().translate(0, ay, z));
       for (const s of [-1, 1]){ L.rubber.push(tyreG.clone().translate(s * wx, ay, z), hubG.clone().translate(s * wx, ay, z));
-        L.grey.push(rbox3(0.0032, 0.0158, 0.0158, 0.0006).translate(s * capX, ay, z));
-        for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) stud('grey', s * (capX + 0.0016), ay + dy * 0.004, z + dz * 0.004, -s * Math.PI / 2); } }
+        L.grey.push(capG.clone().translate(s * capX, ay, z));
+        for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) stud('grey', s * (capX + 0.0016), ay + dy * 0.004, z + dz * 0.004, -s * Math.PI / 2, studR); } }
     const mats = { red: new THREE.MeshPhysicalMaterial({ color: '#c4261b', roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.18 }),
-      clear: new THREE.MeshPhysicalMaterial({ color: '#e6eef0', roughness: 0.05, transparent: true, opacity: 0.32, clearcoat: 1, clearcoatRoughness: 0.03, depthWrite: false }),
+      clear: Object.assign(new THREE.MeshPhysicalMaterial({ color: '#f2f8fa', roughness: 0.04, transparent: true, opacity: 0.14, clearcoat: 1, clearcoatRoughness: 0.02, side: THREE.DoubleSide, depthWrite: false }),
+        { onBeforeCompile: sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', 'diffuseColor.a = mix(diffuseColor.a, 0.8, pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.2));   // (clear face on, its walls bright edge on)\n#include <opaque_fragment>'); } }),
       rubber: new THREE.MeshStandardMaterial({ color: '#121212', roughness: 0.78 }), grey: new THREE.MeshPhysicalMaterial({ color: '#cfcfca', roughness: 0.32, clearcoat: 0.4 }),
       steel: new THREE.MeshStandardMaterial({ color: '#2b2b2e', metalness: 0.75, roughness: 0.3 }) };
     desk.carM = [mats.red, mats.clear, mats.grey, mats.steel];   // (the room's reflections set on them by the chessboard's light)
