@@ -5125,7 +5125,7 @@ var blockMats = [];
     const brick = hr() < 0.22, DL = brick ? AN.bdesigns : AN.designs, D = DL[(off * 7 + Math.floor(hr() * DL.length)) % DL.length], FX = brick ? FB : FA, detail = Math.hypot(cx - 5, cz + 126) < 200, H = D.Hc, bays = Math.max(1, Math.round(w / 3.6)), bw = w / bays, N0 = D.i * 4, z = d / 2, near = nearHome(cx, cz);
     T = { cx, cz, co: Math.cos(ry), si: Math.sin(ry), col: col.clone().lerp(C('#a6a29a'), hrr(0.12, 0.4) * D.age).multiplyScalar(hrr(0.8, 0.97)), seed: Math.floor(hr() * 800) + 1, uv: brick ? AN.UVb : AN.UV };
     const wallUV = T.uv(N0, 0.5, 28.6), trimUV = T.uv(N0, 0.5, 28.2);
-    if (Math.hypot(cx, cz + 95) < 165) EAVES.push({ cx, cz, w, d, ry, h: H, zf: z + D.cd + 0.02 });
+    EAVES.push({ cx, cz, w, d, ry, h: H, zf: z + D.cd + 0.02 });   // (every house, near or far: icicles on the whole city, not just the near yard)
     // the front's rhythm: the axis (or two), the entrance
     const L = new Array(bays).fill('N');
     if (bays >= 3){ if (hr() < 0.65){ if (bays % 2) L[bays >> 1] = 'A'; else if (bays >= 6) L[1] = L[bays - 2] = 'A'; else L[bays / 2 - (hr() < 0.5 ? 1 : 0)] = 'A'; } else L[hr() < 0.5 ? 1 : bays - 2] = 'A';
