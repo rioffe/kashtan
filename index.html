@@ -6701,7 +6701,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   // where it leans: against the wall to the right of our entrance (the second, 10-17), the front wheel turned in to the wall
   const DOOR = new V3(9, 0, BZ), LEAN = { p: new V3(), rx: -0.24, ry: 0, steer: 0.42 };
   const benchIn = (x, z, m) => BENCHES.some(b => { const dx = x - b.x, dz = z - b.z, c = Math.cos(b.ry), sn = Math.sin(b.ry), lx = dx * c - dz * sn, lz = dx * sn + dz * c; return Math.abs(lx) < 0.97 + m && lz > -0.36 - m && lz < 0.25 + m; });   // (a bench: 1.9 m of slats, its back behind)
-  const blocked = (x, z) => (!inHome(x, z, 0.3) ? !onStreet(x, z, 0.35) : x < -33.6 || x > 33.6 || z < BZ + 0.85) || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6 && z < WOOD.zb - 0.3)   // (the garden fence: the plots, their flower beds)
+  const blocked = (x, z) => (!inHome(x, z, 0.35) ? !onStreet(x, z, 0.35) : x < -33.6 || x > 33.6 || z < BZ + 0.85) || surf(x, z) > 0.25 || (x > GX0 - 0.45 && z > -126.6 && z < WOOD.zb - 0.3)   // (the garden fence: the plots, their flower beds)
     || Math.hypot(x - TREE.x, z - TREE.z) < 0.95 || Math.hypot(x - ROWAN.x, z - ROWAN.z) < 0.35 || Math.hypot(x - FIRE.x, z - FIRE.z) < 0.8
     || benchIn(x, z, 0.3) || lilacData.some(L => Math.hypot(x - L.p.x, z - L.p.z) < 0.8 * L.s) || SNOWMEN.some(s => s.build > 0.05 && s.melt < 0.92 && Math.hypot(x - s.g.position.x, z - s.g.position.z) < s.R[0] * Math.min(1, s.build * 1.5) * (1 - 0.7 * s.melt) + 0.12);
   const st = { riding: false, v: 0, steer: 0, head: Math.PI, lean: 0, crank: 0, roll: 0, x: 0, z: 0, bob: 0, tick: 0, pedal: 0, bump: 0 };
