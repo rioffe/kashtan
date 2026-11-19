@@ -2504,14 +2504,14 @@ huskMat.onBeforeCompile = (sh) => {
 };
 const husks = new THREE.InstancedMesh(huskTreeGeo, huskMat, HUSKS.length); treeG.add(husks);
 /* ground litter of fallen leaves */
-const LITTER = [];
+const LITTER = [], LEAF_CURL = 0.5;   // (lying on the ground, a leaf's curl is half what it was on the tree's own drying: the ones on top press down the ones under them)
 for (let i = 0; i < 1500; i++){ const a = rng() * TAU, r = 1.3 + 13 * Math.sqrt(rng());
   LITTER.push({ p: new V3(TREE.x + Math.cos(a) * r, 0.03 + rng() * 0.02, TREE.z + Math.sin(a) * r), rot: rng() * TAU, s: rnd(0.4, 0.75), r: rng() * 0.9 + (r / 14) * 0.1,
     c: C(pick(['#c9952e', '#b8702a', '#8a5a2a', '#d8b040', '#a0602a', '#6e4a2a'])) }); }
 const litter = (() => {   // the same leaves as on the tree, at the same size, lying flat (three shapes); laid out with the stalk-to-tip axis along the ground
   const mat = leafWet(snowify(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(0.8, 0.8), alphaTest: 0.5, roughness: 0.9, side: THREE.DoubleSide })), true, true), by = [[], [], []];
   LITTER.forEach((L, i) => { L.v = i % 7 === 3 ? 2 : i % 2; L.j = by[L.v].length; by[L.v].push(L); });
-  const meshes = LEAF.flatGeos.map((g, v) => { const m = new THREE.InstancedMesh(g.clone().rotateX(-Math.PI / 2), mat, Math.max(1, by[v].length)); m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
+  const meshes = LEAF.flatGeos.map((g, v) => { const m = new THREE.InstancedMesh(g.clone().scale(1, 1, LEAF_CURL).rotateX(-Math.PI / 2), mat, Math.max(1, by[v].length)); m.receiveShadow = true; m.setColorAt(0, new THREE.Color()); scene.add(m); return m; });
   return { meshes, setMatrixAt(i, M){ const L = LITTER[i]; meshes[L.v].setMatrixAt(L.j, M); }, setColorAt(i, c){ const L = LITTER[i]; meshes[L.v].setColorAt(L.j, c); },
     touch(){ for (const m of meshes){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } }, set visible(b){ for (const m of meshes) m.visible = b; } };
 })();
@@ -6774,14 +6774,14 @@ const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = fals
 const FL_N = 320, FL_V = FL_N / 4, FLs = [];
 const fallMat = leafWet(leafGlow(new THREE.MeshStandardMaterial({ map: LEAF.tex, normalMap: LEAF.nrm, normalScale: new THREE.Vector2(1, 1), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 })));
 const fallAir = LEAF.geos.map(g => { const m = new THREE.InstancedMesh(g, fallMat, FL_V); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; });   // in the air: the tree's four shapes
-const fallDown = new THREE.InstancedMesh(LEAF.flatGeos[1].clone().rotateX(-Math.PI / 2), fallMat, FL_N); fallDown.frustumCulled = false; fallDown.receiveShadow = true; scene.add(fallDown);   // landed: lying flat
+const fallDown = new THREE.InstancedMesh(LEAF.flatGeos[1].clone().scale(1, 1, LEAF_CURL).rotateX(-Math.PI / 2), fallMat, FL_N); fallDown.frustumCulled = false; fallDown.receiveShadow = true; scene.add(fallDown);   // landed: lying flat
 for (let i = 0; i < FL_N; i++){ FLs.push({ on: false, p: new V3(), rot: new THREE.Euler(), spin: new V3(), ph: rng() * TAU, land: 0, c: C('#c9952e'), v: Math.floor(i / FL_V), j: i % FL_V, s: 1.2 });
   fallAir[FLs[i].v].setColorAt(FLs[i].j, FLs[i].c); fallDown.setColorAt(i, FLs[i].c); }
 const flCur = [0, 0, 0, 0];
 function spawnLeaf(p, col, src = -1){ const v = src >= 0 ? LEAF.variant(src) : Math.floor(rng() * 4), L = FLs[v * FL_V + flCur[v]]; flCur[v] = (flCur[v] + 1) % FL_V; L.on = true; L.p.copy(p); L.land = 0;
   L.s = src >= 0 ? LEAVES[src].s : 1.2;
   L.rot.set(rng() * TAU, rng() * TAU, rng() * TAU); if (src >= 0) L.rot.setFromQuaternion(LEAVES[src].q);   // it lets go as it hung
-  L.spin.set(rnd(-2, 2), rnd(-2, 2), rnd(-2, 2)); L.c.copy(col); L.tq = null; L.lay = null; }
+  L.spin.set(rnd(-2, 2), rnd(-2, 2), rnd(-2, 2)); L.c.copy(col); L.tq = null; L.lay = null; L.sup = null; }
 /* chestnuts */
 const NUT_N = 160, NUTs = [];
 // a conker: glossy mahogany with wavy darker and lighter grain, a big matt beige-grey scar (the hilum) on top, one side pressed flat
@@ -6959,21 +6959,73 @@ const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl:
     cm.compose(new V3(Math.cos(a) * r, 0.04 + (0.4 - r) * 0.12, Math.sin(a) * r), cq, new V3(frn(0.6, 1.5), frn(0.5, 1), frn(0.6, 1.4))); chunks.setMatrixAt(i, cm); }
   fire.g.add(chunks);
   // the logs, leaning into a teepee: bark at the top, charred and glowing where they burn
-  const logTex = tex(32, 128, (g, w, h) => { const gr = g.createLinearGradient(0, h, 0, 0); gr.addColorStop(0, '#120e0b'); gr.addColorStop(0.45, '#1e1712'); gr.addColorStop(0.62, '#4a3828'); gr.addColorStop(1, '#5a4430'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 50; i++){ g.fillStyle = `rgba(0,0,0,${frn(0.2, 0.5)})`; g.fillRect(fr() * w, fr() * h, 1, frn(4, 14)); } });
-  const logGlow = tex(32, 128, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 90; i++){ const y = h - Math.pow(fr(), 1.8) * h * 0.55; g.fillStyle = `rgba(255,${(frn(70, 170)) | 0},20,${frn(0.4, 1) * (y / h)})`; g.fillRect(fr() * w, y, frn(1, 4), frn(1, 3)); }
-    const gr = g.createLinearGradient(0, h, 0, h * 0.6); gr.addColorStop(0, 'rgba(255,120,30,.5)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, h * 0.6, w, h * 0.4); });
-  const logM = new THREE.MeshStandardMaterial({ map: logTex, roughness: 1, emissive: '#ff6a20', emissiveMap: logGlow, emissiveIntensity: 0 });
-  fire.logM = logM;
+  for (let i = 0; i < 740; i++) fr();   // (the fire's own random numbers, drawn as they were for the old logs' pictures, so the rest of it is as it was)
+  /* the firewood: birch (white bark, black lenticels across it, black chevrons where twigs were, a patch peeled to the orange under it) and
+     pine (red-brown plates between dark fissures running along it); the sawn ends pale wood, rings round a darker heart, split by drying
+     cracks, the bark a rim round them. Those in the fire charred black from the bottom up, cracked into blocks whose cracks glow */
+  const wr = mkRng(7419), wn = (a, b) => a + (b - a) * wr(), BW = 256, BH = 512;
+  const wrapX = (w, x, m, f) => { f(x); if (x < m) f(x + w); if (x > w - m) f(x - w); };   // (round the log: what crosses the seam drawn on both sides of it)
+  const birchPaint = (g, w, h) => { g.fillStyle = '#e8e3d8'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++){ const x = wr() * w, y = wr() * h, rx = wn(6, 34), ry = wn(4, 18); g.fillStyle = wr() < 0.5 ? `rgba(190,184,172,${wn(0.08, 0.2)})` : `rgba(255,252,244,${wn(0.12, 0.25)})`; wrapX(w, x, rx, X => { g.beginPath(); g.ellipse(X, y, rx, ry, 0, 0, TAU); g.fill(); }); }
+    for (let y = 0; y < h; y += wn(2, 9)){ g.fillStyle = `rgba(170,162,150,${wn(0.04, 0.12)})`; g.fillRect(0, y, w, wn(0.6, 1.6)); }   // (fine bands across it)
+    for (let i = 0; i < 4; i++){ const x = wr() * w, y = wn(30, h - 30), sz = wn(12, 26);   // the black chevrons where twigs were, a knot in each
+      wrapX(w, x, sz * 1.4, X => { g.strokeStyle = 'rgba(30,26,24,.85)'; g.lineWidth = wn(3, 6); g.lineCap = 'round'; g.beginPath(); g.moveTo(X - sz * 1.3, y - sz * 0.35); g.quadraticCurveTo(X, y + sz * 0.3, X + sz * 1.3, y - sz * 0.35); g.stroke();
+        g.fillStyle = '#2a2420'; g.beginPath(); g.ellipse(X, y, sz * 0.22, sz * 0.3, 0, 0, TAU); g.fill(); }); }
+    for (let i = 0; i < 380; i++){ const x = wr() * w, y = wr() * h, L = 3 + wr() * wr() * 30, t = wn(0.8, 2.4), c = wn(30, 70) | 0;   // the lenticels: dark dashes across the bark
+      g.fillStyle = `rgba(${c},${c - 4},${c - 8},${wn(0.5, 0.9)})`; wrapX(w, x, L, X => g.fillRect(X, y, L, t)); }
+    for (let i = 0; i < 2; i++){ const x = wr() * w, y = wn(40, h - 80), pw = wn(18, 40), ph = wn(12, 30);   // a patch peeled: the orange inner bark, a pale curled edge
+      wrapX(w, x, pw, X => { g.fillStyle = '#c98a62'; g.beginPath(); g.ellipse(X, y, pw, ph, 0, 0, TAU); g.fill(); g.strokeStyle = 'rgba(250,246,236,.9)'; g.lineWidth = 2.5; g.beginPath(); g.ellipse(X, y - ph * 0.2, pw * 1.02, ph * 0.9, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); }); }
+    for (let i = 0; i < 18; i++){ const x = wr() * w, y = h - wr() * wr() * h * 0.35; g.strokeStyle = `rgba(40,34,30,${wn(0.3, 0.7)})`; g.lineWidth = wn(1, 3);   // rough dark fissures towards the butt end
+      wrapX(w, x, 6, X => { g.beginPath(); g.moveTo(X, y); g.lineTo(X + wn(-3, 3), y - wn(10, 40)); g.stroke(); }); } };
+  const pinePaint = (g, w, h) => { g.fillStyle = '#7e4c2e'; g.fillRect(0, 0, w, h);   // pine as it is cut for the stove: thin bark in scales, orange-brown, darker in the cracks along it
+    for (let i = 0; i < 2600; i++){ const x = wr() * w, y = wr() * h, sw = wn(5, 14), sh = wn(7, 18), c = wr(), col = c < 0.3 ? [122, 72, 44] : c < 0.6 ? [146, 90, 54] : c < 0.85 ? [168, 106, 62] : [112, 96, 84];
+      wrapX(w, x, sw, X => { g.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${wn(0.75, 1)})`; g.beginPath(); g.moveTo(X - sw / 2, y); g.lineTo(X - sw * 0.3, y - sh / 2); g.lineTo(X + sw * 0.35, y - sh * 0.45); g.lineTo(X + sw / 2, y + sh * 0.1); g.lineTo(X + sw * 0.1, y + sh / 2); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(46,26,14,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X + sw / 2, y + sh * 0.1); g.lineTo(X + sw * 0.1, y + sh / 2); g.lineTo(X - sw / 2, y); g.stroke(); }); }   // (each scale's lower edge in shadow)
+    for (let i = 0; i < 70; i++){ const x = wr() * w; let y = wr() * h; const L = wn(30, 140), wd = wn(1.2, 3.2); g.strokeStyle = `rgba(36,20,10,${wn(0.5, 0.85)})`; g.lineWidth = wd;   // the cracks, along the log
+      wrapX(w, x, 8, X => { g.beginPath(); g.moveTo(X, y); let xx = X; for (let k = 1; k <= 8; k++){ xx += wn(-2.5, 2.5); g.lineTo(xx, y + L * k / 8); } g.stroke(); }); } };
+  const endPaint = (pine) => (g, w, h) => { const cx = w / 2 + wn(-6, 6), cy = h / 2 + wn(-6, 6), R = w / 2;
+    g.fillStyle = pine ? '#3a2416' : '#d8d2c6'; g.fillRect(0, 0, w, h);   // (beyond the rim: the bark)
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, R); if (pine){ gr.addColorStop(0, '#b47a46'); gr.addColorStop(0.42, '#bf8650'); gr.addColorStop(0.5, '#ddb47c'); gr.addColorStop(1, '#e0bc86'); }
+    else { gr.addColorStop(0, '#d4be96'); gr.addColorStop(0.3, '#dcc8a2'); gr.addColorStop(1, '#e6d6b4'); }
+    g.fillStyle = gr; g.beginPath(); g.arc(w / 2, h / 2, R - 5, 0, TAU); g.fill();
+    const N = pine ? 26 : 34, ph = wn(0, TAU);   // the rings, a little out of round
+    for (let k = 1; k <= N; k++){ const rr = (R - 6) * Math.pow(k / N, 0.92); g.strokeStyle = `rgba(${pine ? '120,70,30' : '150,120,80'},${wn(0.22, pine ? 0.55 : 0.35)})`; g.lineWidth = wn(0.8, pine ? 2.2 : 1.4);
+      g.beginPath(); for (let a = 0; a <= 64; a++){ const t = a / 64 * TAU, q = rr * (1 + 0.025 * Math.sin(3 * t + ph + k * 0.3) + 0.012 * Math.sin(7 * t + k)); a ? g.lineTo(cx + Math.cos(t) * q, cy + Math.sin(t) * q) : g.moveTo(cx + Math.cos(t) * q, cy + Math.sin(t) * q); } g.stroke(); }
+    g.fillStyle = '#5a3a22'; g.beginPath(); g.arc(cx, cy, 2.5, 0, TAU); g.fill();   // the pith
+    for (let i = 0; i < 3 + (wr() * 3 | 0); i++){ const a = wr() * TAU, r0 = wn(0, R * 0.2), r1 = wn(R * 0.55, R * 0.98);   // drying cracks out from the heart
+      g.fillStyle = 'rgba(40,24,14,.85)'; g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a + 0.035) * r1, cy + Math.sin(a + 0.035) * r1); g.lineTo(cx + Math.cos(a - 0.035) * r1, cy + Math.sin(a - 0.035) * r1); g.fill(); }
+    for (let i = 0; i < 40; i++){ const y = wr() * h; g.strokeStyle = `rgba(255,255,255,${wn(0.03, 0.07)})`; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + wn(-20, 20)); g.stroke(); }   // the saw's marks
+    g.strokeStyle = pine ? '#4a2e1c' : '#f0ece2'; g.lineWidth = 8; g.beginPath(); g.arc(w / 2, h / 2, R - 4, 0, TAU); g.stroke();   // the bark round it
+    g.strokeStyle = pine ? '#2a1a10' : '#3a3430'; g.lineWidth = 2; g.beginPath(); g.arc(w / 2, h / 2, R - 1, 0, TAU); g.stroke(); };
+  // the char on the logs in the fire: black from the bottom up, cracked into blocks; the cracks drawn again in the glow picture
+  const cracks = []; for (let i = 0; i < 150; i++){ const y = BH - Math.pow(wr(), 1.3) * BH * 0.6, x = wr() * BW, pts = [[0, 0]], across = wr() < 0.7, n = 3 + (wr() * 5 | 0);   // (polylines, wandering)
+    for (let k = 1; k <= n; k++){ const [px, py] = pts[k - 1]; pts.push(across ? [px + wn(3, 9), py + wn(-2.5, 2.5)] : [px + wn(-2, 2), py - wn(3, 8)]); } cracks.push([x, y, pts, wn(0.5, 1)]); }
+  const charAt = y => smooth((y / BH - 0.38) / 0.4);   // (y down the picture: the log's bottom at the bottom)
+  const charred = (paint) => (g, w, h) => { paint(g, w, h);
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const k = c.getContext('2d'); k.fillStyle = '#16120f'; k.fillRect(0, 0, w, h);
+    for (let i = 0; i < 400; i++){ k.fillStyle = `rgba(${wn(30, 60) | 0},${wn(26, 50) | 0},${wn(22, 44) | 0},${wn(0.3, 0.7)})`; k.fillRect(wr() * w, wr() * h, wn(4, 14), wn(4, 12)); }   // the blocks of char, sheen on some
+    for (const [x, y, pts] of cracks){ k.strokeStyle = 'rgba(6,4,3,.95)'; k.lineWidth = 1.5; k.lineJoin = 'round'; wrapX(w, x, 60, X => { k.beginPath(); pts.forEach(([px, py], i) => i ? k.lineTo(X + px, y + py) : k.moveTo(X + px, y + py)); k.stroke(); }); }
+    for (let i = 0; i < 60; i++){ const y = h * wn(0.3, 0.55); k.fillStyle = `rgba(150,146,140,${wn(0.15, 0.35)})`; k.fillRect(wr() * w, y, wn(4, 16), wn(3, 8)); }   // grey ash where it gives way to bark
+    const m = k.createLinearGradient(0, 0, 0, h); for (let q = 0; q <= 20; q++) m.addColorStop(q / 20, `rgba(0,0,0,${charAt(q / 20 * h)})`);
+    k.globalCompositeOperation = 'destination-in'; k.fillStyle = m; k.fillRect(0, 0, w, h); g.drawImage(c, 0, 0); };
+  const glowTex = tex(BW, BH, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    g.lineJoin = 'round'; for (const [x, y, pts, k] of cracks){ const a = smooth((y / h - 0.62) / 0.3) * k; if (a <= 0.05) continue; g.strokeStyle = `rgba(255,${wn(70, 140) | 0},20,${a * wn(0.35, 0.8)})`; g.lineWidth = wn(0.8, 1.6);   // (only deep in the fire, thin, unevenly)
+      wrapX(w, x, 60, X => { g.beginPath(); pts.forEach(([px, py], i) => i ? g.lineTo(X + px, y + py) : g.moveTo(X + px, y + py)); g.stroke(); }); }
+    const gr = g.createLinearGradient(0, h, 0, h * 0.78); gr.addColorStop(0, 'rgba(255,110,30,.45)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, h * 0.78, w, h * 0.22); });   // (and the bottom, in the coals)
+  const W_ = { birch: tex(BW, BH, birchPaint), pine: tex(BW, BH, pinePaint) }, E_ = { birch: tex(256, 256, endPaint(false)), pine: tex(256, 256, endPaint(true)) };
+  const C_ = { birch: tex(BW, BH, charred(birchPaint)), pine: tex(BW, BH, charred(pinePaint)) };
+  const endChar = tex(128, 128, (g, w, h) => { g.fillStyle = '#1a1512'; g.fillRect(0, 0, w, h); for (let i = 0; i < 120; i++){ g.fillStyle = `rgba(${wn(40, 80) | 0},${wn(36, 70) | 0},${wn(30, 60) | 0},.5)`; g.fillRect(wr() * w, wr() * h, wn(2, 8), wn(2, 8)); } });
+  const barkM = k => new THREE.MeshStandardMaterial({ map: W_[k], bumpMap: W_[k], bumpScale: 1.6, roughness: 0.92 }), endM = k => new THREE.MeshStandardMaterial({ map: E_[k], bumpMap: E_[k], bumpScale: 0.8, roughness: 0.85 });
+  const logMs = ['birch', 'pine'].map(k => new THREE.MeshStandardMaterial({ map: C_[k], bumpMap: C_[k], bumpScale: 1.6, roughness: 0.95, emissive: '#ff6a20', emissiveMap: glowTex, emissiveIntensity: 0 }));
+  const tipM = { birch: endM('birch'), pine: endM('pine') }, butt = new THREE.MeshStandardMaterial({ map: endChar, roughness: 1, emissive: '#ff6a20', emissiveMap: glowTex, emissiveIntensity: 0 });
+  fire.logM = logMs[0]; fire.logMs = logMs.concat(butt);   // (glowing together: see updateFire)
   const up = new V3(0, 1, 0);
-  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + frn(-0.2, 0.2), rb = frn(0.3, 0.38), B = new V3(Math.cos(a) * rb, 0.04, Math.sin(a) * rb), T = new V3(Math.cos(a + 2) * 0.05, frn(0.5, 0.62), Math.sin(a + 2) * 0.05);
-    const L = B.distanceTo(T), l = new THREE.Mesh(new THREE.CylinderGeometry(frn(0.03, 0.045), frn(0.045, 0.06), L, 7), logM);
-    l.position.copy(B).add(T).multiplyScalar(0.5); l.quaternion.setFromUnitVectors(up, T.clone().sub(B).normalize()); fire.g.add(l); }
-  // a couple of spare logs by the ring, not burning
-  const spareM = new THREE.MeshStandardMaterial({ color: '#5c4632', roughness: 1 });
+  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + frn(-0.2, 0.2), rb = frn(0.3, 0.38), B = new V3(Math.cos(a) * rb, 0.04, Math.sin(a) * rb), T = new V3(Math.cos(a + 2) * 0.05, frn(0.5, 0.62), Math.sin(a + 2) * 0.05), k = i % 2 ? 'pine' : 'birch';
+    const L = B.distanceTo(T), l = new THREE.Mesh(new THREE.CylinderGeometry(frn(0.03, 0.045), frn(0.045, 0.06), L, 14), [logMs[i % 2], tipM[k], butt]);   // (side, its top end, its foot in the coals)
+    l.position.copy(B).add(T).multiplyScalar(0.5); l.quaternion.setFromUnitVectors(up, T.clone().sub(B).normalize()); l.rotateY(wn(0, TAU)); fire.g.add(l); }
+  // a couple of spare logs by the ring, not burning: one birch, one pine
   { const ph = 0.34, u = new V3(Math.cos(ph), 0, Math.sin(ph)), tg = new V3(-Math.sin(ph), 0, Math.cos(ph));   // (side by side, along the ring, just outside its stones)
-    for (const [rad, along, turn, roll] of [[0.97, 0, 0.03, 0.4], [1.115, 0.06, 0.0, 2.1]]){ const l = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.7, 10), spareM);
+    for (const [rad, along, turn, roll, k] of [[0.97, 0, 0.03, 0.4, 'birch'], [1.115, 0.06, 0.0, 2.1, 'pine']]){ const em = endM(k), l = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.7, 18), [barkM(k), em, em]);
       l.quaternion.setFromUnitVectors(new V3(0, 1, 0), tg.clone().applyAxisAngle(new V3(0, 1, 0), turn)).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), roll));
       l.position.copy(u).multiplyScalar(rad).addScaledVector(tg, along).setY(0.06); l.castShadow = l.receiveShadow = true; fire.g.add(l);
       l.updateMatrix(); fire.raster(l.geometry.clone().applyMatrix4(l.matrix)); } }   // (and what comes down on them lies on them)
@@ -7026,8 +7078,8 @@ const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl:
    kind of leaf's shape as a height map (its leaflets curl up as they dry); a leaf coming down is fitted to the tops under it, tilted to lie
    across them and lifted just clear of them all. The litter round the tree is laid in the order it falls (none in the fire's pit); the
    leaves coming off the tree land on what lies there at the time ---------- */
-const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0);
-  const shapes = LEAF.flatGeos.map(g0 => { const g = g0.clone().rotateX(-Math.PI / 2), P = g.attributes.position, I = g.index ? g.index.array : null; let R = 0;
+const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0), TILTS = [0.05, 0.12, 0.2, 0.3];
+  const shapes = LEAF.flatGeos.map(g0 => { const g = g0.clone().scale(1, 1, LEAF_CURL).rotateX(-Math.PI / 2), P = g.attributes.position, I = g.index ? g.index.array : null; let R = 0;
     for (let k = 0; k < P.count; k++) R = Math.max(R, Math.hypot(P.getX(k), P.getZ(k)));
     const cs = 2 * R / NC, H = new Float32Array((NC + 1) * (NC + 1)).fill(-1);   // (-1: no leaf there)
     const tri = (a, b, c) => { const ax = P.getX(a), az = P.getZ(a), bx = P.getX(b), bz = P.getZ(b), cx = P.getX(c), cz = P.getZ(c), den = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz); if (Math.abs(den) < 1e-14) return;
@@ -7047,17 +7099,19 @@ const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0);
       for (const q of others){ const t = topOf(q, x, z); if (t > top) top = t; }
       const m = Math.max(y0, top + 0.007) - o.s * h; if (top + 0.007 > y0) lifted = true; F.push([dx, dz, m]); }
     o.gx = o.gz = 0; o.tilt = null; if (!lifted){ o.p.y = y0; return o; }
-    let mx = 0, mz = 0, mm = 0; for (const f of F){ mx += f[0]; mz += f[1]; mm += f[2]; } mx /= F.length; mz /= F.length; mm /= F.length;
-    let sxx = 0, szz = 0, sxz = 0, sxm = 0, szm = 0; for (const [dx, dz, m] of F){ const a = dx - mx, b = dz - mz; sxx += a * a; szz += b * b; sxz += a * b; sxm += a * (m - mm); szm += b * (m - mm); }
-    const det = sxx * szz - sxz * sxz; let gx = det > 1e-12 ? (sxm * szz - szm * sxz) / det : 0, gz = det > 1e-12 ? (szm * sxx - sxm * sxz) / det : 0; const gl = Math.hypot(gx, gz); if (gl > 0.45){ gx *= 0.45 / gl; gz *= 0.45 / gl; }
-    let y = -1; for (const [dx, dz, m] of F) y = Math.max(y, m - gx * dx - gz * dz);
+    // of lying flat and tilting each of eight ways by each of four slopes, the plane that, lifted just clear of everything under it, lies
+    // closest over it all (the least gap on average): a leaf caught on another's edge lies up over it and down onto the ground beyond
+    let y = 0, gx = 0, gz = 0, best = Infinity;
+    for (let d = -1; d < 8; d++) for (const sl of d < 0 ? [0] : TILTS){ const tx = d < 0 ? 0 : Math.cos(d * TAU / 8) * sl, tz = d < 0 ? 0 : Math.sin(d * TAU / 8) * sl;
+      let Y = -1; for (const [dx, dz, m] of F) Y = Math.max(Y, m - tx * dx - tz * dz); let gap = 0; for (const [dx, dz, m] of F) gap += Y + tx * dx + tz * dz - m;
+      if (gap < best - 1e-9){ best = gap; y = Y; gx = tx; gz = tz; } }
     o.p.y = y; o.gx = gx; o.gz = gz; o.tilt = new THREE.Quaternion().setFromUnitVectors(UP, new V3(-gx, 1, -gz).normalize()); return o; };
   // the litter round the tree, in the order it comes down
   const CELL_ = 1.4, grid = new Map(), key = (x, z) => Math.floor(x / CELL_) + ',' + Math.floor(z / CELL_);
   const near = (x, z) => { const out = [], i = Math.floor(x / CELL_), j = Math.floor(z / CELL_); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ const l = grid.get((i + a) + ',' + (j + b)); if (l) out.push(...l); } return out; };
   for (const L of [...LITTER].sort((a, b) => a.r - b.r)){ if (Math.hypot(L.p.x - FIRE.x, L.p.z - FIRE.z) < 0.5){ L.hide = true; continue; }
     L.lay = { p: L.p, rot: L.rot, s: L.s * 1.75, shp: shapes[L.v], gx: 0, gz: 0 }; const R = L.lay.shp.R * L.lay.s;
-    rest(L.lay, near(L.p.x, L.p.z).filter(q => Math.hypot(q.lay.p.x - L.p.x, q.lay.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s).map(q => q.lay), L.p.y); L.tilt = L.lay.tilt;
+    rest(L.lay, near(L.p.x, L.p.z).filter(q => Math.hypot(q.lay.p.x - L.p.x, q.lay.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s).map(q => q.lay), 0.022 + (L.p.y - 0.03) * 0.5); L.tilt = L.lay.tilt;   // (on bare ground, just over the paths' asphalt)
     const k = key(L.p.x, L.p.z); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(L); }
   // into the ground's cover (LEAFCOV): under each covered bit of a leaf, its turn (litter) or till when it lies (fallen from the tree), and its
   // height there, less a few millimetres. Returns the texels touched
@@ -7071,6 +7125,9 @@ const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0);
       i0 = Math.min(i0, u); i1 = Math.max(i1, u); j0 = Math.min(j0, v); j1 = Math.max(j1, v); }
     return i1 < 0 ? null : [i0, j0, i1, j1]; };
   for (const L of LITTER) if (L.lay) stamp(L.lay, L.r); C.tex.needsUpdate = true;
+  if (new URLSearchParams(location.search).has('leaflog')){ const ys = LITTER.filter(L => L.lay).map(L => L.p.y).sort((a, b) => a - b), sl = LITTER.filter(L => L.lay).map(L => Math.hypot(L.lay.gx, L.lay.gz));
+    console.log('LEAFLOG shapes', JSON.stringify(shapes.map(S => [+S.R.toFixed(3), +Math.max(...S.H).toFixed(4), S.pts.length])), 'scale', JSON.stringify(LITTER.slice(0, 5).map(L => +(L.s * 1.75).toFixed(2))),
+      'y p50/p90/p99/max', [0.5, 0.9, 0.99, 1].map(q => ys[Math.min(ys.length - 1, Math.floor(q * ys.length))].toFixed(3)).join('/'), 'over 8cm', ys.filter(y => y > 0.08).length, 'over 15cm', ys.filter(y => y > 0.15).length, 'slope>0.3', sl.filter(v => v > 0.3).length); }
   // the bit of the map changed, sent to the card (not the whole map)
   const upload = ([i0, j0, i1, j1]) => { const w = i1 - i0 + 1, h = j1 - j0 + 1, d = new Float32Array(w * h * 4);
     for (let j = 0; j < h; j++) d.set(C.data.subarray(((j0 + j) * C.N + i0) * 4, ((j0 + j) * C.N + i1 + 1) * 4), j * w * 4);
@@ -7084,6 +7141,23 @@ const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0);
       C.data[k + 3] = C.data[k + 2] > until - 30 ? Math.min(C.data[k + 3], y) : y; C.data[k + 2] = Math.max(C.data[k + 2], until); }
     upload([u0, v0, u1, v1]); };
   return { shapes, rest, near, topOf, landed, disc }; })();
+// a leaf come down from the tree comes to rest (or settles again) on what is there: the fire's stones and logs, the litter lying now, the leaves
+// landed before it, the conkers and opened husks; what it lies on that can go (a leaf, a conker) is kept, so that when it goes it settles again
+function layFallen(L, t){ L.lay = { p: L.p, rot: L.rot.z, s: L.s, shp: LEAFLAY.shapes[1], gx: 0, gz: 0 }; const R = LEAFLAY.shapes[1].R * L.s, lit = LEAFCOV.lit.value, others = [], sup = [];
+  for (const q of LEAFLAY.near(L.p.x, L.p.z)) if (!q.hide && q.r < lit && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s) others.push(q.lay);
+  for (const q of FLs) if (q !== L && q.on && q.land > 0 && q.lay && q.landT < L.landT && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s){ const ql = q.lay; others.push(ql); sup.push(() => q.on && q.land > 0 && q.lay === ql); }
+  for (const n of NUTs){
+    if (n.h === 2 && Math.hypot(n.hp.x - L.p.x, n.hp.z - L.p.z) < R + 0.22){ const g = huskTop(n), hx = n.hp.x, hz = n.hp.z; others.push({ top: g }); sup.push(() => n.h === 2 && n.hp.x === hx && n.hp.z === hz); }
+    if (n.on && n.h !== 1 && n.rest && Math.hypot(n.p.x - L.p.x, n.p.z - L.p.z) < R + 0.06){ const cx = n.p.x, cy = n.p.y, cz = n.p.z;
+      others.push({ top: (x, z) => { const d = Math.hypot(x - cx, z - cz); return d < 0.05 ? cy + Math.sqrt(0.0025 - d * d) : -1; } }); sup.push(() => n.on && n.p.x === cx && n.p.z === cz); } }
+  LEAFLAY.rest(L.lay, others, L.y0); L.tq = L.lay.tilt; L.sup = sup; LEAFLAY.landed(L.lay, t + L.land); }
+// an opened husk's top, as it lies: its three valves (and their spines) as they are drawn, as a height map round it, 2 cm a cell
+const _hm = new THREE.Matrix4(), _hv = new V3();
+function huskTop(n){ const i = NUTs.indexOf(n), N = 22, E = 0.22, cs = 2 * E / N, H = new Float32Array((N + 1) * (N + 1)).fill(-1), P = valveOutGeo.attributes.position;
+  for (let k = 0; k < 3; k++){ valvesOut.getMatrixAt(i * 3 + k, _hm);
+    for (let v = 0; v < P.count; v++){ _hv.fromBufferAttribute(P, v).applyMatrix4(_hm); const u = Math.round((_hv.x - n.hp.x + E) / cs), w = Math.round((_hv.z - n.hp.z + E) / cs);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ const uu = u + a, ww = w + b; if (uu < 0 || ww < 0 || uu > N || ww > N) continue; const q = ww * (N + 1) + uu; if (_hv.y > H[q]) H[q] = _hv.y; } } }   // (each point spread a cell round: no holes between them)
+  return (x, z) => { const u = Math.round((x - n.hp.x + E) / cs), w = Math.round((z - n.hp.z + E) / cs); return u < 0 || w < 0 || u > N || w > N ? -1 : H[w * (N + 1) + u]; }; }
 // what a conker or an opened husk comes to rest on: the ground, the fire's stones and logs, the litter lying now, and the leaves come down from
 // the tree before `before`; the highest of them under it, anywhere within r of (x, z)
 function nutGround(x, z, r, before = Infinity){ const lit = LEAFCOV.lit.value, Ls = lit > -1 ? LEAFLAY.near(x, z).filter(q => !q.hide && q.r < lit) : [];
@@ -7105,7 +7179,7 @@ function updateFire(dt, t, wind){
   fire.light.intensity = 7 * glow; fire.light.position.set(Math.sin(t * 7.3) * 0.07, 0.85 + fk * 0.4, Math.cos(t * 5.9) * 0.07);
   fire.light.color.setRGB(1, 0.5 + 0.12 * fk, 0.2 + 0.05 * fk);
   const breathe = 0.7 + 0.3 * Math.sin(t * 1.7) * Math.sin(t * 0.63 + 1);
-  fire.logM.emissiveIntensity = fk * (0.5 + 1.3 * fl) + ek * 0.35 * breathe;
+  for (const m of fire.logMs) m.emissiveIntensity = fk * (0.5 + 1.3 * fl) + ek * 0.35 * breathe;
   fire.coalM.emissiveIntensity = ek * 0.9 * breathe + fk * 0.5 * fl;
   fire.pool.visible = glow > 0.01; fire.pool.material.opacity = 0.32 * glow * (0.3 + 0.7 * env.night);
   // face the camera around the vertical, lean with the wind
@@ -7134,7 +7208,7 @@ function updateFire(dt, t, wind){
       for (let i = 0; i < 10; i++) sparks.spawn(FIRE.x + rnd(-0.1, 0.1), 0.25, FIRE.z + rnd(-0.1, 0.1), rnd(-1, 1), rnd(1.5, 3.5), rnd(-1, 1), rnd(0.3, 1.1));
       if (nutsHeld === 0) fire.endT = fire.t + 8; } }
   else if (fire.lit && fire.endT !== undefined && fire.t > fire.endT){ fire.lit = false; fire.endT = undefined; ctxState = '?'; }
-  if (!fire.lit && fk < 0.005 && ek < 0.005 && fire.smoke.every(s => s.userData.life <= 0)){ fire.on = false; fire.light.intensity = 0; fire.logM.emissiveIntensity = 0; fire.coalM.emissiveIntensity = 0; fire.pool.visible = false; fire.tongues.forEach(m => m.visible = false); }
+  if (!fire.lit && fk < 0.005 && ek < 0.005 && fire.smoke.every(s => s.userData.life <= 0)){ fire.on = false; fire.light.intensity = 0; for (const m of fire.logMs) m.emissiveIntensity = 0; fire.coalM.emissiveIntensity = 0; fire.pool.visible = false; fire.tongues.forEach(m => m.visible = false); }
 }
 
 /* my window, as seen from the yard: the room behind the glass (lamp-lit or dark) and the casements, open or shut */
@@ -9055,17 +9129,11 @@ function frame(){
     if (window.__fallHold){ }   // (debug: held still in the air)
     else if (L.land <= 0){ L.p.y -= dt * 0.95; L.p.x += (Math.sin(t * 1.7 + L.ph) * 0.9 + wind) * dt; L.p.z += Math.cos(t * 1.3 + L.ph) * 0.6 * dt;
       L.rot.x += L.spin.x * dt; L.rot.y += L.spin.y * dt; L.rot.z += L.spin.z * dt;
-      if (L.p.y < 0.04 + fire.top(L.p.x, L.p.z)){ const y0 = 0.035 + rng() * 0.02; L.rot.set(0, 0, rng() * TAU); L.land = 25;
+      if (L.p.y < 0.04 + fire.top(L.p.x, L.p.z)){ const y0 = 0.022 + rng() * 0.01; L.rot.set(0, 0, rng() * TAU); L.land = 25;
         if (Math.hypot(L.p.x - FIRE.x, L.p.z - FIRE.z) < 0.5) L.on = false;   // (into the fire's pit: gone)
-        else { L.lay = { p: L.p, rot: L.rot.z, s: L.s, shp: LEAFLAY.shapes[1], gx: 0, gz: 0 }; const R = LEAFLAY.shapes[1].R * L.s, lit = sp.litter * 1.1 - 0.05, others = [];   // (it comes to rest on the stones, the litter, the leaves landed before it)
-          for (const q of LEAFLAY.near(L.p.x, L.p.z)) if (!q.hide && q.r < lit && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s) others.push(q.lay);
-          for (const q of FLs) if (q !== L && q.on && q.land > 0 && q.lay && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s) others.push(q.lay);
-          for (const n of NUTs){   // (and on the conkers and opened husks lying there: a husk a low dome over its valves, a conker its round top)
-            if (n.h === 2 && n.lift !== undefined && Math.hypot(n.hp.x - L.p.x, n.hp.z - L.p.z) < R + 0.2){ const rr = HUSK_R * (1 + Math.sin(n.ref)) * 1.15 + 0.02, P = n.lift + HUSK_R * (2 * Math.cos(Math.max(0, n.amin)) + 0.3);
-              others.push({ top: (x, z) => { const d = Math.hypot(x - n.hp.x, z - n.hp.z); return d < rr ? n.hp.y + P * Math.sqrt(1 - d * d / (rr * rr)) : -1; } }); }
-            if (n.on && n.h !== 1 && n.p.y < 0.4 && Math.hypot(n.p.x - L.p.x, n.p.z - L.p.z) < R + 0.06) others.push({ top: (x, z) => { const d = Math.hypot(x - n.p.x, z - n.p.z); return d < 0.05 ? n.p.y + Math.sqrt(0.0025 - d * d) : -1; } }); }
-          LEAFLAY.rest(L.lay, others, y0); L.tq = L.lay.tilt; L.landT = t; LEAFLAY.landed(L.lay, t + 25); } } }   // (the grass under it bends down beneath it while it lies there)
-    else { L.land -= dt; if (L.land <= 0 || sp.snow > 0.5) L.on = false; }
+        else { L.y0 = y0; L.landT = t; layFallen(L, t); } } }   // (it comes to rest on what is there; the grass under it bends down beneath it while it lies there)
+    else if (L.sup && L.sup.some(f => !f())) layFallen(L, t);   // (what it lay on gone, a leaf under it or a conker picked up: it settles onto what is left)
+    if (L.land > 0){ L.land -= dt; if (L.land <= 0 || sp.snow > 0.5){ L.on = false; L.land = 0; } }
     Q.setFromEuler(L.rot); M4.compose(L.p, Q, SC.setScalar(L.on && L.land <= 0 ? L.s : 0)); fallAir[L.v].setMatrixAt(L.j, M4); fallAir[L.v].setColorAt(L.j, L.c);
     Q.setFromAxisAngle(P3.set(0, 1, 0), L.rot.z); if (L.tq) Q.premultiply(L.tq); M4.compose(L.p, Q, SC.setScalar(L.on && L.land > 0 ? L.s : 0)); fallDown.setMatrixAt(i, M4); fallDown.setColorAt(i, L.c); }
   for (const m of fallAir.concat(fallDown)){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
