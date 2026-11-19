@@ -4967,6 +4967,8 @@ const AN = (() => {
     else if (D.gable === 'wave'){ L.push([0.12, 0.35]); bz([0.12, 0.35], [0.62, 0.4], [0.55, H], [1.25, H]); L.push([1.8, H]); }
     else if (D.gable === 'point'){ L.push([0.12, 0.4]); bz([0.12, 0.4], [0.18, H * 0.78], [1.45, H * 0.62], [1.8, H]); }
     else if (D.gable === 'step'){ const s = H / 3; L.push([0.12, s], [0.62, s], [0.62, 2 * s], [1.12, 2 * s], [1.12, H], [1.8, H]); }
+    else if (D.gable === 'flem') L.push([0.12, 0.16], [0.03, 0.22], [0.0, 0.38], [0.05, 0.54], [0.18, 0.6], [0.3, 0.55], [0.36, 0.72], [1.6, H - 0.3], [1.6, H + 0.42], [1.8, H + 0.7]);   // Flemish: a scroll at each foot, steep straight sides, a pinnacle
+    else if (D.gable === 'attic'){ L.push([0.12, H], [0.52, H], [0.52, H - 0.55]); for (let i = 1; i <= 8; i++){ const t = i / 8; L.push([0.52 + 1.28 * t, H - 0.55 + 0.35 * Math.sin(t * Math.PI / 2)]); } }   // a raised attic between two posts, its top a low curve
     else { L.push([0.12, 0.3], [1.8, H]); }   // a steep triangle
     const R = L.slice(0, -1).reverse().map(([x, y]) => [3.6 - x, y]); return L.concat(R); };
 
@@ -5082,7 +5084,7 @@ const AN = (() => {
   // bricks set on end over the windows, round ones on the top floor, stepped hoods, saw-tooth bands between the storeys, rows of little arches
   // under the eaves, brick strips up the bays, sometimes a plastered ground floor with stepped grey surrounds; drawn into a second picture
   const NB = 7, BFIRE = [28, 29], BCOL = [['#c4a466', '#b3a890'], ['#bc9e62', '#a89e8a'], ['#c9b07c', '#bcb4a2'], ['#a68f5c', '#9e9482'], ['#9a4a34', '#a0968a'], ['#b39764', '#a89c88'], ['#8c4431', '#a3998b']];
-  SH = sheet(AW, 1024); g = SH.g; m = SH.m;
+  SH = sheet(AW, 2048); g = SH.g; m = SH.m;   // (two rows: the yellow houses in the first, the red in the second)
   const brickPat = (base, mortar, seed) => { const r = mkRng(seed), t = mkCv(126, 126), c = t.getContext('2d'), B = new THREE.Color(base); c.fillStyle = mortar; c.fillRect(0, 0, 126, 126);
     for (let row = 0; row < 42; row++) for (let k = -1; k < 15; k++){ const x = k * 9 + (row % 2) * 4.5, v = 0.8 + 0.34 * r(), dk = r() < 0.07 ? 0.74 : 1;
       c.fillStyle = B.clone().offsetHSL((r() - 0.5) * 0.03, (r() - 0.5) * 0.12, 0).multiplyScalar(v * dk).getStyle(); c.fillRect(x + 0.6, row * 3 + 0.65, 7.8, 2.35); }
@@ -5161,12 +5163,235 @@ const AN = (() => {
     BR(P().R(0, Hc - 0.45, 3.6, 0.15), 0.8, 0.1); BR(P().R(0, Hc - 0.3, 3.6, 0.15), 0.8, 0.05); BR(P().R(0, Hc - 0.15, 3.6, 0.15), 0.8, 0); part('metal', P().R(0, Hc - 0.05, 3.6, 0.05), 0, '#6a6c6a');
     // time: soot, damp
     weather(r, D, C_ ? 0.75 : 0.6); };
-  for (const D of bdesigns){ D.pat = brickPat(D.bc, D.mo, 777 + D.i); ['N', 'A', 'E', 'C'].forEach((t, j) => bcolumn(D.i * 4 + j, D, t)); }
+  for (const D of bdesigns){ if (D.i === 4 || D.i === 6) continue; D.pat = brickPat(D.bc, D.mo, 777 + D.i); ['N', 'A', 'E', 'C'].forEach((t, j) => bcolumn(D.i * 4 + j, D, t)); }   // (the two red ones of bare brick never stood: see below)
   BFIRE.forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const r = mkRng(5151 + j), D = { age: 1, Hc: 26 }, pat = bdesigns[j * 3].pat; KC = bdesigns[j * 3].KC;   // brick blind walls
     part('brick', P().R(0, 0, 3.6, 28.8), 0, pat); band(15, 0, 28.8);
     for (let i = 0; i < 5; i++) smear(P().R(r() * 3, 1 + r() * 24, 0.3 + r() * 0.8, 0.3 + r() * 1.2), r() < 0.5 ? 'rgba(40,26,14,.12)' : 'rgba(255,246,228,.1)');
     weather(r, D, 0.5); });
-  const BSH = finish(SH), UVb = (c, u, y) => [((c % NC) * CW + u * CW) / AW, 1 - (Math.floor(c / NC) * CH + CH - y * PPM) / 1024];
+  // ---- and the red brick. No house of those years was bare red brick: red brick was laid as ornament, on fronts of four and five storeys whose
+  // lowest storeys were stone. Three families of them, two of each, into the second row of the same picture:
+  //  - the castle-like eclectic: a grey stone ground floor (rusticated in bands, or rock-faced over a tall basement painted red; on the first
+  //    kind the first floor stone too), red brick over it banded with pale stone at every sill, the windows framed in stone (keystones, quoins
+  //    up their sides, carved aprons; pairs and threes of round arches), Flemish gables with scrolls at their feet and a pinnacle, mansards
+  //    with arched dormers, round towers on the corners under slate domes;
+  //  - glazed red brick in fields between stucco pilasters, over two storeys of stucco rusticated like stone, every window in a heavy stucco
+  //    frame (consoles, a cartouche or a pediment over it, a festoon under it), rings hung under the pilasters' heads, iron balconies;
+  //  - the Jugendstil plaster front with bands of dark red brick drawn round its windows, running down into round feet, bars of brick between,
+  //    a red plinth, the doorway under a great hood with two round eyes, a raised attic with the year on it, a tiled mansard with dormers
+  const RDES = [['castle', 0, '#a8593e', '#b9b0a2'], ['castle', 1, '#9c4d36', '#a69d90'], ['frame', 0, '#b84a3c', '#b98274'], ['frame', 1, '#a8443a', '#ab7568'], ['bands', 0, '#913e30', '#84392d'], ['bands', 1, '#9a4434', '#8a3d30']];
+  const brickPat2 = (base, mortar, seed, vr, dark) => { const r = mkRng(seed), t = mkCv(126, 126), c = t.getContext('2d'), B = new THREE.Color(base); c.fillStyle = mortar; c.fillRect(0, 0, 126, 126);
+    for (let row = 0; row < 42; row++) for (let k = -1; k < 15; k++){ const x = k * 9 + (row % 2) * 4.5, v = 1 - vr / 2 + vr * r(), dk = r() < dark ? 0.68 : 1;
+      c.fillStyle = B.clone().offsetHSL((r() - 0.5) * 0.025, (r() - 0.5) * 0.1, 0).multiplyScalar(v * dk).getStyle(); c.fillRect(x + 0.6, row * 3 + 0.65, 7.8, 2.35); }
+    return g.createPattern(t, 'repeat'); };
+  const rdesigns = RDES.map(([fam, v, bc, mo], j) => { const r = mkRng(39050 + j * 811), rr = (a, b) => a + r() * (b - a), pk = a => a[r() * a.length | 0];
+    const D = { i: 8 + j, red: true, st: 'red', fam, v, bc, mo, n: [4, 3, 4, 3, 3, 4][j] + 0 * r(), g: rr(4.4, 4.9), f: rr(3.35, 3.6), age: rr(0.55, 0.9), winW: rr(1.1, 1.24), cd: rr(0.38, 0.5), top: 'flat', stoneL: rr(48, 55) };
+    D.Hc = D.g + D.n * D.f + rr(1.15, 1.35);
+    if (fam === 'castle') Object.assign(D, { stone1: !v, axis: v ? 'erker' : 'flat', top: 'flat', gable: 'flem', gH: rr(3.7, 4.3), mans: v ? 0.4 : 0.85, dorm: 'arch', ground: 'stone', fire: [56, 57],
+      tint: C('#dcd8d0'), tintK: 0.85, wk: Array.from({ length: D.n }, (_, k) => v ? (k === D.n - 1 ? 'round' : 'rect') : (k === 0 ? 'rect' : k === D.n - 1 ? 'round' : 'bi')) });
+    else if (fam === 'frame') Object.assign(D, { axis: 'balcony', bal: v ? 'solid' : 'iron', balc: v ? [2] : [2, D.n], gable: v ? 'bell' : 'arch', gH: rr(2.7, 3.2), mans: 0.3, dorm: 'arch', ground: 'rust', fire: [56, 57], tint: C('#d2cbbd'), tintK: 0.55 });
+    else Object.assign(D, { axis: 'flat', gable: 'attic', gH: rr(2.95, 3.3), mans: 0.85, dorm: 'rect', ground: 'plaster', fire: [58, 59], year: 1899 + j * 3, tint: C('#f0e8d6'), tintK: 0.55 });
+    const base = { metal: '#2c2a28', tile: '#4f7d70', tile2: '#d8d2c0', dark: '#3a352e', sign: '#2e3a30', brick: bc, age: D.age };
+    D.KC = fam === 'castle' ? { ...base, wall: bc, trim: v ? '#ddd8ce' : '#d5d0c4', orn: v ? '#ddd8ce' : '#d5d0c4', stone: v ? '#a39f95' : '#b4afa5', frame: v ? '#e6e2d8' : '#4a3626', door: v ? '#3e3428' : '#4e3424' }
+      : fam === 'frame' ? { ...base, wall: '#dcd5c7', trim: '#e7e1d5', orn: '#ede7db', stone: '#a7a195', frame: v ? '#5e4230' : '#e6e2d8', door: '#4e3424' }
+      : { ...base, wall: '#ede6d6', trim: '#f4efe5', orn: '#f2ede2', stone: '#a7a195', frame: v ? '#e8e4da' : '#5a3a28', door: '#5a2e24' };
+    return D; });
+  // a column kept to itself (so what is drawn on its edges, a pilaster's half, its ring, meets its neighbour's half and never paints over it)
+  const clipCol = (fn) => { for (const c of [g, ...m]){ c.save(); c.beginPath(); c.rect(X0, Y0, CW, CH); c.clip(); } fn(); for (const c of [g, ...m]) c.restore(); };
+  const rcolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; clipCol(() => {
+    const r = mkRng(D.i * 5303 + type.charCodeAt(0) * 59), rN = mkRng(D.i * 5303 + 78 * 59), rr = (a, b) => a + r() * (b - a);
+    const g0 = D.g, f = D.f, Hc = D.Hc, n = D.n, v = D.v, pat = D.pat, C_ = type === 'C', A_ = type === 'A', E_ = type === 'E', N_ = type === 'N', castle = D.fam === 'castle', frame = D.fam === 'frame';
+    const BR = (p, relief = 0, sh = 0) => { part('brick', p, relief, pat); if (sh) smear(p, sh > 0 ? `rgba(40,24,12,${sh})` : `rgba(255,246,228,${-sh})`); };
+    // voussoirs round a head (half-round or segmental), d deep, brick or stone, with a keystone
+    const vRing = (x, y, w, h, head, d, kind, key) => { const cx_ = x + w / 2; let R0, cy, a0, a1;
+      if (head === 'round'){ R0 = w / 2; cy = y + h - R0; a0 = 0; a1 = Math.PI; }
+      else { const rise = w * 0.14; R0 = (w * w / 4 + rise * rise) / (2 * rise); cy = y + h - R0; a0 = Math.atan2(R0 - rise, w / 2); a1 = Math.PI - a0; }
+      const R1 = R0 + d, p = P().M(cx_ + Math.cos(a0) * R1, cy + Math.sin(a0) * R1).A(cx_, cy, R1, a0, a1).L(cx_ + Math.cos(a1) * R0, cy + Math.sin(a1) * R0).A(cx_, cy, R0, a1, a0).Z();
+      if (kind === 'brick') BR(p, 0.6, 0.08); else part(kind, p, 0.8);
+      const nv = Math.max(5, Math.round((a1 - a0) * (R0 + d / 2) / (kind === 'brick' ? 0.085 : 0.26))) | 1;
+      for (let i = 1; i < nv; i++){ const a = a0 + (a1 - a0) * i / nv; smear(P().M(cx_ + Math.cos(a) * R0, cy + Math.sin(a) * R0).L(cx_ + Math.cos(a) * R1, cy + Math.sin(a) * R1), kind === 'brick' ? 'rgba(170,160,140,.7)' : 'rgba(50,44,36,.4)', 0.014); }
+      if (key) part(kind === 'brick' ? 'trim' : kind, poly([[cx_ - 0.1, cy + R0 - 0.03], [cx_ + 0.1, cy + R0 - 0.03], [cx_ + 0.15, cy + R1 + 0.1], [cx_ - 0.15, cy + R1 + 0.1]]), 1.0); };
+    // stone (or stucco made to look it): smooth blocks with deep joints between the courses, or rock-faced, block by block
+    const rustic = (y0, y1, kind, rock) => {
+      if (rock){ for (let y = y0, k = 0; y < y1 - 0.06; y += 0.44, k++){ const hh = Math.min(0.44, y1 - y); let x = -(k % 2) * 0.42;
+          while (x < 3.6){ const w = rr(0.55, 1.0), xa = Math.max(0, x), xb = Math.min(3.6, x + w);
+            part(kind, P().R(xa + 0.016, y + 0.016, xb - xa - 0.032, hh - 0.032), 0.9, `hsl(${34 + r() * 10},${4 + r() * 5}%,${D.stoneL + r() * 9}%)`);
+            for (let i = 0; i < 4; i++) smear(P().E(xa + r() * (xb - xa), y + r() * hh, 0.03 + r() * 0.07, 0.02 + r() * 0.05), r() < 0.5 ? 'rgba(40,36,30,.2)' : 'rgba(255,250,240,.16)');
+            x += w; } } }
+      else { part(kind, P().R(0, y0, 3.6, y1 - y0));
+        for (let y = y0, k = 0; y < y1 - 0.1; y += 0.45, k++){ const yt = Math.min(y + 0.45, y1);
+          if (yt < y1 - 0.05){ smear(P().R(0, yt - 0.025, 3.6, 0.05), 'rgba(36,30,24,.5)'); smear(P().R(0, yt - 0.065, 3.6, 0.03), 'rgba(255,250,240,.3)'); }
+          for (let x = (k % 2) * 0.6 + 0.3; x < 3.6; x += 1.2) smear(P().R(x, y + 0.02, 0.025, yt - y - 0.05), 'rgba(36,30,24,.28)'); } } };
+    const sill = (x, w, y, kind = 'trim') => { part(kind, P().R(x - 0.12, y - 0.13, w + 0.24, 0.13), 0.9); vgrad(x - 0.06, w + 0.12, y - 0.13, y - 0.13 - (0.3 + r()) * D.age, 'rgba(40,34,26,.22)', 'rgba(40,34,26,0)'); };
+    const quoins = (x, w, y0, y1) => { for (let yy = y0, j = 0; yy < y1 - 0.06; yy += 0.27, j++){ const ww = j % 2 ? 0.17 : 0.3, hh = Math.min(0.24, y1 - yy); part('trim', P().R(x - ww, yy, ww, hh), 0.9); part('trim', P().R(x + w, yy, ww, hh), 0.9); } };
+    // a window framed in pale stone: square-headed under a lintel with its keystone (a hood over it), or under an archivolt; quoins, an apron
+    const sWin = (rw, x, y, w, h, head, o = {}) => {
+      if (o.quoin) quoins(x, w, y - 0.13, y + springOf(w, h, head)); else part('trim', outline(x, y, w, h, head, 0.11), 0.8);
+      win(rw, x, y, w, h, { head, sur: 0, sill: false, grid: o.grid || 0 });
+      if (head === 'rect'){ part('trim', P().R(x - 0.11, y + h, w + 0.22, 0.2), 0.8); part('trim', poly([[x + w / 2 - 0.1, y + h - 0.02], [x + w / 2 + 0.1, y + h - 0.02], [x + w / 2 + 0.14, y + h + 0.3], [x + w / 2 - 0.14, y + h + 0.3]]), 1.1);
+        if (o.hood){ part('trim', P().R(x - 0.26, y + h + 0.3, w + 0.52, 0.14), 1.1); smear(P().R(x - 0.26, y + h + 0.28, w + 0.52, 0.03), 'rgba(36,30,24,.35)'); } }
+      else vRing(x - 0.02, y, w + 0.04, h + 0.02, head, 0.2, 'trim', true);
+      sill(x, w, y);
+      if (o.apron){ part('trim', P().R(x, y - 0.72, w, 0.52), 0.6); garland(x + 0.12, x + w - 0.12, y - 0.3, 0.07); } };
+    // two or three round-headed lights, stone colonnettes between them, in one stone frame with a cornice over it
+    const multi = (rw, x, y, w, h, k) => { const cw = 0.14, lw = (w - (k - 1) * cw) / k;
+      part('trim', P().R(x - 0.13, y - 0.02, w + 0.26, h + 0.3), 0.8); part('trim', P().R(x - 0.2, y + h + 0.28, w + 0.4, 0.12), 1.1);
+      for (let j = 0; j < k; j++){ const lx = x + j * (lw + cw); win(rw, lx, y, lw, h, { head: 'round', sur: 0, sill: false });
+        smear(P().M(lx - 0.03, y + h - lw / 2).A(lx + lw / 2, y + h - lw / 2, lw / 2 + 0.03, Math.PI, 0), 'rgba(40,34,26,.4)', 0.025);
+        if (j){ part('trim', P().R(lx - cw, y, cw, h - lw / 2), 0.9); part('trim', P().R(lx - cw - 0.04, y + h - lw / 2 - 0.12, cw + 0.08, 0.12), 1); } }
+      sill(x, w, y); };
+    // double doors, panelled, glazed above, under a fanlight
+    const doors = (dx, y0, dw, dh, head) => { part('dark', outline(dx, y0, dw, dh, head, 0.04), -0.6);
+      const fy = head === 'round' ? y0 + dh - dw / 2 : y0 + dh - 0.55; part('door', P().R(dx, y0, dw, fy - y0));
+      const gl = g.createLinearGradient(0, py(y0 + dh), 0, py(fy)); gl.addColorStop(0, '#4a565e'); gl.addColorStop(1, '#1e252a');
+      part('glass', head === 'round' ? outline(dx, fy - 0.02, dw, dw / 2, 'round') : P().R(dx + 0.05, fy + 0.05, dw - 0.1, y0 + dh - fy - 0.1), 0, gl);
+      if (head === 'round') for (let i = 1; i < 6; i++){ const a = i / 6 * Math.PI; part('frame', P().M(dx + dw / 2, fy).L(dx + dw / 2 + Math.cos(a) * dw / 2, fy + Math.sin(a) * dw / 2), 0, KC.door, 0.04); }
+      part('frame', P().M(dx, fy).L(dx + dw, fy), 0, KC.door, 0.07);
+      for (const lx of [dx + 0.08, dx + dw / 2 + 0.04]){ part('door', P().R(lx, y0 + 0.15, dw / 2 - 0.12, 0.8), 0.6); part('door', P().R(lx, y0 + 1.1, dw / 2 - 0.12, fy - y0 - 1.3), 0.6);
+        const g2 = g.createLinearGradient(0, py(fy - 0.3), 0, py(y0 + 1.25)); g2.addColorStop(0, '#3a464e'); g2.addColorStop(1, '#151b1f'); part('glass', P().R(lx + 0.08, y0 + 1.25, dw / 2 - 0.28, fy - y0 - 1.65), 0, g2); }
+      part('dark', P().R(dx + dw / 2 - 0.01, y0, 0.02, fy - y0), 0, '#20140c'); };
+    const plate = (x, y) => { part('metal', P().R(x, y, 0.36, 0.22), 0, '#1d3b86'); g.fillStyle = '#e8e8e8'; g.font = `bold ${0.15 * PPM | 0}px sans-serif`; g.fillText(String(5 + D.i * 7 % 50), px(x + 0.06), py(y + 0.05)); };
+    const consoles = () => { for (const cx of [0.95, 2.65]) part('trim', P().M(cx - 0.18, g0).L(cx + 0.18, g0).L(cx + 0.1, g0 - 0.3).C(cx + 0.1, g0 - 0.6, cx - 0.12, g0 - 0.45, cx - 0.08, g0 - 0.75).L(cx - 0.18, g0 - 0.3).Z(), 1); };   // under a bay window
+    const dentils = (y) => { part('trim', P().R(0, y, 3.6, 0.45), 1); for (let x = 0.05; x < 3.6; x += 0.18) smear(P().R(x, y + 0.02, 0.08, 0.1), 'rgba(40,34,28,.45)'); smear(P().R(0, y - 0.05, 3.6, 0.05), 'rgba(40,34,28,.35)'); };
+    const finial = (H) => { part('orn', P().R(1.74, H - 0.05, 0.12, 0.35), 0.8); part('orn', P().E(1.8, H + 0.36, 0.09, 0.09), 0.8); };
+
+    if (castle || (frame && !C_)) BR(P().R(0, 0, 3.6, 28.8)); else part('wall', P().R(0, 0, 3.6, 28.8));
+    part('trim', P().R(0, 27.9, 3.6, 0.6)); if (frame) part('wall', P().R(0, 28.5, 3.6, 0.3));   // (the plain patches: stone or stucco for the cornice's underside and the gable's edges; over them, the backs)
+    band(0, 0, g0); for (let k = 1; k <= n; k++) band(k, g0 + (k - 1) * f, g0 + k * f); band(n + 1, g0 + n * f, 28.8);
+    if (C_){   // the courtyard: plain brick or plain plaster, plain windows
+      part('stone', P().R(0, 0, 3.6, 0.5), 0.4);
+      for (let k = 0; k <= n; k++){ const y = k ? g0 + (k - 1) * f + 0.9 : 1.2, h = k ? f * 0.5 : 1.7;
+        win(r, 1.25, y, 1.1, h, { head: castle ? 'seg' : 'rect', sur: 0, fc: r() < 0.3 ? '#5e4230' : '#e4ded2' }); if (castle) vRing(1.25, y, 1.1, h, 'seg', 0.16, 'brick', false); }
+      if (castle) BR(P().R(0, Hc - 0.4, 3.6, 0.4), 0.6, 0.1); else part('trim', P().R(0, Hc - 0.32, 3.6, 0.32), 0.5);
+      vgrad(0, 3.6, Hc - 0.32, Hc - 3.5, 'rgba(36,32,26,.4)', 'rgba(36,32,26,0)'); weather(r, D, 0.7); return; }
+
+    if (castle){
+      // the plinth, granite (or a tall basement plastered and painted red); the ground floor's stone over it, the first floor's too on the first kind
+      const pl = v ? 0.95 : 0.7, sTop = D.stone1 ? g0 + f : g0;
+      rustic(pl, sTop, 'stone', v === 1); if (D.stone1) part('stone', P().R(0, g0 - 0.12, 3.6, 0.24), 0.9, '#c4bfb4');
+      if (v){ part('brick', P().R(0, 0, 3.6, pl), 0.5, '#7a392b'); vgrad(0, 3.6, 0, pl, 'rgba(30,20,14,.3)', 'rgba(30,20,14,0)');
+        if (!E_){ part('dark', P().R(1.4, 0.22, 0.8, 0.5), -0.5, '#1c1814'); for (let x = 1.5; x < 2.2; x += 0.13) part('metal', P().R(x, 0.22, 0.025, 0.5)); } }
+      else { part('stone', P().R(0, 0, 3.6, pl), 0.6, '#8d8981'); for (let x = 0.5; x < 3.6; x += 1.15) smear(P().R(x, 0.03, 0.025, pl - 0.06), 'rgba(36,30,24,.35)'); }
+      // the ground floor: its windows arched in voussoirs with a keystone; the way in, an arched portal, or a door between two red granite columns
+      if (E_){ const dw = 1.6, dx = 1.8 - dw / 2;
+        if (v){ const y0 = pl, dh = Math.min(3.0, g0 - 0.95 - pl); for (let i = 0; i < 3; i++) part('stone', P().R(dx - 0.25 + i * 0.08, i * pl / 3, dw + 0.5 - i * 0.16, pl / 3), 0.6, '#9a958b');
+          doors(dx, y0, dw, dh, 'rect'); for (const cx of [dx - 0.42, dx + dw + 0.1]){ part('brick', P().R(cx, y0, 0.32, dh), 1.0, '#6a3328'); part('trim', P().R(cx - 0.04, y0, 0.4, 0.2), 0.8); part('trim', P().R(cx - 0.05, y0 + dh - 0.18, 0.42, 0.18), 0.8); }
+          part('trim', P().R(dx - 0.56, y0 + dh, dw + 1.12, 0.18), 0.9); part('trim', P().R(dx - 0.64, y0 + dh + 0.18, dw + 1.28, 0.16), 1.1); plate(3.12, 2.4); }
+        else { const y0 = 0.3, dh = g0 - 0.7 - y0; vRing(dx - 0.02, y0, dw + 0.04, dh + 0.02, 'round', 0.38, 'stone', true); doors(dx, y0, dw, dh, 'round'); plate(2.95, 2.3); } }
+      else { const w = A_ && !v ? 1.9 : D.winW + 0.15, x = 1.8 - w / 2, y = pl + 0.35, h = g0 - 0.62 - y, head = v ? 'seg' : 'round';
+        win(r, x, y, w, h, { head, sur: 0, sill: false, grid: w > 1.4 ? 3 : 0 }); vRing(x - 0.02, y, w + 0.04, h + 0.02, head, 0.32, 'stone', true); sill(x, w, y, 'stone'); }
+      if (A_ && D.axis === 'erker') consoles();
+      // the band of pale stone over the stone, and across the brick at every sill (at the windows' heads too, on the second kind)
+      part('trim', P().R(0, sTop - 0.22, 3.6, 0.32), 1.0); smear(P().R(0, sTop - 0.24, 3.6, 0.04), 'rgba(36,30,24,.4)');
+      for (let k = 1; k <= n; k++){ const y0 = g0 + (k - 1) * f, sl = y0 + 0.82; if (y0 < sTop - 0.01) continue;
+        part('trim', P().R(0, sl - 0.15, 3.6, 0.15), 0.8); if (v) part('trim', P().R(0, sl + f * 0.56 + 0.03, 3.6, 0.12), 0.7); }
+      const ye = Hc - 1.25;
+      if (A_ && D.axis !== 'erker') for (let yy = sTop + 0.1, j = 0; yy < ye - 0.1; yy += 0.42, j++){ const ww = j % 2 ? 0.26 : 0.42, hh = Math.min(0.38, ye - yy); part('trim', P().R(0, yy, ww, hh), 0.9); part('trim', P().R(3.6 - ww, yy, ww, hh), 0.9); }   // quoins up the axis
+      // the storeys
+      for (let k = 1; k <= n; k++){ const y0 = g0 + (k - 1) * f, sl = y0 + 0.82, rw = E_ ? rN : r, stoneK = y0 < sTop - 0.01, head = D.wk[k - 1], h = f * (head === 'rect' ? 0.56 : 0.6), top = k === n;
+        if (A_ && D.axis === 'erker'){ for (const [x, w] of [[0.8, 0.4], [1.32, 0.96], [2.4, 0.4]]) win(rw, x, sl, w, h, { head: 'rect', sur: 0, sill: false }); part('trim', P().R(0.7, sl - 0.15, 2.2, 0.15), 0.8); part('trim', P().R(0.7, sl + h, 2.2, 0.18), 0.8); continue; }
+        if (A_){ if (stoneK) for (const x of [0.62, 1.88]) sWin(rw, x, sl, 1.1, h, 'rect', {});
+          else { multi(rw, 0.95, sl, 1.7, f * 0.6, top ? 2 : 3); if (k === 2){ part('trim', P().R(0.95, y0 + 0.1, 1.7, 0.5), 0.6); for (let i = 0; i < 3; i++) wreath(1.23 + i * 0.57, y0 + 0.35, 0.13); } }
+          continue; }
+        if (head === 'bi') multi(rw, 1.8 - 0.75, sl, 1.5, h, 2);
+        else sWin(rw, 1.8 - D.winW / 2, sl, D.winW, h, head, { quoin: v === 1, hood: v === 1 && k === 1, apron: (v === 1 && k === 1) || (stoneK && k === 1) }); }
+      // the frieze, brick between a stone architrave and the cornice: pairs of stone modillions, or a row of little arches of brick
+      part('trim', P().R(0, ye, 3.6, 0.14), 0.8);
+      if (v === 0) for (let x = 0.2; x < 3.5; x += 0.6){ part('trim', P().R(x, ye + 0.14, 0.1, 0.62), 0.9); part('trim', P().R(x + 0.2, ye + 0.14, 0.1, 0.62), 0.9); }
+      else { for (let x = 0; x < 3.59; x += 0.45){ const cx_ = x + 0.225; BR(P().M(cx_ - 0.2, ye + 0.55).A(cx_, ye + 0.55, 0.2, Math.PI, 0).L(cx_ + 0.12, ye + 0.55).A(cx_, ye + 0.55, 0.12, 0, Math.PI).Z(), 0.8, 0.1); part('trim', P().R(x - 0.04, ye + 0.3, 0.08, 0.26), 0.8); } }
+      dentils(Hc - 0.45);
+      // the gable: brick coped in stone, scrolls at its feet, a band across, an arched window (two on the first kind), a stone pinnacle
+      if (A_ && D.gable){ const G = gablePts(D).map(([x, y]) => [x, Hc + y]), gp = poly(G), H = Hc + D.gH;
+        BR(gp); part('trim', gp, 0.6, null, 0.16); part('trim', P().R(0.36, Hc + 0.06, 2.88, 0.14), 0.8);
+        for (const sx of [0.2, 3.4]){ part('trim', P().E(sx, Hc + 0.38, 0.16, 0.16), 1); smear(P().E(sx, Hc + 0.38, 0.07, 0.07), 'rgba(50,44,36,.4)'); }
+        if (v) sWin(r, 1.8 - 0.42, Hc + 0.55, 0.84, Math.min(2.0, D.gH - 1.2), 'round', {}); else multi(r, 1.25, Hc + 0.5, 1.1, Math.min(1.55, D.gH - 1.4), 2);
+        part('trim', poly([[1.6, H - 0.3], [2.0, H - 0.3], [2.0, H + 0.42], [1.8, H + 0.7], [1.6, H + 0.42]]), 1); smear(P().R(1.6, H + 0.38, 0.4, 0.04), 'rgba(40,34,28,.4)'); }
+      // and the dormer in the mansard (drawn here at its own height, over the eaves): brick in a stone edge, an arched window
+      if (N_){ const o = outline(1.1, Hc + 0.35, 1.4, 2.3, 'round'); BR(o); part('trim', o, 0.5, null, 0.12); sWin(r, 1.8 - 0.42, Hc + 0.8, 0.84, 1.45, 'round', {}); }
+      weather(r, D, 0.7); return; }
+
+    if (frame){
+      // the two storeys below of stucco rusticated like stone, on a granite plinth; a cornice of their own over them, for the balconies
+      const sTop = g0 + f, yc = Hc - 1.05;
+      rustic(0.6, sTop, 'wall', false); part('stone', P().R(0, 0, 3.6, 0.6), 0.5); part('trim', P().R(0, g0 - 0.16, 3.6, 0.18), 0.8);
+      part('wall', P().R(0, sTop - 0.62, 3.6, 0.42), 0.6); dentils(sTop - 0.2);
+      // up the bays' edges, stucco pilasters, the glazed brick between them; at their heads a block and a ring hung on a drop
+      for (const x of [0, 3.3]) part('wall', P().R(x, sTop + 0.25, 0.3, yc - sTop - 0.25));
+      smear(P().R(3.3, sTop + 0.25, 0.035, yc - sTop - 0.25), 'rgba(255,250,240,.35)'); smear(P().R(0.265, sTop + 0.25, 0.035, yc - sTop - 0.25), 'rgba(40,34,28,.35)');
+      for (const x of [0, 3.6]){ part('trim', P().R(x - 0.36, yc - 0.2, 0.72, 0.2), 0.8); part('orn', P().E(x, yc - 0.48, 0.19, 0.19), 0.9, null, 0.06); drop(x, yc - 0.68, 3, 0.8); }
+      // the ground floor
+      if (E_){ part('trim', outline(1.0, 0.6, 1.6, 2.95, 'round', 0.22), 0.9); doors(1.0, 0.6, 1.6, 2.95, 'round'); face(1.8, 3.85, 0.95); plate(2.95, 2.3); }
+      else { const w = D.winW + 0.1, x = 1.8 - w / 2; win(r, x, 1.0, w, g0 - 1.75, { head: v ? 'round' : 'rect', sur: 0.1 }); part('orn', poly([[1.66, g0 - 0.62], [1.94, g0 - 0.62], [1.98, g0 - 0.34], [1.62, g0 - 0.34]]), 0.9); }
+      // the storeys: stucco frames, a mask over each window in the stucco storey; up in the brick, consoles, a hood, a cartouche or a pediment
+      for (let k = 1; k <= n; k++){ const y0 = g0 + (k - 1) * f, sl = y0 + 0.85, h = f * 0.56, rw = E_ ? rN : r, wide = A_, w = wide ? 1.5 : D.winW, x = 1.8 - w / 2;
+        if (A_ && D.balc.includes(k)){ win(rw, 1.8 - 0.55, y0 + 0.08, 1.1, sl + h - y0 - 0.08, { sill: false, panes: 2, sur: 0.1 });
+          if (D.bal === 'iron') for (const cx of [0.75, 2.85]) part('orn', P().M(cx - 0.12, y0).L(cx + 0.12, y0).Q(cx + 0.1, y0 - 0.45, cx - 0.04, y0 - 0.55).L(cx - 0.12, y0 - 0.25).Z(), 0.9);
+          vgrad(0.6, 2.4, y0 - 0.2, y0 - 2.0 * D.age, 'rgba(110,60,30,.2)', 'rgba(110,60,30,0)'); part('trim', P().R(1.8 - 0.75, sl + h + 0.12, 1.5, 0.13), 1); continue; }
+        win(rw, x, sl, w, h, { head: 'rect', sur: 0.1, ears: k > 1 && v === 0, grid: wide ? 3 : 0 });
+        if (k === 1){ part('trim', P().R(x - 0.22, sl + h + 0.14, w + 0.44, 0.13), 1); face(1.8, sl + h + 0.48, 0.65); continue; }
+        for (const cx of [x - 0.25, x + w + 0.11]) part('orn', P().M(cx, sl + h + 0.32).L(cx + 0.14, sl + h + 0.32).L(cx + 0.14, sl + h - 0.05).Q(cx + 0.07, sl + h - 0.3, cx, sl + h - 0.05).Z(), 0.9);
+        part('trim', P().R(x - 0.3, sl + h + 0.32, w + 0.6, 0.13), 1.1);
+        const cx = 1.8, cy = sl + h + 0.72;
+        if (v === 0){ for (const s of [-1, 1]) part('orn', P().M(cx + s * 0.16, cy - 0.27).C(cx + s * 0.58, cy - 0.27, cx + s * 0.6, cy + 0.1, cx + s * 0.42, cy + 0.14).C(cx + s * 0.3, cy + 0.16, cx + s * 0.3, cy + 0.02, cx + s * 0.38, cy).C(cx + s * 0.3, cy - 0.12, cx + s * 0.2, cy - 0.1, cx + s * 0.12, cy - 0.08).Z(), 0.9);
+          part('orn', P().M(cx - 0.19, cy - 0.27).L(cx + 0.19, cy - 0.27).Q(cx + 0.21, cy + 0.18, cx, cy + 0.32).Q(cx - 0.21, cy + 0.18, cx - 0.19, cy - 0.27).Z(), 1.1);
+          part('orn', P().R(x + 0.06, sl - 0.6, w - 0.12, 0.42), 0.6); garland(x + 0.14, x + w - 0.14, sl - 0.24, 0.07); }
+        else { part('trim', poly([[x - 0.3, sl + h + 0.45], [x + w + 0.3, sl + h + 0.45], [cx, sl + h + 0.92]]), 1); smear(poly([[x - 0.12, sl + h + 0.5], [x + w + 0.12, sl + h + 0.5], [cx, sl + h + 0.84]]), 'rgba(40,34,28,.12)'); face(cx, sl + h + 0.62, 0.42);
+          drop(x + 0.18, sl - 0.16, 3, 0.8); drop(x + w - 0.18, sl - 0.16, 3, 0.8); } }
+      // the frieze and the cornice on modillions
+      part('wall', P().R(0, yc, 3.6, Hc - 0.45 - yc), 0.5); wreath(1.8, (yc + Hc - 0.45) / 2, 0.15);
+      for (let x = 0.15; x < 3.6; x += 0.45) part('trim', P().R(x, Hc - 0.62, 0.12, 0.2), 0.9); dentils(Hc - 0.45);
+      if (A_ && D.gable){ const G = gablePts(D).map(([x, y]) => [x, Hc + y]), gp = poly(G), H = Hc + D.gH;
+        part('wall', gp, 0.6); part('trim', gp, 0.6, null, 0.13); win(r, 1.8 - 0.4, Hc + 0.35, 0.8, 0.95, { head: 'oval', sur: 0.1, sill: false });
+        garland(0.75, 2.85, Hc + 1.5, 0.1); face(1.8, Math.min(H - 0.45, Hc + 1.95), 1.2); finial(H); }
+      if (N_){ const o = outline(1.1, Hc + 0.35, 1.4, 2.3, 'round'); part('wall', o); part('trim', o, 0.5, null, 0.11); win(r, 1.8 - 0.36, Hc + 1.0, 0.72, 1.0, { head: 'oval', sur: 0.1, sill: false }); garland(1.3, 2.3, Hc + 0.85, 0.06); }
+      weather(r, D, 0.75); return; }
+
+    // the Jugendstil front: plaster, a red plinth, a band over the ground floor; its doorway under a great hood
+    part('brick', P().R(0, 0, 3.6, 0.55), 0.4, D.bc); smear(P().R(0, 0.55, 3.6, 0.03), 'rgba(40,30,24,.3)'); part('trim', P().R(0, g0 - 0.28, 3.6, 0.28), 0.8);
+    if (E_){ const dw = 1.5, dx = 1.05, y0 = 0.55, dh = Math.min(3.0, g0 - 1.3), cy = y0 + dh + 0.2;
+      part('trim', outline(dx, y0, dw, dh, 'round', 0.14), 0.8); doors(dx, y0, dw, dh, 'round');
+      for (let i = 0; i < 3; i++) smear(P().M(dx + 0.15, y0 + 1.4 + i * 0.35).C(dx + 0.5, y0 + 1.6 + i * 0.35, dx + 1.0, y0 + 1.2 + i * 0.35, dx + dw - 0.15, y0 + 1.4 + i * 0.35), 'rgba(20,18,16,.8)', 0.025);   // the iron over its glass
+      part('orn', P().M(0.5, cy).C(0.7, cy - 0.55, 2.9, cy - 0.55, 3.1, cy).L(3.1, cy + 0.22).C(2.6, cy + 0.08, 1.0, cy + 0.08, 0.5, cy + 0.22).Z(), 1.2);
+      for (const sx of [0.78, 2.82]){ part('orn', P().E(sx, cy + 0.42, 0.27, 0.27), 1.1); smear(P().M(sx + 0.17, cy + 0.42).A(sx, cy + 0.42, 0.17, 0, Math.PI * 1.6), 'rgba(60,52,42,.5)', 0.03); smear(P().E(sx, cy + 0.42, 0.07, 0.07), 'rgba(60,52,42,.4)'); }
+      plate(2.95, 1.9); }
+    else { const w = D.winW + 0.35, x = 1.8 - w / 2, y = 0.9, h = g0 - 1.6;
+      part('trim', outline(x, y, w, h, 'round', 0.09), 0.7);
+      if (v === 0 && !A_){ part('door', outline(x, y, w, h, 'round'), -0.4, '#6a2c22'); for (let xx = x + 0.1; xx < x + w; xx += 0.12) smear(P().R(xx, y, 0.02, h - w / 2 + 0.2), 'rgba(20,10,8,.3)'); }   // shutters of red-brown boards
+      else win(r, x, y, w, h, { head: 'round', sur: 0, grid: 3 });
+      part('orn', poly([[1.68, y + h - 0.02], [1.92, y + h - 0.02], [1.96, y + h + 0.22], [1.64, y + h + 0.22]]), 0.9); }
+    // the storeys: plain windows, small panes over them; the axis between flat pilasters, a sun over its top window
+    const wy = k => { const s = g0 + (k - 1) * f + 0.85; return [s, s + f * 0.56]; };
+    for (let k = 1; k <= n; k++){ const [sl, t] = wy(k), w = A_ ? 1.3 : D.winW, x = 1.8 - w / 2; win(E_ ? rN : r, x, sl, w, t - sl, { head: 'rect', sur: A_ ? 0.08 : 0, grid: 3, tr: 0.7 });
+    }
+    if (A_){ const [sl, t] = wy(n); part('orn', P().R(1.15, t + 0.22, 1.3, 0.48), 0.6); sunrise(1.8, t + 0.26, 0.42, 9); }
+    // the bands of red brick: the top window framed, the two under it in one long frame running down into round feet, bars between them;
+    // or each window under its own arch of brick, its strips ending in round feet at the sill, and bars of brick under the cornice
+    if (N_ || E_){ const sw = 0.44, xw0 = 1.8 - D.winW / 2, xw1 = 1.8 + D.winW / 2, lx = xw0 - 0.2 - sw, rx = xw1 + 0.2;
+      if (v === 0){ const [s1, t1] = wy(n); for (const x of [lx, rx]) BR(P().R(x, s1 - 0.12, sw, t1 - s1 + 0.62)); BR(P().R(lx, t1 + 0.16, rx + sw - lx, 0.34));
+        if (n >= 3){ const [s2, t2] = wy(n - 1), [s3] = wy(n - 2), yf = s3 + 0.1, yt = t2 + 0.62;
+          for (const x of [lx, rx]) BR(P().M(x, yt).L(x + sw, yt).L(x + sw, yf + sw / 2).A(x + sw / 2, yf + sw / 2, sw / 2, 0, -Math.PI).Z());
+          BR(P().R(lx, yt - 0.36, rx + sw - lx, 0.36)); for (const [x, s] of [[lx + sw, 1], [rx, -1]]) BR(P().M(x, yt - 0.36).L(x + s * 0.2, yt - 0.36).A(x + s * 0.2, yt - 0.56, 0.2, Math.PI / 2, s > 0 ? Math.PI : 0).Z());
+          for (let i = 0; i < 4; i++) BR(P().R(1.8 - 0.42 + i * 0.24, s2 - 0.9, 0.12, 0.66)); } }
+      else { const bw_ = 0.34; for (let k = 1; k <= n; k++){ const [s, t] = wy(k), xL = lx + 0.04, xR = rx + sw - 0.04, Ro = (xR - xL) / 2, Ri = Ro - bw_, cxa = (xL + xR) / 2, ys = t - 0.5, yb = s + 0.05, q = bw_ / 2;
+          BR(P().M(xL, ys).A(cxa, ys, Ro, Math.PI, 0).L(xR, yb + q).A(xR - q, yb + q, q, 0, -Math.PI).L(xR - bw_, ys).A(cxa, ys, Ri, 0, Math.PI).L(xL + bw_, yb + q).A(xL + q, yb + q, q, 0, -Math.PI).Z()); } } }
+    if (v === 1) BR(P().R(0, Hc - 0.98, 3.6, 0.24), 0.5, 0.06);   // (a band of brick under the cornice)
+    part('trim', P().R(0, Hc - 0.72, 3.6, 0.12), 0.6); part('trim', P().R(0, Hc - 0.45, 3.6, 0.45), 1); smear(P().R(0, Hc - 0.5, 3.6, 0.05), 'rgba(40,34,28,.35)');
+    // the raised attic over the axis between its two posts, a window, a sun, the year
+    if (A_){ const H = Hc + D.gH; for (const x of [0.12, 3.08]) part('wall', P().R(x, g0 + 0.05, 0.4, H - g0 - 0.05), 0.9);
+      if (D.gable){ const G = gablePts(D).map(([x, y]) => [x, Hc + y]), gp = poly(G); part('wall', gp, 0.5); part('trim', gp, 0.5, null, 0.1);
+        for (const x of [0.12, 3.08]){ part('wall', P().R(x, Hc - 0.5, 0.4, H - Hc + 0.5), 0.9); part('trim', P().R(x - 0.04, H - 0.12, 0.48, 0.12), 0.8); }
+        win(r, 1.8 - 0.42, Hc + 0.3, 0.84, 1.0, { grid: 3, sur: 0.06 }); part('orn', P().R(1.0, Hc + 1.5, 1.6, 0.5), 0.6); sunrise(1.8, Hc + 1.55, 0.45, 9);
+        g.font = `bold ${0.34 * PPM | 0}px serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(80,70,58,.75)'; g.fillText(String(D.year), px(1.8), py(H - 0.62)); g.textAlign = 'left'; } }
+    // the dormer: plaster, square-headed under a little cornice, small panes
+    if (N_){ part('wall', P().R(1.15, Hc + 0.35, 1.3, 2.0)); part('trim', P().R(1.15, Hc + 0.35, 1.3, 2.0), 0.5, null, 0.08); part('trim', P().R(1.05, Hc + 2.2, 1.5, 0.15), 1);
+      win(r, 1.4, Hc + 0.72, 0.8, 1.25, { grid: 3, sur: 0.05, tr: 0.7 }); }
+    weather(r, D, 0.75); }); };
+  for (const D of rdesigns){ D.pat = brickPat2(D.bc, D.mo, 919 + D.i, D.fam === 'castle' ? 0.42 : 0.16, D.fam === 'castle' ? 0.13 : 0.02); ['N', 'A', 'E', 'C'].forEach((t, j) => rcolumn(D.i * 4 + j, D, t)); }
+  // their blind walls: bare red brick (two), and plaster (two) for the Jugendstil fronts
+  [56, 57, 58, 59].forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const r = mkRng(6161 + j), D = { age: 1, Hc: 26 }, R0 = rdesigns[j < 2 ? j : 4]; KC = R0.KC;
+    if (j < 2){ part('brick', P().R(0, 0, 3.6, 28.8), 0, R0.pat); for (let i = 0; i < 6; i++) smear(P().R(r() * 3, 1 + r() * 24, 0.3 + r() * 0.8, 0.3 + r() * 1.2), r() < 0.5 ? 'rgba(40,26,14,.14)' : 'rgba(255,246,228,.1)'); }
+    else { part('wall', P().R(0, 0, 3.6, 28.8), 0, '#ddd5c5'); for (let i = 0; i < 5; i++) vgrad(r() * 3.4, 0.1 + r() * 0.3, 26, 26 - 4 - r() * 14, 'rgba(50,42,32,.3)', 'rgba(50,42,32,0)'); }
+    band(15, 0, 28.8); weather(r, D, 0.5); });
+  const BSH = finish(SH), UVb = (c, u, y) => [((c % NC) * CW + u * CW) / AW, 1 - (Math.floor(c / NC) * CH + CH - y * PPM) / 2048];
 
   // ---- the balconies' parts, drawn once (1024 x 1024): bands for the parapets a run of balcony long (the stucco balustrade on its piers; the fat
   // fluted balusters; the parapet painted with leaves), the ribbed underside of the round ones, geraniums, the consoles' faces, plain stucco, concrete
@@ -5230,7 +5455,7 @@ const AN = (() => {
     c.font = `${ru.length > 12 ? 22 : 26}px sans-serif`; c.fillStyle = 'rgba(232,226,206,.85)'; c.fillText(ru, x + 256, y + 82);
     for (let k = 0; k < 30; k++){ c.fillStyle = `rgba(${sr() < 0.5 ? '20,16,12' : '200,190,170'},${0.08 + sr() * 0.12})`; c.fillRect(x + sr() * 500, y + sr() * 92, 2 + sr() * 30, 1 + sr() * 4); } }); }, { srgb: true });
   signs.wrapS = signs.wrapT = THREE.ClampToEdgeWrapping;
-  return { color, mask, designs, gablePts, UV, FIRE, rail, signs, NSIGN: SIGNS.length, bdesigns, bcolor: BSH.color, bmask: BSH.mask, UVb, BFIRE, PRT, parts, rail2 };
+  return { color, mask, designs, gablePts, UV, FIRE, rail, signs, NSIGN: SIGNS.length, bdesigns, rdesigns, bcolor: BSH.color, bmask: BSH.mask, UVb, BFIRE, PRT, parts, rail2 };
 })();
 var blockMats = [];
 {
@@ -5259,12 +5484,13 @@ var blockMats = [];
   const DOMES = { helmet: [[1.05, 0], [1.05, 0.25], [1.0, 0.9], [0.72, 2.0], [0.32, 2.9], [0.07, 3.4], [0.03, 4.9], [0, 5.0]],
     onion: [[1.05, 0], [1.05, 0.3], [1.16, 1.1], [0.95, 2.0], [0.45, 2.7], [0.12, 3.1], [0.05, 4.2], [0, 4.3]],
     spire: [[1.05, 0], [1.05, 0.3], [0.95, 0.6], [0.12, 6.4], [0, 6.6]],
+    cap: [[1.05, 0], [1.05, 0.2], [1.02, 0.55], [0.92, 1.0], [0.72, 1.42], [0.44, 1.72], [0.14, 1.88], [0.06, 1.92], [0.035, 2.6], [0, 2.65]],
     lantern: [[1.05, 0], [1.0, 0.6], [0.75, 1.5], [0.4, 1.9], [0.4, 2.0], [0.32, 2.0], [0.32, 2.9], [0.42, 2.9], [0.2, 3.4], [0.04, 4.1], [0, 4.15]] };
   const DOMECOL = ['#5f8c7a', '#557f70', '#4c5054', '#6e3a2c', '#5f8c7a'].map(C);
   const dome = (kind, R, segs, phi, x, y, z, col) => { const pr = DOMES[kind].map(([a, b]) => new THREE.Vector2(a * R, b * (kind === 'spire' ? 1 : Math.max(0.8, R / 1.6))));
     const g = new THREE.LatheGeometry(pr, segs, phi); g.translate(x, y, z); roofPiece(g, col);
     const cap = new THREE.CircleGeometry(pr[0].x, segs, Math.PI / 2 - phi); cap.rotateX(Math.PI / 2); cap.translate(x, y + 0.002, z); roofPiece(cap, col); };   // (closed underneath: no looking up into it)
-  const nearHome = (x, z) => x > TOWN.x0 - 30 && x < TOWN.x1 + 30 && z > TOWN.z0 - 30 && z < TOWN.z1 + 30, CORNER_H = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
+  const nearHome = (x, z) => x > TOWN.x0 - 30 && x < TOWN.x1 + 30 && z > TOWN.z0 - 30 && z < TOWN.z1 + 30, CORNER_H = new Map(), CORNER_D = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
 
   // ---- the balconies, near enough to see them as things (further off, a slab and a flat railing or parapet): the bowed concrete one with its
   // pot-bellied railing; the round one, ribbed underneath down to a hanging knob; the solid stucco balustrade on two great scroll consoles; the
@@ -5341,12 +5567,26 @@ var blockMats = [];
     const q = (a, b, n, u0, u1) => grid(BA, [[[a[0], yk, a[1]], [b[0], yk, b[1]]], [[a[0], yk + 0.95, a[1]], [b[0], yk + 0.95, b[1]]]], (k, j) => ruv(rg, k ? u1 : u0, j), stuc, () => n);
     q([xc - hw, z + e], [xc + hw, z + e], [0, 0, 1], 0.5 - hw / 4.4, 0.5 + hw / 4.4); q([xc - hw, z], [xc - hw, z + e], [-1, 0, 0], 0, e / 4.4); q([xc + hw, z + e], [xc + hw, z], [1, 0, 0], 0, e / 4.4); return true; };
 
+  // a dormer in a mansard (the red houses'): standing on the wall's line, out of the steep lower slope; arched, under a half-round roof, or
+  // square-headed under a flat one. Its front from the picture, drawn there at its own height over the eaves
+  const mDormer = (FX, x0, bw, z, H, c, kind, rc, i) => {
+    const sx = bw / 3.6, xc = x0 + bw / 2, hw = 0.7 * sx, zf = z + 0.1, zs = y => z + 0.3 - 1.05 * (y - H) / 2.9, ys = H + 2.9 * 0.2 / 1.05, yb = ys - 0.1, yA = kind === 'arch' ? H + 1.95 : H + 2.35, uvp = (x, y) => T.uv(c, (x - x0) / bw, y);
+    const pts = [[xc - hw, yb], [xc + hw, yb], [xc + hw, yA]]; if (kind === 'arch') for (let k = 1; k < 12; k++){ const a = k / 12 * Math.PI; pts.push([xc + Math.cos(a) * hw, yA + Math.sin(a) * 0.7]); } pts.push([xc - hw, yA]);
+    face(FX, pts.map(([x, y]) => [x, y, zf]), [0, 0, 1], pts.map(([x, y]) => uvp(x, y)), 0.9 + i * 0.011);
+    for (const s of [-1, 1]){ const x = xc + s * hw; flat(FX, [[x, ys, zf], [x, yA, zf], [x, yA, zs(yA)]], [s, 0, 0], T.uv(c, 0.5, 28.6)); }
+    if (kind === 'arch'){ const ze = zs(yA + 0.76) - 0.1, z1 = zf + 0.06, cyl = new THREE.CylinderGeometry(0.76, 0.76, z1 - ze, 12, 1, true, Math.PI / 2, Math.PI);
+      cyl.rotateX(Math.PI / 2); cyl.scale(sx, 1, 1); cyl.translate(xc, yA, (z1 + ze) / 2); roofPiece(cyl, rc); }
+    else { const ze = zs(yA) - 0.15, a = hw + 0.1; roofPiece(tris([[xc - a, yA, zf + 0.15], [xc + a, yA, zf + 0.15], [xc + a, yA + 0.1, ze], [xc - a, yA, zf + 0.15], [xc + a, yA + 0.1, ze], [xc - a, yA + 0.1, ze]]), rc); } };
   const building = (cx, cz, w, d, ry, col, rc, ends = {}) => {
     const off = Math.floor(rng() * 8);   // (the world's draws, as ever)
     const hr = mkRng((Math.round(cx * 73.1) * 92821) ^ (Math.round(cz * 191.7) * 68917) ^ 0x5bd1), hrr = (a, b) => a + hr() * (b - a), hpk = a => a[hr() * a.length | 0];
-    const brick = hr() < 0.22, DL = brick ? AN.bdesigns : AN.designs, D = DL[(off * 7 + Math.floor(hr() * DL.length)) % DL.length], FX = brick ? FB : FA, detail = Math.hypot(cx - 5, cz + 126) < 200, H = D.Hc, bays = Math.max(1, Math.round(w / 3.6)), bw = w / bays, N0 = D.i * 4, z = d / 2, near = nearHome(cx, cz);
+    // (a brick house one time in five or so: the yellow ones of bare brick, or, where the two red ones of bare brick used to fall, a red one of
+    // brick and stone. Drawn as ever, so every other house is what it was)
+    const brick = hr() < 0.22, u_ = hr(), j7 = (off * 7 + Math.floor(u_ * 7)) % 7, D = !brick ? AN.designs[(off * 7 + Math.floor(u_ * AN.designs.length)) % AN.designs.length] : j7 === 4 || j7 === 6 ? AN.rdesigns[(off + Math.floor(u_ * 42)) % AN.rdesigns.length] : AN.bdesigns[j7], FX = brick ? FB : FA, detail = Math.hypot(cx - 5, cz + 126) < 200, H = D.Hc, bays = Math.max(1, Math.round(w / 3.6)), bw = w / bays, N0 = D.i * 4, z = d / 2, near = nearHome(cx, cz);
     T = { cx, cz, co: Math.cos(ry), si: Math.sin(ry), col: col.clone().lerp(C('#a6a29a'), hrr(0.12, 0.4) * D.age).multiplyScalar(hrr(0.8, 0.97)), seed: Math.floor(hr() * 800) + 1, uv: brick ? AN.UVb : AN.UV };
     const wallUV = T.uv(N0, 0.5, 28.6), trimUV = T.uv(N0, 0.5, 28.2);
+    const mansR = D.red && mkRng(T.seed * 7919 + Math.round(cx * 13 + cz * 7))() < D.mans;   // (the red houses' mansards: decided first, for their gables stand out over the steep slope)
+    if (D.red){ T.col.lerp(D.tint, D.tintK); rc = D.fam === 'bands' ? C(T.seed % 2 ? '#6e3a2c' : '#7a4030') : D.fam === 'castle' ? C(T.seed % 2 ? '#55585a' : '#4d5153') : rc; }   // (pale stone, grey stucco, cream plaster; slate, or tiles)
     EAVES.push({ cx, cz, w, d, ry, h: H, zf: z + D.cd + 0.02 });   // (every house, near or far: icicles on the whole city, not just the near yard)
     // the front's rhythm: the axis (or two), the entrance
     const L = new Array(bays).fill('N');
@@ -5355,14 +5595,14 @@ var blockMats = [];
     else L[hr() * bays | 0] = hr() < 0.5 ? 'E' : 'A';
     const alongX = Math.abs(T.co) > 0.5, dir = alongX ? Math.sign(T.co) : Math.sign(-T.si), cornL = dir > 0 ? ends.lo : ends.hi, cornR = dir > 0 ? ends.hi : ends.lo;
     if (cornL && L[0] === 'A') L[0] = 'N'; if (cornR && L[bays - 1] === 'A') L[bays - 1] = 'N';   // (no bay window or gable in a corner bay: a tower may stand there)
-    for (const [s_, c_] of [[-1, cornL], [1, cornR]]) if (c_){ const q = W3(s_ * w / 2, 0, z); CORNER_H.set(ckey(q[0], q[2]), H); }
+    for (const [s_, c_] of [[-1, cornL], [1, cornR]]) if (c_){ const q = W3(s_ * w / 2, 0, z); CORNER_H.set(ckey(q[0], q[2]), H); CORNER_D.set(ckey(q[0], q[2]), { D, col: T.col.clone(), rc, brick }); }   // (and what it is, for its tower: its design, its colour, its roof's)
     const sx = bw / 3.6;
     L.forEach((t, i) => { const c = N0 + (t === 'N' ? 0 : t === 'A' ? 1 : 2), x0 = -w / 2 + i * bw, x1 = x0 + bw, xc = x0 + bw / 2;
       rect4(FX, x0, 0, z, x1, H, z, [0, 0, 1], c, 0, 1, 0, H, i * 0.011);                                           // the front
       rect4(FX, x1, 0, -z, x0, H, -z, [0, 0, -1], N0 + 3, 0, 1, 0, H, 0.5 + i * 0.011);                             // the courtyard back
       rect4(FX, x0, H - 0.42, z + D.cd, x1, H + 0.06, z + D.cd, [0, 0, 1], c, 0, 1, H - 0.45, H, i * 0.011);         // the cornice's front
       if (t !== 'A') return;
-      if (D.gable){ const G = AN.gablePts(D).map(([x, y]) => [x0 + x * sx, H + y]), zf = z + 0.015, zb = zf - 0.35;   // the gable over the eaves
+      if (D.gable){ const G = AN.gablePts(D).map(([x, y]) => [x0 + x * sx, H + y]), zf = z + (mansR ? 0.31 : 0.015), zb = zf - 0.35;   // the gable over the eaves (out over a mansard's foot)
         for (const [a, b, c2] of THREE.ShapeUtils.triangulateShape(G.map(([x, y]) => new THREE.Vector2(x, y)), [])){ const tr = [G[a], G[b], G[c2]];
           face(FX, tr.map(([x, y]) => [x, y, zf]), [0, 0, 1], tr.map(([x, y]) => T.uv(c, (x - x0) / bw, y)), 0.3 + i * 0.011);
           flat(FX, tr.map(([x, y]) => [x, y, zb]), [0, 0, -1], wallUV); }
@@ -5373,8 +5613,8 @@ var blockMats = [];
         rect4(FX, xc - hb, yb, z, xc - hf, yt, z + e, [-e / sl, 0, (hb - hf) / sl], c, 0.04, 0.5 - 1.0 / 3.6, yb, H, i * 0.011 + 0.004);
         rect4(FX, xc + hf, yb, z + e, xc + hb, yt, z, [e / sl, 0, (hb - hf) / sl], c, 0.5 + 1.0 / 3.6, 0.96, yb, H, i * 0.011 + 0.006);
         flat(FX, [[xc - hb, yb, z], [xc + hb, yb, z], [xc + hf, yb, z + e], [xc - hf, yb, z + e]], [0, -1, 0], wallUV);
-        const rcol = hpk([rc, rc, DOMECOL[hr() * DOMECOL.length | 0]]);
-        if (D.top === 'dome') dome(hpk(['helmet', 'onion']), 0.95, 8, Math.PI / 8, xc, yt, z + e * 0.45, rcol);
+        const rcol0 = hpk([rc, rc, DOMECOL[hr() * DOMECOL.length | 0]]), rcol = D.red ? rc : rcol0;
+        if (D.top === 'dome'){ const dk = hpk(['helmet', 'onion']); dome(D.red ? 'cap' : dk, 0.95, 8, Math.PI / 8, xc, yt, z + e * 0.45, rcol); }
         if (D.top === 'dome' || D.top === 'flat') flat(FX, [[xc - hb, yt, z], [xc + hb, yt, z], [xc + hf, yt, z + e], [xc - hf, yt, z + e]], [0, 1, 0], trimUV);
         if (D.top !== 'dome' && D.top !== 'flat'){ const ap = [xc, yt + 1.05, z + 0.05], FL = [xc - hf - 0.08, yt, z + e + 0.08], FR = [xc + hf + 0.08, yt, z + e + 0.08], BL = [xc - hb - 0.06, yt, z], BR = [xc + hb + 0.06, yt, z];
           roofPiece(tris([FL, FR, ap, BL, FL, ap, FR, BR, ap]), rcol); } }
@@ -5393,10 +5633,10 @@ var blockMats = [];
     for (const s of [-1, 1]) flat(FX, [[s * w / 2, H - 0.42, z], [s * w / 2, H - 0.42, z + D.cd], [s * w / 2, H + 0.06, z + D.cd], [s * w / 2, H + 0.06, z]], [s, 0, 0], trimUV);
     // the ends: on a street corner a front again, between houses the blind wall
     const nS = Math.max(2, Math.round(d / 3.6)), sw = d / nS;
-    for (const [s, corner] of [[-1, cornL], [1, cornR]]) for (let j = 0; j < nS; j++){ const za = -z + j * sw, zb2 = za + sw, c = corner ? N0 : (brick ? AN.BFIRE : AN.FIRE)[hr() < 0.5 ? 0 : 1];
+    for (const [s, corner] of [[-1, cornL], [1, cornR]]) for (let j = 0; j < nS; j++){ const za = -z + j * sw, zb2 = za + sw, c = corner ? N0 : (D.fire || (brick ? AN.BFIRE : AN.FIRE))[hr() < 0.5 ? 0 : 1];
       if (s > 0) rect4(FX, s * w / 2, 0, zb2, s * w / 2, H, za, [1, 0, 0], c, 0, 1, 0, H, 0.7 + j * 0.011); else rect4(FX, s * w / 2, 0, za, s * w / 2, H, zb2, [-1, 0, 0], c, 0, 1, 0, H, 0.8 + j * 0.011); }
     // the roof: pitched, or a mansard (the height the town always drew for it)
-    const pk = rnd(3, 4.8), mans = hr() < 0.22 && D.st !== 'romantic';
+    const pk = rnd(3, 4.8), mh = hr(), mans = D.red ? mansR : mh < 0.22 && D.st !== 'romantic';
     const r = new THREE.ExtrudeGeometry(new THREE.Shape((mans ? [[-z - 0.3, 0], [z + 0.3, 0], [z - 0.75, 2.9], [0, 2.9 + pk * 0.3], [-z + 0.75, 2.9]] : [[-z - 0.3, 0], [z + 0.3, 0], [0, pk]]).map(([a, b]) => new THREE.Vector2(a, b))), { depth: w - 0.02, bevelEnabled: false });
     r.rotateY(Math.PI / 2); r.translate(-(w - 0.02) / 2, H, 0); colorize(r, rc); r.rotateY(ry); r.translate(cx, 0, cz); roofs.push(r);
     const ch = colorize(new THREE.BoxGeometry(0.9, 2.2, 0.9).toNonIndexed(), C('#7a4a3a')), lx = rnd(-w / 2 + 1, w / 2 - 1), lz = rnd(-2, 2); ch.translate(lx, H + 2.2, lz); ch.rotateY(ry); ch.translate(cx, 0, cz); roofs.push(ch);
@@ -5407,19 +5647,34 @@ var blockMats = [];
       rect4(FX, xc - 0.65, ys - 0.15, zf, xc + 0.65, top, zf, [0, 0, 1], N0, 0.5 - 0.65 / 3.6, 0.5 + 0.65 / 3.6, yw, yw + 1.6, 0.85 + i * 0.011);
       for (const s of [-1, 1]) flat(FX, [[xc + s * 0.65, ys - 0.15, zf], [xc + s * 0.65, top, zf], [xc + s * 0.65, top, zt]], [s, 0, 0], wallUV);
       roofPiece(tris([[xc - 0.8, top, zf + 0.15], [xc + 0.8, top, zf + 0.15], [xc + 0.8, top + 0.12, zt - 0.2], [xc - 0.8, top, zf + 0.15], [xc + 0.8, top + 0.12, zt - 0.2], [xc - 0.8, top + 0.12, zt - 0.2]]), rc); });
+    // the red houses' mansards: a dormer over every bay but a gabled one
+    if (mans && D.dorm) L.forEach((t, i) => { if (!(t === 'A' && D.gable)) mDormer(FX, -w / 2 + i * bw, bw, z, H, N0, D.dorm, rc, i); });
     // a shop's name over its window
     if (near && D.ground === 'shop' && hr() < 0.85){ const i = L.indexOf('N') >= 0 ? L.indexOf('N') : 0, xc = -w / 2 + (i + 0.5) * bw, si = hr() * AN.NSIGN | 0, u0 = ((si % 2) * 512 + 6) / 1024, u1 = ((si % 2) * 512 + 506) / 1024, v1 = 1 - ((si >> 1) * 100 + 6) / 512, v0 = 1 - ((si >> 1) * 100 + 94) / 512;
       face(SA, [[xc - 1.5, D.g - 1.03, z + 0.03], [xc + 1.5, D.g - 1.03, z + 0.03], [xc + 1.5, D.g - 0.47, z + 0.03], [xc - 1.5, D.g - 0.47, z + 0.03]], [0, 0, 1], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]); } };
-  // a tower on a block's corner: eight-sided, from the first floor to a storey over the eaves, its windows the axis's, under a copper dome, a
-  // helmet with a spire, an onion, or a lantern
-  const cornerTower = (kx, kz, ix, iz, col, tr) => { const D = AN.designs[tr() * AN.designs.length | 0], R = 2.3, cxT = kx + ix * 1.2, czT = kz + iz * 1.2, A = D.i * 4 + 1, H = D.Hc;   // (set in 1.2 m: the corner house's corner, its cornice and its eaves all inside it)
+  // a tower on a block's corner: eight-sided, from the first floor to a storey over the eaves, under a dome, a helmet with a spire, an onion, or
+  // a lantern. The corner house's own: its stucco or its brick, its colour, its windows (its plain bay's, the middle of it on each side), its
+  // cornice at its eaves, and the dome in its roof's colour (the castle kind's a slate cap)
+  const cornerTower = (kx, kz, ix, iz, col, tr) => { const D0 = AN.designs[tr() * AN.designs.length | 0], cd = CORNER_D.get(ckey(kx, kz)), D = cd ? cd.D : D0, FX = cd && cd.brick ? FB : FA, UV = cd && cd.brick ? AN.UVb : AN.UV;
+    const R = 2.3, cxT = kx + ix * 1.2, czT = kz + iz * 1.2, A = cd ? D.i * 4 : D.i * 4 + 1, H = D.Hc;   // (set in 1.2 m: the corner house's corner, its cornice and its eaves all inside it)
+    // (how much of the bay each side shows: the window and what is round it, its quoins, the pair, the brick bands)
+    const hu = !cd ? 0.24 : Math.max(0.24, (D.fam === 'bands' ? D.winW / 2 + 0.52 : D.fam === 'castle' && D.v ? D.winW / 2 + 0.36 : D.paired ? 0.97 : 0) / 3.6), u0 = 0.5 - hu, u1 = 0.5 + hu;
     const nUp = Math.max(1, Math.ceil((Math.max(H, CORNER_H.get(ckey(kx, kz)) ?? H) + 3.2 - H) / D.f)), yT = H + nUp * D.f;   // (a storey or more over the corner house's eaves, clear of its roof)
-    T = { cx: cxT, cz: czT, co: 1, si: 0, col: col.clone().lerp(C('#a6a29a'), 0.3 * D.age).multiplyScalar(0.9), seed: Math.floor(tr() * 800) + 1, uv: AN.UV };
+    T = { cx: cxT, cz: czT, co: 1, si: 0, col: cd ? cd.col.clone() : col.clone().lerp(C('#a6a29a'), 0.3 * D.age).multiplyScalar(0.9), seed: Math.floor(tr() * 800) + 1, uv: UV };
     const segs = [[D.g, H - 0.45, D.g, H - 0.45], ...Array.from({ length: nUp }, (_, k) => [H - 0.45 + k * D.f, H - 0.45 + (k + 1) * D.f, H - 0.45 - D.f, H - 0.45]), [yT - 0.45, yT, H - 0.45, H]], bot = [];
+    // (the two sides that run into the house's walls: their windows narrower, the same ones, on the part that shows, and the wall carried on
+    // past them into the house; up every storey, so they stand over one another over the eaves too)
+    const inn = (p, q, t) => Math.min(1.2 + (p[0] + (q[0] - p[0]) * t) * ix, 1.2 + (p[1] + (q[1] - p[1]) * t) * iz);   // (over 0: inside the house)
     for (let j = 0; j < 8; j++){ const a0 = j * Math.PI / 4 + Math.PI / 8, a1 = a0 + Math.PI / 4, am = (a0 + a1) / 2, p0 = [R * Math.cos(a0), R * Math.sin(a0)], p1 = [R * Math.cos(a1), R * Math.sin(a1)]; bot.push([p0[0], D.g, p0[1]]);
-      for (const [y0, y1, v0, v1] of segs) face(FA, [[p0[0], y0, p0[1]], [p1[0], y0, p1[1]], [p1[0], y1, p1[1]], [p0[0], y1, p0[1]]], [Math.cos(am), 0, Math.sin(am)], [AN.UV(A, 0.26, v0), AN.UV(A, 0.74, v0), AN.UV(A, 0.74, v1), AN.UV(A, 0.26, v1)], j * 0.013); }
-    flat(FA, bot, [0, -1, 0], AN.UV(D.i * 4, 0.5, 28.6));
-    dome(['helmet', 'onion', 'spire', 'lantern', 'helmet'][tr() * 5 | 0], R + 0.12, 8, Math.PI / 8, 0, yT, 0, DOMECOL[tr() * DOMECOL.length | 0].clone().multiplyScalar(0.85 + 0.2 * tr())); };
+      const i0 = inn(p0, p1, 0) > 0, i1 = inn(p0, p1, 1) > 0, at = t => [p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t]; let parts = [[0, 1, u0, u1]];
+      if (i0 !== i1){ let lo = 0, hi = 1; for (let k = 0; k < 24; k++){ const t = (lo + hi) / 2; if ((inn(p0, p1, t) > 0) === i0) lo = t; else hi = t; }
+        const tc = (lo + hi) / 2, sk = (u1 - u0) * (i1 ? (1 - tc) / tc : tc / (1 - tc));
+        parts = i1 ? [[0, tc, u0, u1], [tc, 1, u1, Math.min(0.97, u1 + sk)]] : [[0, tc, Math.max(0.03, u0 - sk), u0], [tc, 1, u0, u1]]; }
+      for (const [y0, y1, v0, v1] of segs) for (const [ta, tb, ua, ub] of parts){ const pa = at(ta), pb = at(tb);
+        face(FX, [[pa[0], y0, pa[1]], [pb[0], y0, pb[1]], [pb[0], y1, pb[1]], [pa[0], y1, pa[1]]], [Math.cos(am), 0, Math.sin(am)], [UV(A, ua, v0), UV(A, ub, v0), UV(A, ub, v1), UV(A, ua, v1)], j * 0.013); } }
+    flat(FX, bot, [0, -1, 0], UV(D.i * 4, 0.5, 28.6));
+    const dk = ['helmet', 'onion', 'spire', 'lantern', 'helmet'][tr() * 5 | 0], dc = DOMECOL[tr() * DOMECOL.length | 0].clone().multiplyScalar(0.85 + 0.2 * tr());
+    dome(D.fam === 'castle' ? 'cap' : dk, R + 0.12, 8, Math.PI / 8, 0, yT, 0, cd ? cd.rc : dc); };
   const D = 13;   // (the houses' depth; the blocks and the streets: CELL, BLOCK, above)
   const townBlock = (gx, gz) => {
     const x0 = bx0(gx), z0 = bz0(gz), x1 = x0 + BLOCK, z1 = z0 + BLOCK;
@@ -5427,9 +5682,11 @@ var blockMats = [];
       while (x1 - x >= 3.6){ const bays = Math.min(Math.floor((x1 - x) / 3.6), 3 + Math.floor(rng() * 4)), w0 = bays * 3.6, w = x1 - x - w0 < 3.6 ? x1 - x : w0; building(x + w / 2, zz, w, D, ry, pick(PAL), pick(ROOF), { lo: x === x0, hi: x1 - x - w < 0.01 }); x += w; } }
     for (const [xx, ry] of [[x0 + D / 2, -Math.PI / 2], [x1 - D / 2, Math.PI / 2]]){ let z = z0 + D;
       while (z1 - D - z >= 3.6){ const bays = Math.min(Math.floor((z1 - D - z) / 3.6), 3 + Math.floor(rng() * 3)), w0 = bays * 3.6, w = z1 - D - z - w0 < 3.6 ? z1 - D - z : w0; building(xx, z + w / 2, w, D, ry, pick(PAL), pick(ROOF)); z += w; } }
-    { const tr = mkRng(gx * 7331 + gz * 977 + 11), corners = [[x0, z0, 1, 1], [x1, z0, -1, 1], [x0, z1, 1, -1], [x1, z1, -1, -1]]; let first = -1;
+    { const tr = mkRng(gx * 7331 + gz * 977 + 11), corners = [[x0, z0, 1, 1], [x1, z0, -1, 1], [x0, z1, 1, -1], [x1, z1, -1, -1]]; let first = -1, second = -1;
       if (rng() < 0.2){ const kx = rng() < 0.5 ? 0 : 1, kz = rng() < 0.5 ? 0 : 1, col = pick(PAL); pick(ROOF); first = kz * 2 + kx; const [kx_, kz_, ix, iz] = corners[first]; cornerTower(kx_, kz_, ix, iz, col, tr); }
-      if (tr() < 0.32){ let k = tr() * 4 | 0; if (k === first) k = (k + 1) % 4; const [kx_, kz_, ix, iz] = corners[k]; cornerTower(kx_, kz_, ix, iz, PAL[tr() * PAL.length | 0], tr); } }
+      if (tr() < 0.32){ let k = tr() * 4 | 0; if (k === first) k = (k + 1) % 4; second = k; const [kx_, kz_, ix, iz] = corners[k]; cornerTower(kx_, kz_, ix, iz, PAL[tr() * PAL.length | 0], tr); }
+      // and most red houses of the castle kind on a corner have their round tower there, as the ones in Riga mostly did
+      corners.forEach(([kx_, kz_, ix, iz], k) => { const cd = CORNER_D.get(ckey(kx_, kz_)); if (k !== first && k !== second && cd && cd.D.fam === 'castle' && tr() < 0.75) cornerTower(kx_, kz_, ix, iz, PAL[0], tr); }); }
   };
   { const sv = seed;   // (the near blocks from the world's numbers; then the world's numbers carried on as if the blocks were still 46 m, as they were
     // when everything drawn after them was set, so that the yard, our side of Stabu, the clouds, are what they were)
