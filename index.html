@@ -165,6 +165,82 @@ function snowify(mat, k = 1){
   };
   return mat;
 }
+// a metre of a chimney's brickwork: red bricks, four to a course and fourteen courses, each its own shade (some overburnt, some faded), in worn
+// grey mortar; their top edges catching the light, their bottoms in shadow, a corner knocked off here and there; soot and damp run down it
+const chimTex = tex(512, 512, (g, w, h) => { const r = mkRng(52817), R = (a, b) => a + (b - a) * r(), CHh = h / 14, BL = w / 4, MOR = '#9a9286';
+  g.fillStyle = MOR; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 1400; i++){ g.fillStyle = r() < 0.5 ? `rgba(60,54,48,${R(0.1, 0.25)})` : `rgba(205,200,190,${R(0.1, 0.25)})`; g.fillRect(r() * w, r() * h, R(1, 3), R(1, 3)); }   // grit in the mortar
+  for (let row = 0; row < 14; row++) for (let k = 0; k < 4; k++){ const x = k * BL + (row % 2) * BL / 2 + 3, y = row * CHh + 3, bw = BL - 6, bh = CHh - 6;
+    const burnt = r() < 0.13, pale = !burnt && r() < 0.16, L = burnt ? R(16, 24) : pale ? R(40, 50) : R(27, 39), Sa = pale ? R(28, 42) : R(46, 64), Hu = R(5, 17);
+    const spots = Array.from({ length: 46 }, () => [r() * bw, r() * bh, R(2, 9), R(1, 4), `hsla(${Hu + R(-6, 6)},${Sa}%,${L + R(-9, 8)}%,${R(0.3, 0.75)})`]);
+    const chip = r() < 0.3 ? [r() < 0.5 ? 0 : bw - 14, r() < 0.5 ? 0 : bh - 9, R(8, 16), R(5, 9)] : null;
+    for (const ox of [0, -w]){ const X = x + ox; if (X + bw < 0) continue;   // (the brick across the right edge drawn again at the left: it tiles)
+      g.fillStyle = `hsl(${Hu},${Sa}%,${L}%)`; g.fillRect(X, y, bw, bh);
+      for (const [a, b, c, d, f] of spots){ g.fillStyle = f; g.fillRect(X + a, y + b, Math.min(c, bw - a), Math.min(d, bh - b)); }
+      g.fillStyle = 'rgba(255,225,200,.17)'; g.fillRect(X, y, bw, 2); g.fillStyle = 'rgba(25,12,6,.32)'; g.fillRect(X, y + bh - 3, bw, 3);
+      if (chip){ g.fillStyle = MOR; g.fillRect(X + chip[0], y + chip[1], chip[2], chip[3]); } } }
+  for (let i = 0; i < 26; i++){ const x = R(20, w - 40), y = R(0, h * 0.7), l = R(60, 150), sw = R(6, 22), gr = g.createLinearGradient(0, y, 0, y + l);   // damp and soot run down from the joints
+    gr.addColorStop(0, `rgba(${r() < 0.6 ? '30,22,18' : '235,232,220'},${R(0.08, 0.16)})`); gr.addColorStop(1, 'rgba(30,22,18,0)'); g.fillStyle = gr; g.fillRect(x, y, sw, l); }
+  for (let i = 0; i < 30; i++){ const x = R(30, w - 30), y = R(30, h - 30), rr = R(10, 34); g.fillStyle = r() < 0.55 ? `rgba(35,24,18,${R(0.05, 0.11)})` : `rgba(240,236,224,${R(0.04, 0.09)})`; g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill(); } });
+const chimMat = snowify(new THREE.MeshStandardMaterial({ map: chimTex, vertexColors: true, roughness: 0.93 }), 1.1);
+chimMat.shadowSide = THREE.FrontSide;   // (into the shadow map by its faces to the sun: its back ones meet the roof at its foot, and the bias let a strip of light in between it and its shadow)
+// a chimney: weathered red brick up from the roof (y0) to its top (yT, on a course of the brick), the top corbelled out a course and then two
+// more, soot darkening the top of it; near enough to look into, the flue open in it, its walls black going down (far off, the top solid). Into
+// K ({ p, n, uv, c, i }), through W and N (its frame to the world: points, normals); hx, hz its half-sizes; the brick in metres
+function chimneyInto(K, W, N, lx, lz, y0, yT, tint, near, hx = 0.45, hz = 0.33){
+  const cface = (pts, n, uvs, cols, nA = n) => { const w = pts.map(p => W(...p)), nn = N(...n), na = N(...nA), o = K.p.length / 3; let nx = 0, ny = 0, nz = 0;   // (nA: the normal it is lit by, if not the way it faces)
+    for (let k = 0; k < w.length; k++){ const a = w[k], b = w[(k + 1) % w.length]; nx += (a[1] - b[1]) * (a[2] + b[2]); ny += (a[2] - b[2]) * (a[0] + b[0]); nz += (a[0] - b[0]) * (a[1] + b[1]);
+      K.p.push(...a); K.n.push(...na); K.uv.push(...uvs[k]); K.c.push(...cols[k]); }
+    const flip = nx * nn[0] + ny * nn[1] + nz * nn[2] < 0; for (let k = 1; k < w.length - 1; k++) flip ? K.i.push(o, o + k + 1, o + k) : K.i.push(o, o + k, o + k + 1); };
+  const s1 = 0.035, s2 = 0.075, COURSE = 1 / 14, yc = yT - 3 * COURSE;
+  const col = y => { const f = 1 - 0.34 * smooth((y - yT + 1.0) / 1.05); return [tint[0] * f, tint[1] * f, tint[2] * f]; };
+  const sides = (ex, ez, ya, yb, k = 1, cf = col) => { const X0 = lx - ex, X1 = lx + ex, Z0 = lz - ez, Z1 = lz + ez, A = cf(ya), B = cf(yb), C4 = [A, A, B, B];   // (k -1: facing in, the flue's walls)
+    cface([[X0, ya, Z1], [X1, ya, Z1], [X1, yb, Z1], [X0, yb, Z1]], [0, 0, k], [[X0, ya], [X1, ya], [X1, yb], [X0, yb]], C4);
+    cface([[X1, ya, Z0], [X0, ya, Z0], [X0, yb, Z0], [X1, yb, Z0]], [0, 0, -k], [[-X1, ya], [-X0, ya], [-X0, yb], [-X1, yb]], C4);
+    cface([[X1, ya, Z1], [X1, ya, Z0], [X1, yb, Z0], [X1, yb, Z1]], [k, 0, 0], [[-Z1 + 0.37, ya], [-Z0 + 0.37, ya], [-Z0 + 0.37, yb], [-Z1 + 0.37, yb]], C4);
+    cface([[X0, ya, Z0], [X0, ya, Z1], [X0, yb, Z1], [X0, yb, Z0]], [-k, 0, 0], [[Z0 + 0.61, ya], [Z1 + 0.61, ya], [Z1 + 0.61, yb], [Z0 + 0.61, yb]], C4); };
+  const ring = (ox, oz, ix, iz, y, up) => { const C = col(y), P = (sx, sz, ex, ez) => [lx + sx * ex, y, lz + sz * ez];   // a frame flat between two outlines: the underside of a step, the top round the flue
+    for (const [ax, az, bx, bz] of [[-1, 1, 1, 1], [1, 1, 1, -1], [1, -1, -1, -1], [-1, -1, -1, 1]]){ const q = [P(ax, az, ox, oz), P(bx, bz, ox, oz), P(bx, bz, ix, iz), P(ax, az, ix, iz)];
+      cface(q, [0, up ? 1 : -1, 0], q.map(p => [p[0], p[2]]), q.map(() => C)); } };
+  sides(hx, hz, y0, yc);                                                                                            // the stack
+  ring(hx + s1, hz + s1, hx, hz, yc, false); sides(hx + s1, hz + s1, yc, yc + COURSE);                               // a course stepped out
+  ring(hx + s2, hz + s2, hx + s1, hz + s1, yc + COURSE, false); sides(hx + s2, hz + s2, yc + COURSE, yT);             // and two courses further
+  if (near){ const fx = hx - 0.12, fz = hz - 0.12, yb = yT - 0.8, dark = y => { const f = 0.05 + 0.25 * smooth((y - yb) / 0.8); return [tint[0] * f, tint[1] * f, tint[2] * f]; };
+    ring(hx + s2, hz + s2, fx, fz, yT, true); sides(fx, fz, yb, yT, -1, dark);                                       // the top round the flue, the flue
+    const q = [[lx - fx, yb, lz + fz], [lx + fx, yb, lz + fz], [lx + fx, yb, lz - fz], [lx - fx, yb, lz - fz]]; cface(q, [0, 1, 0], q.map(p => [p[0], p[2]]), q.map(() => [0.02, 0.018, 0.016]), [0, -1, 0]); }   // (black, and no snow on it: the stoves are warm)
+  else { const ex = hx + s2, ez = hz + s2, q = [[lx - ex, yT, lz + ez], [lx + ex, yT, lz + ez], [lx + ex, yT, lz - ez], [lx - ex, yT, lz - ez]]; cface(q, [0, 1, 0], q.map(p => [p[0], p[2]]), q.map(() => col(yT))); }
+}
+function chimneyMesh(K){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(K.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(K.n, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(K.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(K.c, 3)); g.setIndex(K.i);
+  const m = new THREE.Mesh(g, chimMat); m.castShadow = m.receiveShadow = true; return m; }
+const ID3 = (x, y, z) => [x, y, z];
+/* the town's roofs, weathered: tin in sheets, the standing seams running down each slope a little over half a metre apart, the joints across
+   them staggered, every sheet a shade lighter or darker than the next, rust run down in streaks, grime in patches; all of it from where the
+   roof is in the world (so no two roofs alike, nothing repeating), over the colour each was painted: on the flat slopes (uv.x 1) from where
+   they are; on the domes and spires (uv.x 2 + metres round the foot, uv.y metres up the curve) round and up their own curve, the panels
+   narrowing to the top. Under the snow and the rain */
+const seamTex = tex(256, 512, (g, w, h) => { const r = mkRng(66173), R = (a, b) => a + (b - a) * r();   // 1.1 m by 2.2 m: two sheets across, two up
+  g.fillStyle = 'rgb(217,217,217)'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 2600; i++){ const v = 217 + R(-13, 13) | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(r() * w, r() * h, R(1, 5), R(1, 3)); }   // (each sheet's own mottle)
+  for (const [x, ys] of [[0, [64, 320]], [128, [192, 448]]]){
+    for (const y of ys){ g.fillStyle = 'rgb(130,130,130)'; g.fillRect(x + 7, y - 2, 121, 3); g.fillStyle = 'rgb(245,245,245)'; g.fillRect(x + 7, y + 1, 121, 1); }   // the joints across
+    g.fillStyle = 'rgb(255,255,255)'; g.fillRect(x, 0, 3, h); g.fillStyle = 'rgb(115,115,115)'; g.fillRect(x + 3, 0, 4, h); } }, { srgb: false });   // the seam: lit one side, its shadow the other
+function roofWear(mat){ return shaderChain(mat, 'roofWear', sh => { sh.uniforms.uSeam = { value: seamTex };
+  sh.vertexShader = 'varying vec3 vRwP;\nvarying vec3 vRwN;\nvarying float vRwW;\nvarying float vRwV;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vRwP = (modelMatrix * vec4(transformed, 1.0)).xyz; vRwN = normalize(mat3(modelMatrix) * objectNormal); vRwW = uv.x; vRwV = uv.y;');
+  sh.fragmentShader = `uniform sampler2D uSeam; varying vec3 vRwP; varying vec3 vRwN; varying float vRwW; varying float vRwV;
+float rwH(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float rwN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(rwH(i), rwH(i + vec2(1.0, 0.0)), f.x), mix(rwH(i + vec2(0.0, 1.0)), rwH(i + vec2(1.0, 1.0)), f.x), f.y); }
+` + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+    if (vRwW > 0.5){ vec2 q = vec2(vRwW - 2.0, vRwV);   // (a dome: round it, and up it)
+      if (vRwW < 1.5){ vec3 rn = normalize(vRwN); float hl = length(rn.xz);   // (a slope: along its level, and up it; metres)
+        vec3 ra = hl > 0.02 ? vec3(-rn.z, 0.0, rn.x) / hl : vec3(1.0, 0.0, 0.0), ta = cross(rn, ra); if (ta.y < 0.0) ta = -ta; q = vec2(dot(vRwP, ra), dot(vRwP, ta)); }
+      float nr = 1.0 - smoothstep(45.0, 170.0, length(vViewPosition));   // (the fine things fade out with distance, before they shimmer)
+      vec3 sm = texture2D(uSeam, q / vec2(1.1, 2.2)).rgb / 0.85;
+      float cI = floor(q.x / 0.55), rI = floor((q.y + mod(cI, 2.0) * 0.55) / 1.1), sheet = 0.92 + 0.14 * rwH(vec2(cI, rI) + 7.0);
+      float streak = rwN(vec2(q.x * 3.4, q.y * 0.2)), patchN = rwN(q * 0.33 + 17.0), grime = rwN(q * 0.11 + 3.0);
+      float rust = smoothstep(0.64, 0.92, 0.6 * streak + 0.5 * patchN) * (0.45 + 0.55 * nr);
+      vec3 rc = diffuseColor.rgb * mix(vec3(1.0), sm, 0.3 + 0.7 * nr) * mix(1.0, sheet, nr) * (0.84 + 0.28 * grime);
+      diffuseColor.rgb = mix(rc, vec3(0.27, 0.12, 0.05) * (0.7 + 0.6 * patchN), rust * 0.38); }`); }); }
 /* roofs in the rain: wet where the rain falls on them (whatever faces the sky), darker, glossy, the grey sky sheening off them at a glance,
    and near enough to see, the rings of the raindrops spreading on them; they dry with the yard. Chained on top of the snow */
 const roofWetU = { value: 0 }, roofRainU = { value: 0 };
@@ -921,8 +997,10 @@ const roofTex = tex(512, 512, (g, w, h) => {
   const rg = new THREE.ExtrudeGeometry(shape, { depth: BW + 0.8, bevelEnabled: false }); rg.rotateY(Math.PI / 2);
   const roof = new THREE.Mesh(rg, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.7, metalness: 0.3 }), 1.2)));
   roof.position.set(-BW / 2 - 0.4, BH, BZ - BD / 2); roof.castShadow = roof.receiveShadow = true; scene.add(roof);
-  const brick = snowify(new THREE.MeshStandardMaterial({ color: '#7a5246', roughness: 1 }));
-  for (const x of [-12, -3, 6.5, 14]){ const ch = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.7), brick); ch.position.set(x, BH + 1.9, BZ - BD / 2 + rnd(-1.5, 1.5)); ch.castShadow = true; scene.add(ch); CHIMNEYS.push(new V3(x, BH + 2.85, ch.position.z)); }
+  { const K = { p: [], n: [], uv: [], c: [], i: [] };   // the chimneys, brick like the town's, half a metre over the ridge
+    for (const x of [-12, -3, 6.5, 14]){ const z = BZ - BD / 2 + rnd(-1.5, 1.5), a = Math.abs(z - (BZ - BD / 2)) + 0.35, yT = Math.round((BH + 2.4 + 0.55) * 14) / 14;
+      chimneyInto(K, ID3, ID3, x, z, BH + 2.4 * (1 - a / (BD / 2 + 0.4)) - 0.2, yT, [0.92, 0.86, 0.8], true, 0.35, 0.35); CHIMNEYS.push(new V3(x, yT + 0.1, z)); }
+    scene.add(chimneyMesh(K)); }
   const concrete = snowify(new THREE.MeshStandardMaterial({ color: '#8c8a84', roughness: 1 }));
   for (const x of [-9, 9]){
     const cn = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.14, 1.1), concrete); cn.position.set(x, 2.72, BZ + 0.55); cn.castShadow = true; scene.add(cn);
@@ -5697,9 +5775,11 @@ var blockMats = [];
   const rect4 = (A, x0, y0, z0, x1, y1, z1, n, c, u0, u1, v0, v1, extra) => face(A, [[x0, y0, z0], [x1, y0, z1], [x1, y1, z1], [x0, y1, z0]], n, [T.uv(c, u0, v0), T.uv(c, u1, v0), T.uv(c, u1, v1), T.uv(c, u0, v1)], extra);   // (in the house's own picture)
   const flat = (A, pts, n, uv, extra) => face(A, pts, n, pts.map(() => uv), extra);
   // a little roof, a dome, a lean-to: into the roofs, coloured
-  const roofPiece = (geo, col) => { const g = geo.index ? geo.toNonIndexed() : geo; if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  const roofPiece = (geo, col, wear = 1) => { const g = geo.index ? geo.toNonIndexed() : geo, n = g.attributes.position.count; if (wear !== 'keep'){ const uv = new Float32Array(n * 2); for (let k = 0; k < n; k++) uv[k * 2] = wear; g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); }   // (uv.x: weathered, or kept smooth; 'keep': its own, a dome's)
     colorize(g, col); g.rotateY(Math.atan2(T.si, T.co)); g.translate(T.cx, 0, T.cz); roofs.push(g); };
   const tris = (pts) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flat(), 3)); g.computeVertexNormals(); return g; };
+  // the chimneys (see chimneyInto): into a mesh of their own
+  const CK = { p: [], n: [], uv: [], c: [], i: [] }, chimney = (lx, lz, y0, yT, tint, near) => chimneyInto(CK, W3, WN, lx, lz, y0, yT, tint, near);
   const DOMES = { helmet: [[1.05, 0], [1.05, 0.25], [1.0, 0.9], [0.72, 2.0], [0.32, 2.9], [0.07, 3.4], [0.03, 4.9], [0, 5.0]],
     onion: [[1.05, 0], [1.05, 0.3], [1.16, 1.1], [0.95, 2.0], [0.45, 2.7], [0.12, 3.1], [0.05, 4.2], [0, 4.3]],
     spire: [[1.05, 0], [1.05, 0.3], [0.95, 0.6], [0.12, 6.4], [0, 6.6]],
@@ -5707,8 +5787,11 @@ var blockMats = [];
     lantern: [[1.05, 0], [1.0, 0.6], [0.75, 1.5], [0.4, 1.9], [0.4, 2.0], [0.32, 2.0], [0.32, 2.9], [0.42, 2.9], [0.2, 3.4], [0.04, 4.1], [0, 4.15]] };
   const DOMECOL = ['#5f8c7a', '#557f70', '#4c5054', '#6e3a2c', '#5f8c7a'].map(C);
   const dome = (kind, R, segs, phi, x, y, z, col) => { const pr = DOMES[kind].map(([a, b]) => new THREE.Vector2(a * R, b * (kind === 'spire' ? 1 : Math.max(0.8, R / 1.6))));
-    const g = new THREE.LatheGeometry(pr, segs, phi); g.translate(x, y, z); roofPiece(g, col);
-    const cap = new THREE.CircleGeometry(pr[0].x, segs, Math.PI / 2 - phi); cap.rotateX(Math.PI / 2); cap.translate(x, y + 0.002, z); roofPiece(cap, col); };   // (closed underneath: no looking up into it)
+    const g = new THREE.LatheGeometry(pr, segs, phi), P = pr.length, arc = [0], uv = g.attributes.uv.array; for (let j = 1; j < P; j++) arc.push(arc[j - 1] + pr[j].distanceTo(pr[j - 1]));
+    const Cm = Math.max(2, Math.round(TAU * pr[0].x / 1.1)) * 1.1;   // (round its foot, a whole number of pairs of panels)
+    for (let k = 0; k < uv.length / 2; k++){ const i = Math.floor(k / P), j = k % P; uv[k * 2] = 2 + i / segs * Cm; uv[k * 2 + 1] = arc[j]; }
+    g.translate(x, y, z); roofPiece(g, col, 'keep');
+    const cap = new THREE.CircleGeometry(pr[0].x, segs, Math.PI / 2 - phi); cap.rotateX(Math.PI / 2); cap.translate(x, y + 0.002, z); roofPiece(cap, col, 0); };   // (closed underneath: no looking up into it)
   const nearHome = (x, z) => x > TOWN.x0 - 30 && x < TOWN.x1 + 30 && z > TOWN.z0 - 30 && z < TOWN.z1 + 30, CORNER_H = new Map(), CORNER_D = new Map(), ckey = (x, z) => Math.round(x) + ',' + Math.round(z);   // (the eaves of the house on each block corner, for its tower)
 
   // ---- the balconies, near enough to see them as things (further off, a slab and a flat railing or parapet): the bowed concrete one with its
@@ -5794,7 +5877,7 @@ var blockMats = [];
     face(FX, pts.map(([x, y]) => [x, y, zf]), [0, 0, 1], pts.map(([x, y]) => uvp(x, y)), 0.9 + i * 0.011);
     for (const s of [-1, 1]){ const x = xc + s * hw; flat(FX, [[x, ys, zf], [x, yA, zf], [x, yA, zs(yA)]], [s, 0, 0], T.uv(c, 0.5, 28.6)); }
     if (kind === 'arch'){ const ze = zs(yA + 0.76) - 0.1, z1 = zf + 0.06, cyl = new THREE.CylinderGeometry(0.76, 0.76, z1 - ze, 12, 1, true, Math.PI / 2, Math.PI);
-      cyl.rotateX(Math.PI / 2); cyl.scale(sx, 1, 1); cyl.translate(xc, yA, (z1 + ze) / 2); roofPiece(cyl, rc); }
+      cyl.rotateX(Math.PI / 2); cyl.scale(sx, 1, 1); cyl.translate(xc, yA, (z1 + ze) / 2); roofPiece(cyl, rc, 0); }
     else if (kind === 'ped'){ const ze = zs(yP + 0.08) - 0.1, a = hw + 0.08, z1 = zf + 0.12;   // (a little gabled roof from the pediment back into the slope)
       roofPiece(tris([[xc - a, yA, z1], [xc, yP + 0.08, z1], [xc, yP + 0.08, ze], [xc - a, yA, z1], [xc, yP + 0.08, ze], [xc - a, yA, ze], [xc, yP + 0.08, z1], [xc + a, yA, z1], [xc + a, yA, ze], [xc, yP + 0.08, z1], [xc + a, yA, ze], [xc, yP + 0.08, ze]]), rc); }
     else { const ze = zs(yA) - 0.15, a = hw + 0.1; roofPiece(tris([[xc - a, yA, zf + 0.15], [xc + a, yA, zf + 0.15], [xc + a, yA + 0.1, ze], [xc - a, yA, zf + 0.15], [xc + a, yA + 0.1, ze], [xc - a, yA + 0.1, ze]]), rc); } };
@@ -5810,7 +5893,7 @@ var blockMats = [];
     const mansR = D.mans != null && mkRng(T.seed * 7919 + Math.round(cx * 13 + cz * 7))() < D.mans;   // (the red houses' mansards, and some yellow: decided first, for their gables stand out over the steep slope)
     if (D.tint) T.col.lerp(D.tint, D.tintK);   // (pale stone, grey stucco, cream plaster)
     if (D.red) rc = D.fam === 'bands' ? C(T.seed % 2 ? '#6e3a2c' : '#7a4030') : D.fam === 'castle' ? C(T.seed % 2 ? '#55585a' : '#4d5153') : rc; else if (D.rcs) rc = C(D.rcs[T.seed % D.rcs.length]);   // (slate, or tiles; iron)
-    EAVES.push({ cx, cz, w, d, ry, h: H, zf: z + D.cd + 0.02 });   // (every house, near or far: icicles on the whole city, not just the near yard)
+    const EV = { cx, cz, w, d, ry, h: H, zf: z + D.cd + 0.02 }; EAVES.push(EV);   // (every house, near or far: icicles on the whole city, not just the near yard; and its roof, below, to stand on)
     // the front's rhythm: the axis (or two), the entrance
     const L = new Array(bays).fill('N');
     if (bays >= 3){ if (hr() < 0.65){ if (bays % 2) L[bays >> 1] = 'A'; else if (bays >= 6) L[1] = L[bays - 2] = 'A'; else L[bays / 2 - (hr() < 0.5 ? 1 : 0)] = 'A'; } else L[hr() < 0.5 ? 1 : bays - 2] = 'A';
@@ -5861,15 +5944,29 @@ var blockMats = [];
     // the roof: pitched, or a mansard (the height the town always drew for it)
     const pk = rnd(3, 4.8), mh = hr(), mans = D.mans != null ? mansR : mh < 0.22 && D.st !== 'romantic';
     const r = new THREE.ExtrudeGeometry(new THREE.Shape((mans ? [[-z - 0.3, 0], [z + 0.3, 0], [z - 0.75, 2.9], [0, 2.9 + pk * 0.3], [-z + 0.75, 2.9]] : [[-z - 0.3, 0], [z + 0.3, 0], [0, pk]]).map(([a, b]) => new THREE.Vector2(a, b))), { depth: w - 0.02, bevelEnabled: false });
-    r.rotateY(Math.PI / 2); r.translate(-(w - 0.02) / 2, H, 0); colorize(r, rc); r.rotateY(ry); r.translate(cx, 0, cz); roofs.push(r);
-    const ch = colorize(new THREE.BoxGeometry(0.9, 2.2, 0.9).toNonIndexed(), C('#7a4a3a')), lx = rnd(-w / 2 + 1, w / 2 - 1), lz = rnd(-2, 2); ch.translate(lx, H + 2.2, lz); ch.rotateY(ry); ch.translate(cx, 0, cz); roofs.push(ch);
-    CHIMNEYS.push(new V3(lx, H + 3.32, lz).applyAxisAngle(new V3(0, 1, 0), ry).add(new V3(cx, 0, cz)));
+    r.rotateY(Math.PI / 2); r.translate(-(w - 0.02) / 2, H, 0); colorize(r, rc); r.rotateY(ry); r.translate(cx, 0, cz); { const uv = r.attributes.uv.array; for (let k = 0; k < uv.length; k += 2){ uv[k] = 1; uv[k + 1] = 0; } } roofs.push(r);   // (weathered)
+    // the chimneys: one on a house four bays wide or less, two up to seven, three on the longest; near the ridge (behind the dormers), up from
+    // the roof to half a metre or so over the ridge, of red brick, some redder, some browner. (Where the one used to stand, from the world's numbers as ever)
+    const lx0 = rnd(-w / 2 + 1, w / 2 - 1), lz0 = rnd(-2, 2), nCh = bays <= 4 ? 1 : bays <= 7 ? 2 : 3, cr = mkRng(T.seed * 6007 + Math.round(cx * 31 - cz * 17)), chs = [];
+    const rTop = a => H + (mans ? (a > z - 0.75 ? 2.9 * (z + 0.3 - a) / 1.05 : 2.9 + pk * 0.3 * (1 - a / (z - 0.75))) : pk * Math.max(0, 1 - a / (z + 0.3)));   // (the roof's height a from the ridge)
+    for (let k = 0; k < nCh; k++){ const lx = nCh === 1 ? lx0 : -w / 2 + w * (k + 0.5) / nCh + (cr() - 0.5) * Math.min(1.6, w / nCh - 2), lz = nCh === 1 ? Math.min(lz0, 1.2) : -2 + cr() * 3.2;
+      const y0 = rTop(Math.abs(lz) + 0.41) - 0.2, y1 = Math.round((rTop(0) + 0.6 + cr() * 0.45) * 14) / 14, k_ = 0.82 + cr() * 0.24, h_ = cr();   // (its top on a course of the brick)
+      chimney(lx, lz, y0, y1, [k_, k_ * (0.88 + 0.1 * h_), k_ * (0.8 + 0.16 * h_)], detail);
+      chs.push([lx, lz]); CHIMNEYS.push(new V3(lx, y1 + 0.1, lz).applyAxisAngle(new V3(0, 1, 0), ry).add(new V3(cx, 0, cz))); }
+    Object.assign(EV, { pk, mans, rc, ch: chs, dorm: [] });
     // dormers in the front slope
     if (!mans && hr() < 0.38) L.forEach((t, i) => { if (t === 'A' && D.gable || i % 2 !== (bays > 4 ? 1 : 0)) return;
-      const xc = -w / 2 + (i + 0.5) * bw, zf = z - 0.9, ys = H + pk * (z + 0.3 - zf) / (z + 0.3), top = ys + 1.45, zt = (z + 0.3) * (1 - (top - H) / pk), yw = D.g + (D.n - 1) * D.f + 0.55;
+      const xc = -w / 2 + (i + 0.5) * bw, zf = z - 0.9, ys = H + pk * (z + 0.3 - zf) / (z + 0.3), top = ys + 1.45, zt = (z + 0.3) * (1 - (top - H) / pk), yw = D.g + (D.n - 1) * D.f + 0.55; EV.dorm.push([xc, zt - 0.2]);
       rect4(FX, xc - 0.65, ys - 0.15, zf, xc + 0.65, top, zf, [0, 0, 1], N0, 0.5 - 0.65 / 3.6, 0.5 + 0.65 / 3.6, yw, yw + 1.6, 0.85 + i * 0.011);
-      for (const s of [-1, 1]) flat(FX, [[xc + s * 0.65, ys - 0.15, zf], [xc + s * 0.65, top, zf], [xc + s * 0.65, top, zt]], [s, 0, 0], wallUV);
-      roofPiece(tris([[xc - 0.8, top, zf + 0.15], [xc + 0.8, top, zf + 0.15], [xc + 0.8, top + 0.12, zt - 0.2], [xc - 0.8, top, zf + 0.15], [xc + 0.8, top + 0.12, zt - 0.2], [xc - 0.8, top + 0.12, zt - 0.2]]), rc); });
+      // its little roof falls 12 cm to the front, so its cheeks rise with it to where it goes into the big roof (no slit between); its edge 5 cm thick
+      const A = zf + 0.15, B = zt - 0.2, s1 = 0.12 / (A - B), s2 = pk / (z + 0.3), yS = q => top + s1 * (A - q), zS = (H + pk - top - s1 * A) / (s2 - s1);
+      for (const s of [-1, 1]) flat(FX, [[xc + s * 0.65, ys - 0.15, zf], [xc + s * 0.65, top, zf], [xc + s * 0.65, yS(zS), zS]], [s, 0, 0], wallUV);
+      const a = xc - 0.8, b = xc + 0.8, e = 0.05;
+      roofPiece(tris([[a, top, A], [b, top, A], [b, yS(B), B], [a, top, A], [b, yS(B), B], [a, yS(B), B],                                   // the top
+        [a, top - e, A], [b, top - e, A], [b, top, A], [a, top - e, A], [b, top, A], [a, top, A],                                             // its front edge
+        [b, top - e, A], [b, yS(B) - e, B], [b, yS(B), B], [b, top - e, A], [b, yS(B), B], [b, top, A],                                       // and its sides
+        [a, yS(B) - e, B], [a, top - e, A], [a, top, A], [a, yS(B) - e, B], [a, top, A], [a, yS(B), B],
+        [a, top - e, A], [b, yS(B) - e, B], [b, top - e, A], [a, top - e, A], [a, yS(B) - e, B], [b, yS(B) - e, B]]), rc); });   // (and underneath)
     // the red houses' mansards: a dormer over every bay but a gabled one
     if (mans && D.dorm) L.forEach((t, i) => { if (!(t === 'A' && D.gable)) mDormer(FX, -w / 2 + i * bw, bw, z, H, N0, D.dorm, rc, i); });
     // a shop's name over its window
@@ -5982,9 +6079,31 @@ var blockMats = [];
     const endMat = wm(plank), g = new THREE.Group(); g.add(back, front);
     for (const s of [-1, 1]){ const e = new THREE.Mesh(new THREE.ShapeGeometry(end), endMat); e.rotation.y = s * Math.PI / 2; e.position.set(s < 0 ? x0 : x1, 0, cz); g.add(e);
       const aw = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9), new THREE.MeshStandardMaterial({ color: '#1c262c', roughness: 0.3 })); aw.rotation.y = s * Math.PI / 2; aw.position.set((s < 0 ? x0 : x1) + s * 0.02, H + 0.9, cz); g.add(aw); }
-    const tin = wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4)), a = Math.atan2(rise, d / 2), sl = Math.hypot(rise, d / 2) + 0.45;
-    for (const s of [-1, 1]){ const r = new THREE.Mesh(new THREE.BoxGeometry(w + 0.7, 0.07, sl), tin); r.rotation.x = s * a; r.position.set(cx, H + rise / 2 + 0.02, cz + s * (d / 4 + 0.1)); g.add(r); }
-    for (const fx of [0.3, 0.72]){ const ch = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.6), snowify(new THREE.MeshStandardMaterial({ map: brickTex, color: '#a0503a', roughness: 1 }), 0.6)); ch.position.set(x0 + w * fx, H + rise - 0.1, cz + 0.6); g.add(ch); CHIMNEYS.push(new V3(x0 + w * fx, H + rise + 0.62, cz + 0.6)); }
+    // the roof: tin over boards a hand thick, resting on the walls and the gables, out 0.4 m over the eaves and 0.3 m over the gables; the
+    // eaves boarded underneath, a painted board along each eave and up each gable, and a gutter hung along each eave
+    { const D = d / 2, ov = 0.4, ox = 0.3, ca = Math.cos(Math.atan2(rise, D)), t = 0.16 / ca, L = Math.hypot(rise, D), U = D + ov, xa = x0 - ox, xb = x1 + ox;
+      const yTop = u => H + t + rise * (1 - Math.abs(u) / D), yBot = u => yTop(u) - t;   // (the underside on the walls' tops and the gables' rakes)
+      const tin = wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4));
+      const board = new THREE.MeshStandardMaterial({ color: '#4c1d16', roughness: 0.9 }), under = new THREE.MeshStandardMaterial({ color: '#3a1812', roughness: 0.95 });
+      const quads = (Q, uvs) => { const P = [], N = [], T_ = [], I = []; Q.forEach((q, k) => { const [A, B, Cc] = q, e1 = new V3().subVectors(B, A), e2 = new V3().subVectors(Cc, A), n = e1.cross(e2).normalize(), o = P.length / 3;
+          q.forEach((v, j) => { P.push(v.x, v.y, v.z); N.push(n.x, n.y, n.z); T_.push(...(uvs ? uvs[k][j] : [0, 0])); }); I.push(o, o + 1, o + 2, o, o + 2, o + 3); });
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(T_, 2)); geo.setIndex(I); return geo; };
+      const V = (x, u, y) => new V3(x, y, cz + u), sU = 0.186, sL = (L + ov / ca) * sU;   // (the tin's seams some 0.6 m apart, down the slope)
+      const tops = [], unders = [], fascias = [], tUV = [];
+      for (const s of [1, -1]){ const e = s * U, r = 0;   // (each quad wound to face out: up, down, or out over the street and the gardens)
+        tops.push(s > 0 ? [V(xa, e, yTop(e)), V(xb, e, yTop(e)), V(xb, r, yTop(r)), V(xa, r, yTop(r))] : [V(xb, e, yTop(e)), V(xa, e, yTop(e)), V(xa, r, yTop(r)), V(xb, r, yTop(r))]);
+        tUV.push(s > 0 ? [[xa * sU, 0], [xb * sU, 0], [xb * sU, sL], [xa * sU, sL]] : [[-xb * sU, 0], [-xa * sU, 0], [-xa * sU, sL], [-xb * sU, sL]]);
+        unders.push(s > 0 ? [V(xa, r, yBot(r)), V(xb, r, yBot(r)), V(xb, e, yBot(e)), V(xa, e, yBot(e))] : [V(xb, r, yBot(r)), V(xa, r, yBot(r)), V(xa, e, yBot(e)), V(xb, e, yBot(e))]);
+        fascias.push(s > 0 ? [V(xa, e, yBot(e)), V(xb, e, yBot(e)), V(xb, e, yTop(e)), V(xa, e, yTop(e))] : [V(xb, e, yBot(e)), V(xa, e, yBot(e)), V(xa, e, yTop(e)), V(xb, e, yTop(e))]); }
+      for (const [x, s] of [[xa, -1], [xb, 1]]) for (const [u0, u1] of [[U, 0], [0, -U]]){   // the barge boards: the roof's thickness at each gable, up one rake and down the other
+        const q = [V(x, u0, yBot(u0)), V(x, u1, yBot(u1)), V(x, u1, yTop(u1)), V(x, u0, yTop(u0))]; fascias.push(s > 0 ? q : [q[1], q[0], q[3], q[2]]); }
+      const tm = new THREE.Mesh(quads(tops, tUV), tin), bm = new THREE.Mesh(quads(fascias), board), um = new THREE.Mesh(quads(unders), under); g.add(tm, bm, um);
+      const zinc = new THREE.MeshStandardMaterial({ color: '#7e8386', roughness: 0.45, metalness: 0.55, side: THREE.DoubleSide });
+      for (const s of [1, -1]){ const gu = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, xb - xa - 0.1, 10, 1, true, Math.PI, Math.PI), zinc);   // (a half-round, open to the sky)
+        gu.rotation.z = Math.PI / 2; gu.position.set((xa + xb) / 2, yTop(U) - 0.05, cz + s * (U + 0.08)); g.add(gu); } }
+    { const K = { p: [], n: [], uv: [], c: [], i: [] }, yT = Math.round((H + rise + 0.8) * 14) / 14;   // its two chimneys, of the same brick
+      for (const fx of [0.3, 0.72]){ chimneyInto(K, ID3, ID3, x0 + w * fx, cz + 0.6, H + rise * (1 - 0.9 / (d / 2)) - 0.2, yT, [1, 0.92, 0.86], true, 0.3, 0.3); CHIMNEYS.push(new V3(x0 + w * fx, yT + 0.1, cz + 0.6)); }
+      scene.add(chimneyMesh(K)); }
     g.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } }); scene.add(g); }
   const cityMat = snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6);
   const bod = new THREE.Mesh(mergeGeometries(bodies), cityMat); bod.castShadow = bod.receiveShadow = true; scene.add(bod);
@@ -6032,7 +6151,8 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(SA.p, 3)); sg.setAttribute('normal', new THREE.Float32BufferAttribute(SA.n, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(SA.uv, 2)); sg.setIndex(SA.i);
     const sm = lampLit(new THREE.MeshStandardMaterial({ map: AN.signs, emissiveMap: AN.signs, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     blockMats.push(sm); scene.add(new THREE.Mesh(sg, sm)); }
-  const rfs = new THREE.Mesh(mergeGeometries(roofs), wetRoof(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3))); rfs.castShadow = rfs.receiveShadow = true; scene.add(rfs);
+  const rfs = new THREE.Mesh(mergeGeometries(roofs), wetRoof(roofWear(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)))); rfs.castShadow = rfs.receiveShadow = true; scene.add(rfs);
+  scene.add(chimneyMesh(CK));   // the chimneys
   blockMats.push(cityMat);
 }
 
@@ -6200,10 +6320,11 @@ function updateWeather(dt, t, sp){
   // rain streaks (in deep winter the "rain" button brings heavy snow instead)
   const snowy = sp.snow > 0.3 ? 1 : 0, rv = W.rain * (1 - snowy);
   rainMat.opacity = rv * 0.55; rain.visible = rv > 0.01;
-  if (rain.visible){ const cx = camera.position.x, cz = camera.position.z, slant = 0.6 + windU.value * 0.6;
+  if (rain.visible){ const cx = camera.position.x, cz = camera.position.z, slant = 0.6 + windU.value * 0.6, y0 = Math.max(0, camera.position.y - 14);   // (26 m of it, from the ground; up on a roof, from a little below us to well over our heads)
     for (let i = 0; i < RAIN_N; i++){ const k3 = i * 3; let x = rainState[k3], y = rainState[k3 + 1], z = rainState[k3 + 2];
       y -= dt * 15; x += dt * slant;
-      if (y < 0 || inBuilding(x, y, z)) { y += 26; if (inBuilding(x, y, z)) y = BH + 3 + rnd(0, 10); }
+      if (y < y0 || inBuilding(x, y, z)) { y += 26; if (y < y0) y = y0 + rnd(0, 26); if (inBuilding(x, y, z)) y = BH + 3 + rnd(0, 10); }
+      else if (y > y0 + 26) y -= 26 * Math.ceil((y - y0 - 26) / 26);   // (come down off the roof: back round us)
       if (x - cx > 35) x -= 70; else if (x - cx < -35) x += 70; if (z - cz > 35) z -= 70; else if (z - cz < -35) z += 70;
       rainState[k3] = x; rainState[k3 + 1] = y; rainState[k3 + 2] = z;
       const k6 = i * 6; rainP[k6] = x; rainP[k6 + 1] = y; rainP[k6 + 2] = z; rainP[k6 + 3] = x - slant * 0.04; rainP[k6 + 4] = y + 0.55; rainP[k6 + 5] = z; }
@@ -6860,6 +6981,7 @@ function catRoute(a, b, speed, tree = false, detour = true){
 function summonCat(){
   const cp = camera.position, f = new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)), R = cat.root;
   if (mode === 'climb'){ cat.force = 'tree'; catEpisode(); caption('Kis-kis-kis… and the cat came up the tree after us.', 5); return; }
+  if (body.roof){ caption('Kis-kis-kis… but six flights was too many even for the cat.', 4); return; }   // (it stays below, off the tall house's roof)
   let tgt;
   if (mode === 'window') tgt = new V3(HOME.x + 0.6, 0, BZ + 2.6);
   else { tgt = new V3(cp.x + f.x * 2.0, 0, cp.z + f.z * 2.0); tgt.y = catSurf(tgt.x, tgt.z); if (Math.abs(tgt.y - body.feet) > 0.4){ tgt.set(cp.x, body.feet, cp.z).addScaledVector(f, 0.7); } }
@@ -7746,7 +7868,7 @@ function updateSeasonal(sp){
 /* ============================== camera & controls ============================== */
 const cam = { yaw: 0, pitch: 0 };
 const body = { feet: 0, vy: 0, mantle: null, push: 0, fallFrom: 0, roofSaid: {} };
-function resetBody(){ body.feet = 0; body.vy = 0; body.mantle = null; body.push = 0; }
+function resetBody(){ body.feet = 0; body.vy = 0; body.mantle = null; body.push = 0; body.roof = null; }
 let mode = 'intro', perch = 0, tween = null, nutsHeld = 0, roasted = 0, started = false;
 const keys = new Set(), pointers = new Map();
 let drag = null;
@@ -7765,6 +7887,7 @@ function goBack(chess = true){ if (!started || fadeEl.style.opacity === '1') ret
   if (desk.on){ if (chess && desk.f === 'chess' && CHESS.reset()) return;
     if (desk.f && desk.f !== desk.home) deskView(desk.home); else sitDesk(false); return; }
   if (BIKE.riding){ BIKE.dismount(); return; }   // (off the bike, and back to the door with it)
+  if (body.roof && mode === 'walk'){ downFromTheRoof(); return; }   // (down from the tall house's roof)
   setMode('walk'); }
 addEventListener('keydown', e => {
   if (!started) return;
@@ -7796,7 +7919,7 @@ addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 const distTree = () => Math.hypot(camera.position.x - TREE.x, camera.position.z - TREE.z);
 function goTo(p, yaw, pitch, dur = 2.2){ tween = { p0: camera.position.clone(), y0: cam.yaw, pi0: cam.pitch, p1: p.clone(), y1: yaw, pi1: pitch, t: 0, dur }; }
-function place(p, yaw, pitch){ camera.position.copy(p); cam.yaw = yaw; cam.pitch = pitch; tween = null; }
+function place(p, yaw, pitch){ camera.position.copy(p); cam.yaw = yaw; cam.pitch = pitch; tween = null; body.roof = null; }   // (anywhere else: off the tall house's roof)
 const fadeEl = document.getElementById('fade');
 function fadeThen(fn){ fadeEl.style.opacity = 1; setTimeout(() => { fn(); lastS = -1; syncButtons(); fadeEl.style.opacity = 0; }, 750); }
 const WIN_POS = new V3(HOME.x + 0.32, 8.75, BZ - 1.0), WIN_LOOK = TREE.clone().add(new V3(0, 9, 0));
@@ -7852,6 +7975,79 @@ function onRoof(){ const k = surfKind, said = body.roofSaid;
   if (k === 'tar' && camera.position.x < -11 && !said.gar){ said.gar = 1; caption('Up on the garage roofs — warm tar, rusty tin, the whole road laid out below.', 5); }
   else if (k === 'tin' && !said.tin){ said.tin = 1; caption('The workshop roofs: tin that boomed under our feet, and the whole city to the horizon.', 6); }
   else if (said.gar && said.tin && !said.run && k === 'tin'){ said.run = 1; caption('We ran from roof to roof, and nobody could catch us.', 4); } }
+
+// the roof of the tall house across Stabu from the gateway, six storeys: three taps on it (or clicks), and up the stairs, through the attic and
+// out by the hatch. Up there you walk its slopes (along them, round the chimneys and the dormers, not nearer the eaves than a long step), a hop
+// booming on the tin; ↩︎ or Esc brings you down to its door
+let TALL = null;
+const tallHouse = () => TALL || (TALL = EAVES.filter(E => E.pk && Math.abs(Math.cos(E.ry)) > 0.5 && E.cz > STABU_FAR && E.cz < STABU_FAR + 14 && E.cx + E.w / 2 > GATE_X0 && E.cx - E.w / 2 < GATE_X1).sort((a, b) => b.h - a.h)[0] || null);
+const toLocal = (E, x, z) => { const co = Math.cos(E.ry), si = Math.sin(E.ry), dx = x - E.cx, dz = z - E.cz; return [dx * co - dz * si, dx * si + dz * co]; };
+const toWorld = (E, lx, lz) => { const co = Math.cos(E.ry), si = Math.sin(E.ry); return new V3(E.cx + lx * co + lz * si, 0, E.cz - lx * si + lz * co); };
+const roofTop = (E, lz) => { const z = E.d / 2, a = Math.abs(lz);   // (the roof's own profile: a pitch, or a mansard's steep foot and its low top)
+  return E.h + (E.mans ? (a > z - 0.75 ? 2.9 * (z + 0.3 - a) / 1.05 : 2.9 + E.pk * 0.3 * (1 - a / (z - 0.75))) : E.pk * Math.max(0, 1 - a / (z + 0.3))); };
+const roofFree = (E, lx, lz) => { const z = E.d / 2;   // 0 free; 1 the edge; 2 a chimney or a dormer in the way
+  if (Math.abs(lx) > E.w / 2 - 0.6 || Math.abs(lz) > (E.mans ? z - 1.3 : z - 0.9)) return 1;
+  for (const [cx, cz] of E.ch) if (Math.abs(lx - cx) < 0.8 && Math.abs(lz - cz) < 0.68) return 2;
+  for (const [xc, zb] of E.dorm) if (Math.abs(lx - xc) < 1.15 && lz > zb - 0.35) return 2;
+  return 0; };
+// its roof seen near: sheets of tin over the roof's own colour, their standing seams down the slope a hand-span apart, the cross joints staggered,
+// patched and rusted here and there (the same snow and rain as every roof's)
+{ const E = tallHouse(); if (E){ const tr = mkRng(30871), z = E.d / 2, e = z + 0.3, W = (E.w - 0.02) / 2, P = [], N = [], U = [], I = [];
+  const seams = tex(512, 512, (g, w, h) => { g.fillStyle = '#eeeeee'; g.fillRect(0, 0, w, h);
+    for (let c = 0; c < 4; c++) for (let k = 0; k < 3; k++){ const y = (c % 2) * 128 + k * 256 - 256, a = 0.02 + tr() * 0.05; g.fillStyle = tr() < 0.5 ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a})`; g.fillRect(c * 128, y, 128, 256); }   // (each sheet a shade apart)
+    for (let i = 0; i < 14; i++){ const x = tr() * w, y = tr() * h, c = `rgba(${150 + tr() * 30 | 0},${78 + tr() * 20 | 0},40,`;   // rust, run down the slope in streaks
+      for (let j = 0; j < 9; j++) blot(g, x + (tr() - 0.5) * 18, y + tr() * 70, 2 + tr() * 7, c + (0.04 + tr() * 0.07) + ')'); }
+    for (let c = 0; c < 4; c++){ const x = c * 128, y0 = (c % 2) * 128;   // a column of sheets: its seam, and the joints across it
+      for (let y = y0; y < h + 256; y += 256){ g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 2, (y % h) - 1, 124, 3); g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(x + 2, (y % h) + 2, 124, 1); }
+      g.fillStyle = 'rgba(0,0,0,.38)'; g.fillRect(x + 3, 0, 4, h); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x, 0, 3, h); } });
+  const prof = E.mans ? [[e, 0], [z - 0.75, 2.9], [0, 2.9 + E.pk * 0.3]] : [[e, 0], [0, E.pk]], co = Math.cos(E.ry), si = Math.sin(E.ry);
+  const put = (lx, y, lz, n, u, v) => { P.push(E.cx + lx * co + lz * si, y, E.cz - lx * si + lz * co); N.push(n[2] * si, n[1], n[2] * co); U.push(u, v); };
+  // (the sheets 3 cm off the roof, each slope's edges mitred to the next's: the two slopes meet on the ridge, with no slit between them)
+  const o = 0.03, sn = prof.slice(1).map(([a1, b1], k) => { const [a0, b0] = prof[k], l = Math.hypot(a0 - a1, b1 - b0); return [(b1 - b0) / l, (a0 - a1) / l, l]; });   // (each slope's normal, in from the eaves, up; its length)
+  const off = prof.map(([a, b], k) => { if (k === 0) return [a + sn[0][0] * o, b + sn[0][1] * o];
+    if (k === prof.length - 1) return [0, b + o / sn[k - 1][1]];   // (the ridge: straight up, where both slopes' sheets meet)
+    const [pa, pb] = sn[k - 1], [qa, qb] = sn[k], ml = Math.hypot(pa + qa, pb + qb), ma = (pa + qa) / ml, mb = (pb + qb) / ml, dd = o / (ma * qa + mb * qb); return [a + ma * dd, b + mb * dd]; });
+  for (const sd of [-1, 1]){ let d = 0; for (let k = 0; k < prof.length - 1; k++){ const [na, nb, l] = sn[k], n = [0, nb, sd * na], [a0, b0] = off[k], [a1, b1] = off[k + 1], q = P.length / 3;
+    for (const [lx, a, b, dd] of [[-W, a0, b0, d], [W, a0, b0, d], [W, a1, b1, d + l], [-W, a1, b1, d + l]]) put(lx, E.h + b, sd * a, n, sd * lx / 2.4, dd / 2.4);
+    if (sd > 0) I.push(q, q + 1, q + 2, q, q + 2, q + 3); else I.push(q, q + 2, q + 1, q, q + 3, q + 2); d += l; } }   // (both slopes facing up: the back one, mirrored, wound the other way)
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I);
+  const m = new THREE.Mesh(g, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: seams, color: E.rc.clone().multiplyScalar(1.17), roughness: 0.7, metalness: 0.3, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1.3)));
+  m.receiveShadow = true; scene.add(m); } }
+// the nearest house along a ray (each as its box and roof): which one a tap is on
+function houseOnRay(ray){ let best = null, bt = Infinity; const o = ray.origin, d = ray.direction;
+  for (const E of EAVES){ const [ox, oz] = toLocal(E, o.x, o.z), co = Math.cos(E.ry), si = Math.sin(E.ry), dx = d.x * co - d.z * si, dz = d.x * si + d.z * co;
+    const lo = [-E.w / 2, 0, -E.d / 2 - 0.3], hi = [E.w / 2, E.h + (E.mans ? 2.9 + 0.3 * E.pk : E.pk || 0), E.d / 2 + 0.3], O = [ox, o.y, oz], D = [dx, d.y, dz];
+    let t0 = 0, t1 = bt; for (let a = 0; a < 3 && t0 <= t1; a++){ if (Math.abs(D[a]) < 1e-9){ if (O[a] < lo[a] || O[a] > hi[a]) t0 = Infinity; continue; }
+      let ta = (lo[a] - O[a]) / D[a], tb = (hi[a] - O[a]) / D[a]; if (ta > tb) [ta, tb] = [tb, ta]; t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); }
+    if (t0 <= t1 && t0 < bt){ bt = t0; best = E; } }
+  return best; }
+{ let down = null, taps = []; const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+  renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'walk' || tween || body.roof || BIKE.riding || !down || pointers.size || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+    const E = tallHouse(); if (!E) return; ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+    const t = performance.now() / 1000; taps = taps.filter(x => t - x < 1.2);
+    if (houseOnRay(ray.ray) !== E){ taps = []; return; }
+    taps.push(t); if (taps.length >= 3){ taps = []; upOnTheRoof(); } }); }
+function upOnTheRoof(){ const E = tallHouse(); if (!E || !started || fadeEl.style.opacity === '1') return;
+  fadeThen(() => { let lx = 0, lz = 1;   // (just over the ridge on the street's side, as near the middle as the chimneys let you, and a step from them)
+    for (const [a, b] of [[0, 1], [1.8, 1], [-1.8, 1], [0, -1], [3, 1], [-3, 1], [1.8, -1], [-1.8, -1]]) if (!roofFree(E, a, b) && E.ch.every(([cx, cz]) => Math.max(Math.abs(a - cx), Math.abs(b - cz)) > 1.4)){ lx = a; lz = b; break; }
+    const p = toWorld(E, lx, lz); body.feet = roofTop(E, lz); p.y = body.feet + 1.6; place(p, yawTo(p, TREE), -0.1);
+    resetBody(); body.feet = roofTop(E, lz); body.roof = E; body.roofEdge = 0; sfx.step('tin', 1.2);
+    caption('Six flights up, through the attic and out by the hatch: all of Rīga from the roof of the tall house on Stabu, and our chestnut over the roofs.', 7); }); }
+function downFromTheRoof(){ const E = body.roof;
+  fadeThen(() => { const [lx] = toLocal(E, camera.position.x, camera.position.z), p = toWorld(E, clamp(lx, -E.w / 2 + 1, E.w / 2 - 1), E.d / 2 + 1.6); p.y = 1.6;
+    resetBody(); place(p, yawTo(p, new V3((GATE_X0 + GATE_X1) / 2, 0, STABU_FRONT)), 0.05); caption('Back down the stairs, three steps at a time.', 3.5); }); }
+function roofStep(dt, mx, mz, sp_){ const E = body.roof, p = camera.position; let walked = false;
+  if (mx || mz){ const l = Math.hypot(mx, mz), v = Math.min(sp_, 3.6), vx = (fwd.x * mz + right.x * mx) / l * v * dt, vz = (fwd.z * mz + right.z * mx) / l * v * dt;   // (no running up here)
+    const at = (x, z) => { const [a, b] = toLocal(E, x, z); return roofFree(E, a, b); };
+    const kx = at(p.x + vx + Math.sign(vx) * 0.25, p.z); if (!kx) p.x += vx;
+    const kz = at(p.x, p.z + vz + Math.sign(vz) * 0.25); if (!kz) p.z += vz;
+    if ((kx === 1 || kz === 1) && clock.elapsedTime - body.roofEdge > 12){ body.roofEdge = clock.elapsedTime; caption('No nearer the edge than this — it is six storeys down.', 3); }
+    walked = true; bob += dt * v * 2.2; }
+  const [, lz] = toLocal(E, p.x, p.z), top = roofTop(E, lz);
+  if (body.vy !== 0 || body.feet > top + 0.02){ body.vy -= 17 * dt; body.feet += body.vy * dt; if (body.feet <= top){ body.feet = top; body.vy = 0; sfx.step('tin', 1.5); } }
+  else { body.feet = top; const ph = Math.floor(bob / Math.PI); if (walked && ph !== body.ph) sfx.step('tin'); body.ph = ph; }
+  p.y = body.feet + 1.6 + Math.sin(bob) * 0.035; }
 
 /* ============================== interactions ============================== */
 let shakeT = 0;
@@ -8101,6 +8297,13 @@ const I18N = {   // English → [Russian, Latvian]
   'We ran from roof to roof, and nobody could catch us.': ['Мы бегали с крыши на крышу, и никто не мог нас поймать.', 'Mēs skrējām no jumta uz jumtu, un neviens mūs nespēja noķert.'],
   'Oof. Jumped down — the knees remembered it for a week.': ['Ух! Спрыгнул — коленки помнили это неделю.', 'Ui! Nolēcu — ceļgali to atcerējās vēl nedēļu.'],
   'Too high from here — get onto a garage or a garden shed first.': ['Отсюда не достать — сначала залезь на гараж или на сарайчик.', 'No šejienes neaizsniegt — vispirms uzrāpies uz garāžas vai šķūnīša.'],
+  'Six flights up, through the attic and out by the hatch: all of Rīga from the roof of the tall house on Stabu, and our chestnut over the roofs.':
+    ['Шесть этажей вверх, через чердак и в люк: с крыши высокого дома на Стабу видна вся Рига, а над крышами — наш каштан.', 'Sešus stāvus augšup, caur bēniņiem un pa lūku ārā: no augstā nama jumta Stabu ielā redzama visa Rīga, un pār jumtiem — mūsu kastanis.'],
+  'Kis-kis-kis… but six flights was too many even for the cat.': ['Кис-кис-кис… но шесть этажей — это слишком даже для кота.', 'Kis-kis-kis… bet seši stāvi bija par daudz pat kaķim.'],
+  'No nearer the edge than this — it is six storeys down.': ['Ближе к краю — ни шагу: внизу шесть этажей.', 'Tuvāk malai — ne soli: lejā ir seši stāvi.'],
+  'Back down the stairs, three steps at a time.': ['Обратно вниз по лестнице, через три ступеньки.', 'Atpakaļ lejā pa kāpnēm, pa trim pakāpieniem uzreiz.'],
+  'Stick to walk · drag to look · ⤒ to jump · ↩︎ to go back down': ['Джойстик — идти · тянуть пальцем — смотреть · ⤒ — прыжок · ↩︎ — спуститься вниз', 'Kursorsvira — iet · velc ar pirkstu — skatīties · ⤒ — lēkt · ↩︎ — kāpt lejā'],
+  'WASD / arrows to walk · drag to look · Space to jump · Esc to go back down': ['WASD / стрелки — идти · тянуть мышью — смотреть · Пробел — прыжок · Esc — спуститься вниз', 'WASD / bultiņas — iet · velc ar peli — skatīties · Atstarpe — lēkt · Esc — kāpt lejā'],
   'Someone had left a ladder against the wall. Of course we used it.': ['Кто-то оставил у стены лестницу. Конечно, мы ею воспользовались.', 'Kāds bija atstājis pie sienas kāpnes. Protams, mēs tās izmantojām.'],
   // snowmen
   'Not enough snow — wait for winter.': ['Мало снега — подожди зимы.', 'Par maz sniega — pagaidi ziemu.'],
@@ -8155,8 +8358,8 @@ function syncButtons(){
   const hints = TOUCH ? { walk: 'Stick to walk (push it all the way to run) · drag to look · ⤒ to jump, or clamber onto a roof',
     window: 'Stick to move · drag to look · tap the window to open it, the lamp to switch it, a book to open it', climb: 'Higher / Lower to climb · stick to shuffle along the branch · drag to look', lie: 'Drag to look around · ↩︎ to get up' } : { walk: 'WASD / arrows to walk · drag to look · Shift run · Space jump, or clamber onto the roofs · E at the trunk to climb · F shake the tree · B snowman (in winter)',
     window: 'Drag to look · WASD to move · click the window (F) to open it · the lamp (O) to switch it · the chair (X) to sit at the table', climb: 'W / S or E / Q to climb up and down · A / D to shuffle along the branch · drag to look · F to shake', lie: 'Drag to look around · Esc to get up' };
-  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · ↩︎ to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door') : hints[mode] || '');
-  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk'); $('parkBtn').classList.toggle('on', BIKE.riding); $('backBtn').classList.toggle('on', started && (BIKE.riding || mode !== 'walk'));
+  $('hint').textContent = tr(BIKE.riding ? (TOUCH ? 'Stick up to pedal, down to brake, sideways to steer · ⤒ rings the bell · P parks it here · drag to look · ↩︎ to get off at the door' : 'W to pedal · S to brake · A / D to steer · drag to look round · Space rings the bell · P to park it here · Esc to get off at the door') : body.roof && mode === 'walk' ? (TOUCH ? 'Stick to walk · drag to look · ⤒ to jump · ↩︎ to go back down' : 'WASD / arrows to walk · drag to look · Space to jump · Esc to go back down') : hints[mode] || '');
+  $('stick').classList.toggle('on', mode === 'walk' || mode === 'window' || mode === 'climb'); $('jumpBtn').classList.toggle('on', mode === 'walk'); $('parkBtn').classList.toggle('on', BIKE.riding); $('backBtn').classList.toggle('on', started && (BIKE.riding || mode !== 'walk' || !!body.roof));
   placeSticks();
 }
 let ctxState = '';
@@ -8214,6 +8417,7 @@ const fwd = new V3(), right = new V3();
 let bob = 0;
 function walkStep(dt, mx, mz, sp_){
   fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)); right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+  if (body.roof){ roofStep(dt, mx, mz, sp_); return; }   // (up on the tall house's roof)
   const p = camera.position;
   if (body.mantle){ const M = body.mantle; M.t = Math.min(1, M.t + dt / M.dur); const up = smooth(M.t / 0.7), fw = smooth((M.t - 0.35) / 0.65);
     p.x = lerp(M.p0.x, M.p1.x, fw); p.z = lerp(M.p0.z, M.p1.z, fw); body.feet = lerp(M.f0, M.f1 + 0.25 * Math.sin(Math.PI * M.t), up);
@@ -8315,9 +8519,9 @@ function frame(){
   const wetSnow = updateWeather(dt, t, sp);
   if (drift){ weatherT -= dt; if (weatherT < 0){ weatherT = rnd(45, 100); weather = pick(['fair', 'fair', 'cloudy', 'rain']); syncButtons(); } }
   snowMat.opacity = Math.max(sp.snowfall, wetSnow) * 0.9; snowfall.visible = snowMat.opacity > 0.01;
-  if (snowfall.visible){ const cx = camera.position.x, cz = camera.position.z;
+  if (snowfall.visible){ const cx = camera.position.x, cz = camera.position.z, y0 = Math.max(0, camera.position.y - 15);   // (and the snow, up on a roof, from over our heads too)
     for (let i = 0; i < SNOW_N; i++){ const k = i * 3; snowP[k + 1] -= dt * (0.9 + (i % 5) * 0.12); snowP[k] += (Math.sin(t * 0.7 + i) * 0.3 + wind * 0.8) * dt; snowP[k + 2] += Math.cos(t * 0.5 + i * 1.3) * 0.25 * dt;
-      if (snowP[k + 1] < 0 || inBuilding(snowP[k], snowP[k + 1], snowP[k + 2])) snowP[k + 1] = BH + 3 + rnd(0, 20); if (snowP[k] - cx > 40) snowP[k] -= 80; else if (snowP[k] - cx < -40) snowP[k] += 80; if (snowP[k + 2] - cz > 40) snowP[k + 2] -= 80; else if (snowP[k + 2] - cz < -40) snowP[k + 2] += 80; }
+      if (snowP[k + 1] < y0 || inBuilding(snowP[k], snowP[k + 1], snowP[k + 2])) snowP[k + 1] = y0 + BH + 3 + rnd(0, 20); else if (snowP[k + 1] > y0 + 34) snowP[k + 1] = y0 + rnd(0, 34); if (snowP[k] - cx > 40) snowP[k] -= 80; else if (snowP[k] - cx < -40) snowP[k] += 80; if (snowP[k + 2] - cz > 40) snowP[k + 2] -= 80; else if (snowP[k + 2] - cz < -40) snowP[k + 2] += 80; }
     snowGeo.attributes.position.needsUpdate = true; }
 
   // fireflies
@@ -8451,6 +8655,12 @@ function frame(){
     if (q.has('bikeride')) setTimeout(() => { BIKE.mount(); setTimeout(() => { if (q.get('bikeat')){ const v = q.get('bikeat').split(',').map(Number); BIKE.st.x = v[0]; BIKE.st.z = v[1]; if (v.length > 2) BIKE.st.head = cam.yaw = v[2]; } const n = +(q.get('bikesim') || 0), sx = +(q.get('bikesteer') || 0); for (let i = 0; i < n; i++) BIKE.step(1 / 30, sx, i < n * 0.8 ? 1 : 0); if (q.has('bikehold')) window.__bs = sx; if (q.has('noui')){ const st_ = document.createElement('style'); st_.textContent = 'body > *:not(canvas){ display: none !important; }'; document.head.appendChild(st_); } const waitRide = fn => { const iv = setInterval(() => { if (BIKE.riding){ clearInterval(iv); setTimeout(fn, 1500); } }, 200); }; if (q.get('bikeside')) waitRide(() => window.__camLock = () => { const [an, di, hh, ly] = q.get('bikeside').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(ly || 0.3); return [c, yawTo(c, lk), -Math.atan2(hh - (ly || 0.3), Math.hypot(c.x - lk.x, c.z - lk.z))]; }); if (q.get('bikedown')) waitRide(() => window.__camLock = () => [camera.position.clone(), cam.yaw + +(q.get('bikedy') || 0), +q.get('bikedown')]); if (q.get('bikep')){ cam.pitch = +q.get('bikep'); setTimeout(() => { cam.pitch = +q.get('bikep'); }, 1500); } if (q.get('bikey')) cam.yaw += +q.get('bikey');
       console.log('BIKE at', BIKE.st.x.toFixed(2), BIKE.st.z.toFixed(2), 'v', BIKE.st.v.toFixed(2), 'head', BIKE.st.head.toFixed(2), 'lean', BIKE.st.lean.toFixed(3)); if (q.has('bikepark')){ BIKE.parkHere(); setTimeout(() => console.log('BIKE parked at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'rot', [BIKE.root.rotation.x, BIKE.root.rotation.y].map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'riding', BIKE.riding), 1200); if (q.get('bikecam')) setTimeout(() => { const [an, di, hh] = q.get('bikecam').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.4); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.4, di)]; }, 1300); }
       if (q.has('bikeesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => console.log('BIKE after Esc: riding', BIKE.riding, 'bike at', BIKE.root.position.toArray().map(v => v.toFixed(2)).join(','), 'me at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'mode', mode), 1200); } }, 900); }, 400);   // debug: ?bikeride[&bikesim=frames&bikesteer=-1..1&bikep=pitch&bikey=look]
+    if (q.has('talltap')) setTimeout(() => { const E = tallHouse(), wp = toWorld(E, 0, E.d / 2); wp.y = E.h * 0.6; const v = wp.clone().project(camera), x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight, el = document.elementFromPoint(x, y);   // debug: ?talltap[&tallsim=frames&tallturn=rad&tallesc]: three taps on the tall house, a walk on its roof, and down
+      const clk = () => { for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true })); }, log = w => console.log('TALL ' + w, 'roof', !!body.roof, 'at', camera.position.toArray().map(v => v.toFixed(2)).join(','), 'feet', body.feet.toFixed(2), 'yaw', cam.yaw.toFixed(2), 'mode', mode);
+      console.log('TALL house', E.cx.toFixed(1), E.cz.toFixed(1), 'w', E.w.toFixed(1), 'h', E.h.toFixed(2), 'pk', E.pk.toFixed(2), 'mans', E.mans, 'ch', JSON.stringify(E.ch.map(c => c.map(v => +v.toFixed(2)))), 'dorm', JSON.stringify(E.dorm.map(d => d.map(v => +v.toFixed(2)))), 'tap at', x.toFixed(0), y.toFixed(0), el && el.tagName);
+      clk(); setTimeout(clk, 150); setTimeout(() => { clk(); setTimeout(() => { log('up'); cam.yaw += +(q.get('tallturn') || 0); if (q.get('tallpitch')) cam.pitch = +q.get('tallpitch');
+        for (let i = 0, n = +(q.get('tallsim') || 0); i < n; i++){ walkStep(1 / 30, 0, 1, 3.6); if (i % 30 === 29) log('walk ' + (i + 1)); }
+        if (q.has('tallesc')){ dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' })); setTimeout(() => log('esc'), 1200); } }, 1000); }, 300); }, 2500);
     if (q.get('cam')){ const [x, y, z, yw, pt] = q.get('cam').split(',').map(Number); window.__camLock = [new V3(x, y, z), yw, pt]; } if (q.has('noui')){ const st_ = document.createElement('style'); st_.textContent = 'body > *:not(canvas){ display: none !important; }'; document.head.appendChild(st_); }   // debug: a fixed view
     if (q.get('bikelook')) setTimeout(() => { if (q.get('bikepaint')){ const [m, r, e, cr] = q.get('bikepaint').split(',').map(Number); for (const M of [BIKE.paint, BIKE.paintDS]){ M.metalness = m; M.roughness = r; if (cr >= 0) M.clearcoatRoughness = cr; } BIKE.paintEnv = e; } if (q.get('bikeput')){ const [x, z, y] = q.get('bikeput').split(',').map(Number); BIKE.root.position.x = x; BIKE.root.position.z = z; BIKE.root.rotation.y = y; } const [an, di, hh] = q.get('bikelook').split(',').map(Number), o = BIKE.root.position, c = new V3(o.x + Math.sin(an) * di, hh, o.z + Math.cos(an) * di), lk = o.clone().setY(0.5); window.__camLock = [c, yawTo(c, lk), -Math.atan2(hh - 0.5, di)]; }, 600);   // debug: look at the bike
     if (q.has('smokelog')) console.log('SMOKE chimneys', CHIMNEYS.length, 'smoking', CHSMOKE.CH.filter(c => c.k > 0.3).length, 'puffs', CHSMOKE.mesh.geometry.instanceCount);
