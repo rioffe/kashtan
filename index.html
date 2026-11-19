@@ -133,6 +133,35 @@ function tex(w, h, draw, { repeat = [1, 1], srgb = true } = {}){
   const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); t.anisotropy = 8; return t;
 }
+/* ---------- the windows' lights. Every window that can light has its turn, a rank (0 the first lit, 1 never); WINLIT is the share of
+   them lit at the hour: none by day; at dusk, as people come home and it gets dark, more and more; by bedtime fewer and fewer, and in the
+   small hours a few (a stairwell's bulb, someone up with a child). See winShare ---------- */
+const WINLIT = { value: 0 };
+// the ranks into a window picture's alpha, 0.25 (the first) to 1 (never), over each window and a margin round it (so, filtered, its edges
+// keep its rank); everywhere else 1 (black there anyway). rects: [x, y, w, h, rank, margin] in the picture's units, k pixels to a unit
+function rankAlpha(g, rects, k = 1){ const W = g.canvas.width, H = g.canvas.height, id = g.getImageData(0, 0, W, H), d = id.data;
+  for (const [x, y, w, h, r, m] of rects){ const a = Math.round(255 * (0.25 + 0.75 * Math.min(1, Math.max(0, r))));
+    for (let yy = Math.max(0, Math.floor((y - m) * k)), y1 = Math.min(H, Math.ceil((y + h + m) * k)); yy < y1; yy++)
+      for (let xx = Math.max(0, Math.floor((x - m) * k)), x1 = Math.min(W, Math.ceil((x + w + m) * k)); xx < x1; xx++) d[(yy * W + xx) * 4 + 3] = a; }
+  g.putImageData(id, 0, 0); }
+// a material whose emissive picture carries the ranks: each window lit once the share passes its rank; further off (from mip level lod0 on),
+// where the picture's windows run together, the share of their light instead. seedCol: each house its own order, from its colour
+function winLit(mat, lod0, seedCol = false){ return shaderChain(mat, 'winLit' + lod0 + seedCol, sh => { sh.uniforms.uWinLit = WINLIT;
+  sh.fragmentShader = 'uniform float uWinLit;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+    #ifdef USE_EMISSIVEMAP
+    { float rk = (texture2D(emissiveMap, vEmissiveMapUv).a - 0.25) / 0.75;${seedCol ? `
+      rk = rk > 0.995 ? 2.0 : fract(rk + fract(dot(vColor, vec3(13.37, 7.71, 3.13))));` : ''}
+      vec2 ts = vec2(textureSize(emissiveMap, 0)), du = dFdx(vEmissiveMapUv * ts), dv = dFdy(vEmissiveMapUv * ts);
+      float far_ = smoothstep(${lod0.toFixed(1)}, ${(lod0 + 1.5).toFixed(1)}, 0.5 * log2(max(max(dot(du, du), dot(dv, dv)), 1e-6)));
+      totalEmissiveRadiance *= mix(step(rk, uWinLit), uWinLit, far_); }
+    #endif`); }); }
+// the share lit at an hour: who is at home and up (up at half past six, out to work by eight, home by half past six, in bed by eleven),
+// times how dark it is indoors (the lights go on before sunset on a grey day)
+const AWAKE = [[0, 0.05], [1, 0.035], [5, 0.03], [5.75, 0.12], [6.25, 0.5], [6.75, 0.74], [7.25, 0.72], [7.75, 0.42], [8.25, 0.18], [12.5, 0.18], [14, 0.25], [16, 0.3], [17, 0.45],
+  [18, 0.66], [18.75, 0.77], [21, 0.8], [21.75, 0.72], [22.5, 0.45], [23.25, 0.17], [24, 0.05]];   // (never more than four windows in five: someone always out, away, or sitting in the dark)
+function winShare(hour, e, grey){ const h = ((hour % 24) + 24) % 24; let i = 0; while (AWAKE[i + 1][0] < h) i++;
+  const [h0, a0] = AWAKE[i], [h1, a1] = AWAKE[i + 1], up = a0 + (a1 - a0) * (h - h0) / (h1 - h0), x = Math.min(1, Math.max(0, (e + 0.04 - 0.07 * grey) / 0.14));
+  return Math.min(0.8, up * (1 - x * x * (3 - 2 * x))); }
 const mkRng = seed => { let t0 = seed | 0; return () => { t0 = t0 + 0x6D2B79F5 | 0; let t = Math.imul(t0 ^ t0 >>> 15, 1 | t0); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
 function blot(g, x, y, r, col){ g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
 function speckle(g, w, h, n, cols, r0 = 0.5, r1 = 1.6){ for (let i = 0; i < n; i++) blot(g, rng() * w, rng() * h, rnd(r0, r1), pick(cols)); }
@@ -891,13 +920,14 @@ function drawDoor(g, w, X, Y, S){
   g.strokeStyle = 'rgba(170,120,95,.25)'; g.lineWidth = 0.6; for (let i = 0; i < 6; i++){ const x = x0 + r() * dw, y = Y(0.6) + r() * S(1.2); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y + r() * 14); g.stroke(); }
 }
 // a staircase window as they all were: weathered dark wood deep in the wall, a transom of two small panes over two tall lights, a plaster ledge
-function drawStair(g, w, X, Y, S, lit){
+function drawStair(g, w, X, Y, S, lit, R){
   const x0 = X(w.cx - w.w / 2), y0 = Y(w.yb + w.h), pw = S(w.w), ph = S(w.h), r = mkRng(Math.round(w.cx * 71 + w.yb * 13) + 3);
   const o = S(0.075), m = S(0.065), s = S(0.04), tb = ph * 0.27, bars = [[x0, y0, pw, o], [x0, y0 + ph - o, pw, o], [x0, y0, o, ph], [x0 + pw - o, y0, o, ph], [x0, y0 + tb - m / 2, pw, m], [x0 + pw / 2 - m / 2, y0, m, ph]];
   for (const [ya, yb] of [[y0 + o, y0 + tb - m / 2], [y0 + tb + m / 2, y0 + ph - o]]) for (const [xa, xb] of [[x0 + o, x0 + pw / 2 - m / 2], [x0 + pw / 2 + m / 2, x0 + pw - o]])
     bars.push([xa, ya, xb - xa, s], [xa, yb - s, xb - xa, s], [xa, ya, s, yb - ya], [xb - s, ya, s, yb - ya]);
-  if (lit){ if (w.lit){ const gr = g.createRadialGradient(x0 + pw / 2, y0 + ph * 0.45, 4, x0 + pw / 2, y0 + ph / 2, pw * 0.8); gr.addColorStop(0, '#c9b98a'); gr.addColorStop(1, '#5a5340');
-    g.fillStyle = gr; g.fillRect(x0, y0, pw, ph); g.fillStyle = '#000'; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh); } return; }
+  if (lit){ { const gr = g.createRadialGradient(x0 + pw / 2, y0 + ph * 0.45, 4, x0 + pw / 2, y0 + ph / 2, pw * 0.8); gr.addColorStop(0, '#c9b98a'); gr.addColorStop(1, '#5a5340');
+    g.fillStyle = gr; g.fillRect(x0, y0, pw, ph); g.fillStyle = '#000'; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh);
+    const h = hash2(w.cx * 0.91 + 1.3, w.yb * 0.37 + (R.salt || 0)); R.push([x0, y0, pw, ph, h < 0.75 ? 0.035 * h / 0.75 : 1, S(0.25)]); } return; }   // (the stairwells' bulbs on from dusk to dawn; a quarter of them gone)
   const sl = S(rnd(0.6, 1.5)), rv = S(0.12), lg = S(0.06);   // (the one draw from the world's sequence a window has always taken: its stain's length)
   g.fillStyle = '#857d70'; g.fillRect(x0 - rv, y0 - rv, rv, ph + rv); g.fillStyle = '#6c655a'; g.fillRect(x0 + pw, y0 - rv, rv, ph + rv);   // the reveal: the jambs,
   g.fillStyle = '#4f493f'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, rv);                                                                  // the head in shadow
@@ -918,9 +948,9 @@ const BATHS = [];
 for (const cs of [BW / 2 - 9, BW / 2 + 9]){ const d = cs < BW / 2 ? 1 : -1;
   for (const yb of [1.95, 4.15, 7.35]) BATHS.push({ cx: cs + d * 2.15, yb, w: 0.46, h: 0.52 }); BATHS.push({ cx: cs - d * 1.9, yb: 5.5, w: 0.46, h: 0.52 }); }
 BATHS.forEach((b, i) => { const r = mkRng(4400 + i * 17); b.col = r() < 0.35 ? '#6a2a1c' : r() < 0.6 ? '#4b3a2e' : '#5c4a3c'; b.lit = r() < 0.3; b.r = mkRng(4500 + i * 23); });
-function drawBath(g, b, X, Y, S, lit){
+function drawBath(g, b, X, Y, S, lit, R){
   const x0 = X(b.cx - b.w / 2), y0 = Y(b.yb + b.h), pw = S(b.w), ph = S(b.h), o = S(0.05), rv = S(0.07), lg = S(0.06), r = b.r;
-  if (lit){ if (b.lit){ g.fillStyle = '#9c865a'; g.fillRect(x0 + o, y0 + o, pw - 2 * o, ph - 2 * o); } return; }
+  if (lit){ g.fillStyle = '#9c865a'; g.fillRect(x0 + o, y0 + o, pw - 2 * o, ph - 2 * o); R.push([x0, y0, pw, ph, 0.08 + 0.92 * hash2(b.cx * 1.9 + 0.7, b.yb * 0.53 + 3.3), S(0.12)]); return; }
   g.fillStyle = '#7a7366'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, ph + rv); g.fillStyle = '#4b453c'; g.fillRect(x0 - rv, y0 - rv, pw + 2 * rv, rv * 0.85);   // the reveal, its head in shadow
   g.fillStyle = b.col; g.fillRect(x0, y0, pw, ph);                                                                                                     // the frame
   const gr = g.createLinearGradient(x0, y0, x0 + pw * 0.5, y0 + ph); gr.addColorStop(0, '#5e6a72'); gr.addColorStop(1, '#1c2226'); g.fillStyle = gr; g.fillRect(x0 + o, y0 + o, pw - 2 * o, ph - 2 * o);
@@ -929,13 +959,13 @@ function drawBath(g, b, X, Y, S, lit){
   g.fillStyle = '#aaa393'; g.fillRect(x0 - rv - S(0.04), y0 + ph, pw + 2 * rv + S(0.08), lg); g.fillStyle = 'rgba(40,36,30,.4)'; g.fillRect(x0 - rv - S(0.04), y0 + ph + lg, pw + 2 * rv + S(0.08), S(0.02));
   const st = g.createLinearGradient(0, y0 + ph + lg, 0, y0 + ph + lg + S(0.4 + r() * 0.6)); st.addColorStop(0, 'rgba(60,52,40,.28)'); st.addColorStop(1, 'rgba(60,52,40,0)'); g.fillStyle = st; g.fillRect(x0 - rv, y0 + ph + lg, pw + 2 * rv, S(1));
 }
-function drawFacade(g, W, H, lit, wins = facadeData, baths = true){
-  const ppm = W / BW, X = x => x * ppm, Y = y => H - y * (H / BH), S = v => v * ppm;
+function drawFacade(g, W, H, lit, wins = facadeData, baths = true){   // (lit: the night picture, every window lit, and the ranks of them returned)
+  const ppm = W / BW, X = x => x * ppm, Y = y => H - y * (H / BH), S = v => v * ppm, R = []; R.salt = baths ? 0 : 5;
   if (!lit) drawStucco(g, W, H, ppm); else { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
   for (const w of wins){
     if (w.door){ if (!lit) drawDoor(g, w, X, Y, S); continue; }
     if (w.gone){ if (!lit) rnd(0.6, 1.5); continue; }   // (a window that was never there still takes its draw, so the rest of the world stays as it was)
-    if (w.stair){ drawStair(g, w, X, Y, S, lit); continue; }
+    if (w.stair){ drawStair(g, w, X, Y, S, lit, R); continue; }
     const x0 = X(w.cx - w.w / 2), y0 = Y(w.yb + w.h), pw = S(w.w), ph = S(w.h), wr = mkRng(w.cx * 131 + w.yb * 17 + 5);
     const bars = winBars(w, x0, y0, pw, ph, S);
     if (!lit){
@@ -955,8 +985,8 @@ function drawFacade(g, W, H, lit, wins = facadeData, baths = true){
       g.fillStyle = '#6e706c'; g.fillRect(x0 - S(0.09), y0 + ph, pw + S(0.18), S(0.035));                                 // the tin sill's front edge
       const st = g.createLinearGradient(0, y0 + ph + S(0.035), 0, y0 + ph + S(0.035) + S(rnd(0.6, 1.5)));                  // and the rust-and-dirt stain it drips down the wall
       st.addColorStop(0, 'rgba(60,52,40,.38)'); st.addColorStop(1, 'rgba(60,52,40,0)'); g.fillStyle = st; g.fillRect(x0 - S(0.05), y0 + ph + S(0.035), pw + S(0.1), S(1.5));
-    } else if (w.lit && !w.home){
-      const c = w.stair ? '#c9b98a' : w.litCol;
+    } else if (!w.home){   // (our own window has the desk lamp)
+      const c = w.litCol; R.push([x0, y0, pw, ph, hash2(w.cx * 1.37 + 0.3, w.yb * 0.71 + 2.9 + R.salt), S(0.3)]);
       const gr = g.createRadialGradient(x0 + pw / 2, y0 + ph * 0.45, 4, x0 + pw / 2, y0 + ph / 2, pw * 0.8);
       gr.addColorStop(0, c); gr.addColorStop(1, new THREE.Color(c).multiplyScalar(0.45).getStyle());
       g.fillStyle = gr; g.fillRect(x0, y0, pw, ph);
@@ -965,16 +995,17 @@ function drawFacade(g, W, H, lit, wins = facadeData, baths = true){
       g.fillStyle = '#000'; for (const [x, y, bw, bh] of bars) g.fillRect(x, y, bw, bh);
     }
   }
-  if (baths) for (const b of BATHS) drawBath(g, b, X, Y, S, lit);
+  if (baths) for (const b of BATHS) drawBath(g, b, X, Y, S, lit, R);
+  return R;
 }
 const facadeTex = tex(4096, 1200, (g, w, h) => { g.scale(2, 2); drawFacade(g, w / 2, h / 2, false); });   // drawn at 2x so frames and door panels stay crisp
-const facadeEm = tex(4096, 1200, (g, w, h) => { g.scale(2, 2); drawFacade(g, w / 2, h / 2, true); });
+const facadeEm = tex(4096, 1200, (g, w, h) => { g.scale(2, 2); rankAlpha(g, drawFacade(g, w / 2, h / 2, true), 2); });
 // the back of our house, towards the lot: the flats' windows, three storeys of ten, and nothing else (no doors, no stairs, no bathrooms)
 const rearData = (() => { const r = mkRng(19840702), pk = a => a[r() * a.length | 0], wins = [], bw = BW / 10;
   for (let b = 0; b < 10; b++) for (let f = 0; f < 3; f++) wins.push({ cx: (b + 0.5) * bw, yb: 1.5 + f * 3.3, w: 1.4, h: 1.7, lit: r() < 0.4, tulle: r() < 0.7,
     drape: r() < 0.5 ? pk(['#8a3b3b', '#c9a96b', '#5b6b8b', '#7b8b5b', '#a87fa0', '#b9774a']) : null, litCol: pk(['#ffd49a', '#ffc77a', '#ffe0b0', '#ffb865', '#f6dcb0', '#aebfff']), plant: r() < 0.3 });
   return wins; })();
-const [rearTex, rearEm] = (() => { const sv = seed; seed = 19840703; const t = [false, true].map(lit => tex(2048, 600, (g, w, h) => drawFacade(g, w, h, lit, rearData, false))); seed = sv; return t; })();
+const [rearTex, rearEm] = (() => { const sv = seed; seed = 19840703; const t = [false, true].map(lit => tex(2048, 600, (g, w, h) => { const R = drawFacade(g, w, h, lit, rearData, false); if (lit) rankAlpha(g, R); })); seed = sv; return t; })();
 const sideTex = tex(768, 672, (g, w, h) => {
   drawStucco(g, w, h, w / BD);
   g.fillStyle = '#5c5f62'; g.fillRect(w * 0.08, 0, 7, h); g.fillRect(w * 0.9, 0, 7, h);
@@ -986,11 +1017,11 @@ const roofTex = tex(512, 512, (g, w, h) => {
     gr.addColorStop(0, 'rgba(130,70,30,.5)'); gr.addColorStop(1, 'rgba(130,70,30,0)'); g.fillStyle = gr; g.fillRect(x, y, rnd(8, 40), 160); }
 }, { repeat: [0.25, 0.25] });
 {
-  const front = snowify(new THREE.MeshStandardMaterial({ map: facadeTex, emissiveMap: facadeEm, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 }));
+  const front = winLit(snowify(new THREE.MeshStandardMaterial({ map: facadeTex, emissiveMap: facadeEm, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 })), 4.5);
   var buildingFront = front;
   const side = snowify(new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.95 }));
   const plain = new THREE.MeshStandardMaterial({ color: '#77746c' });
-  const back = snowify(new THREE.MeshStandardMaterial({ map: rearTex, emissiveMap: rearEm, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 })); var buildingBack = back;
+  const back = winLit(snowify(new THREE.MeshStandardMaterial({ map: rearTex, emissiveMap: rearEm, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 })), 4); var buildingBack = back;
   const b = new THREE.Mesh(new THREE.BoxGeometry(BW, BH, BD), [side, side, plain, plain, front, back]);
   b.position.set(0, BH / 2, BZ - BD / 2); b.castShadow = b.receiveShadow = true; scene.add(b);
   const shape = new THREE.Shape([new THREE.Vector2(-BD / 2 - 0.4, 0), new THREE.Vector2(BD / 2 + 0.4, 0), new THREE.Vector2(0, 2.4)]);
@@ -4947,10 +4978,12 @@ const cityBay = tex(128, 640, (g, w, h) => {
   for (let x = 4; x < w; x += 14){ g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x, Y(18.35), 6, 6); }
   for (let i = 0; i < 6; i++){ const x = rng() * w, len = rnd(60, 300), gr = g.createLinearGradient(0, 0, 0, len); gr.addColorStop(0, 'rgba(60,55,45,.2)'); gr.addColorStop(1, 'rgba(60,55,45,0)'); g.fillStyle = gr; g.fillRect(x, rnd(0, 200), rnd(4, 16), len); }
 });
-const cityEm = tex(1024, 640, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); const ppm = h / 19, Y = m => h - m * ppm;
-  for (let b = 0; b < 8; b++) for (let f = 0; f < 4; f++) if (rng() < 0.38){ const base = 4.6 + f * 3.4 + 0.9;
-    g.fillStyle = pick(['#ffcf8a', '#ffd9a0', '#f6c070', '#ffe2b8', '#bcc8ff']); g.fillRect(b * 128 + 38, Y(base + 2.1), 52, 2.1 * ppm); g.fillStyle = '#000'; g.fillRect(b * 128 + 62.5, Y(base + 2.1), 3, 2.1 * ppm); }
-  for (let b = 0; b < 8; b++) if (rng() < 0.2){ g.fillStyle = '#e8c890'; g.fillRect(b * 128 + 26, h - 2.8 * ppm, 76, 2.3 * ppm); } });
+const cityEm = tex(1024, 640, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); const ppm = h / 19, Y = m => h - m * ppm, RK = [], CC = ['#ffcf8a', '#ffd9a0', '#f6c070', '#ffe2b8', '#bcc8ff'];
+  for (let b = 0; b < 8; b++) for (let f = 0; f < 4; f++){ const q = rng(), base = 4.6 + f * 3.4 + 0.9, y = Y(base + 2.1);   // (every window now, each its turn: the world's draws as they always were)
+    g.fillStyle = q < 0.38 ? pick(CC) : CC[Math.floor(hash2(b * 1.7, f * 2.3 + 0.5) * 5)]; g.fillRect(b * 128 + 38, y, 52, 2.1 * ppm); g.fillStyle = '#000'; g.fillRect(b * 128 + 62.5, y, 3, 2.1 * ppm);
+    RK.push([b * 128 + 38, y, 52, 2.1 * ppm, hash2(b * 3.1 + 0.2, f * 1.9 + 4.4), 18]); }
+  for (let b = 0; b < 8; b++){ const q = rng(); g.fillStyle = '#e8c890'; g.fillRect(b * 128 + 26, h - 2.8 * ppm, 76, 2.3 * ppm); RK.push([b * 128 + 26, h - 2.8 * ppm, 76, 2.3 * ppm, q < 0.2 ? 0.6 * hash2(b, 9.1) : 1, 10]); }   // (a shop's window)
+  rankAlpha(g, RK); });
 cityEm.repeat.set(1 / 8, 1);
 /* ---------- Riga's Art Nouveau, unmended since the war: fifteen street fronts drawn once into one big picture, each as four columns a bay
    wide (a bay of windows; the axis, with its bay window or balcony and its gable over the eaves; the entrance with its portal; and the plain
@@ -6104,14 +6137,14 @@ var blockMats = [];
         else win(g, x, 1.25, 0.96, 1.6);
         win(g, x, 4.35, 0.96, 1.6); }
       for (const x of [0.25, w - 0.35]){ g.fillStyle = '#6a6c6c'; g.fillRect(x * ppm, 0, 5, Hh - 0.2 * ppm); } });   // drainpipes
-      // night: about half the windows lit, warm behind the curtains (same light switch as every other house)
-      const em = tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, Hh);
-        rects.forEach(([X, Y, W_, Hw], i) => { if (hash2(i * 3.1 + (street ? 7 : 1), 4.2) > 0.5) return;
+      // night: every window warm behind its curtains, each lit in its turn (the same light switch as every other house)
+      const em = tex(Math.round(w * ppm), H * ppm, (g, W, Hh) => { g.fillStyle = '#000'; g.fillRect(0, 0, W, Hh); const RK = [];
+        rects.forEach(([X, Y, W_, Hw], i) => { RK.push([X, Y, W_, Hw, hash2(i * 3.1 + (street ? 7 : 1), 4.2), Math.min(W_, Hw) * 0.25]);
           g.fillStyle = ['#ffcf8a', '#ffd9a0', '#f6c070', '#ffe2b8', '#ffc070'][Math.floor(hash2(i, street ? 2 : 9) * 5)]; g.fillRect(X, Y, W_, Hw);
-          g.fillStyle = '#000'; g.fillRect(X + W_ / 2 - 2, Y + Hw * 0.27, 4, Hw * 0.73); g.fillRect(X, Y + Hw * 0.27 - 2, W_, 4); g.fillRect(X, Y + Hw * 0.62, W_, 3); }); });
+          g.fillStyle = '#000'; g.fillRect(X + W_ / 2 - 2, Y + Hw * 0.27, 4, Hw * 0.73); g.fillRect(X, Y + Hw * 0.27 - 2, W_, 4); g.fillRect(X, Y + Hw * 0.62, W_, 3); }); rankAlpha(g, RK); });
       return { map, em }; };
     const plank = tex(64, 64, (g, W, Hh) => boards(g, W, Hh));   // one metre of clapboard, tiled on the gable ends
-    const wm = (t) => { const m = lampLit(snowify(new THREE.MeshStandardMaterial(t.isTexture ? { map: t, roughness: 0.95 } : { map: t.map, emissiveMap: t.em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 }), 0.4)); if (!t.isTexture) blockMats.push(m); return m; };
+    const wm = (t) => { const m = lampLit(snowify(new THREE.MeshStandardMaterial(t.isTexture ? { map: t, roughness: 0.95 } : { map: t.map, emissiveMap: t.em, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 }), 0.4)); if (!t.isTexture){ winLit(m, 4); blockMats.push(m); } return m; };
     const back = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(false))); back.rotation.y = Math.PI; back.position.set(cx, H / 2, zb);
     const front = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wm(wallTex(true))); front.position.set(cx, H / 2, zf);
     const end = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(d / 2, H), new THREE.Vector2(0, H + rise), new THREE.Vector2(-d / 2, H)]);
@@ -6144,7 +6177,7 @@ var blockMats = [];
       for (const fx of [0.3, 0.72]){ chimneyInto(K, ID3, ID3, x0 + w * fx, cz + 0.6, H + rise * (1 - 0.9 / (d / 2)) - 0.2, yT, [1, 0.92, 0.86], true, 0.3, 0.3); CHIMNEYS.push(new V3(x0 + w * fx, yT + 0.1, cz + 0.6)); }
       scene.add(chimneyMesh(K)); }
     g.traverse(o => { if (o.isMesh){ o.castShadow = o.receiveShadow = true; } }); scene.add(g); }
-  const cityMat = snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6);
+  const cityMat = winLit(snowify(new THREE.MeshStandardMaterial({ map: cityBay, emissiveMap: cityEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.6), 3, true);
   const bod = new THREE.Mesh(mergeGeometries(bodies), cityMat); bod.castShadow = bod.receiveShadow = true; scene.add(bod);
   // (value noise in three dimensions, for the decay of the walls)
   const AN_NOISE = `float anH3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -6158,9 +6191,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     const facade = (FA, mapT, maskT) => { if (!FA.p.length) return; const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(FA.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(FA.n, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(FA.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(FA.c, 3)); g.setAttribute('aSeed', new THREE.Float32BufferAttribute(FA.s, 1)); g.setIndex(FA.i);
     const mat = lampLit(shaderChain(snowify(new THREE.MeshStandardMaterial({ map: mapT, vertexColors: true, roughness: 0.92, emissive: 0xffffff, emissiveIntensity: 0 }), 0.6), 'anFacade', sh => {
-      sh.uniforms.anMask = { value: maskT };
+      sh.uniforms.anMask = { value: maskT }; sh.uniforms.uWinLit = WINLIT;
       sh.vertexShader = 'attribute float aSeed;\nvarying float vAnSeed;\nvarying float vAnY;\nvarying vec3 vAnWP;\nvarying vec3 vAnWN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vAnSeed = aSeed; vAnWP = (modelMatrix * vec4(transformed, 1.0)).xyz; vAnY = vAnWP.y; vAnWN = normalize(mat3(modelMatrix) * objectNormal);');
-      sh.fragmentShader = 'uniform sampler2D anMask;\nvarying float vAnSeed;\nvarying float vAnY;\nvarying vec3 vAnWP;\nvarying vec3 vAnWN;\n' + AN_NOISE + sh.fragmentShader
+      sh.fragmentShader = 'uniform sampler2D anMask;\nuniform float uWinLit;\nvarying float vAnSeed;\nvarying float vAnY;\nvarying vec3 vAnWP;\nvarying vec3 vAnWN;\n' + AN_NOISE + sh.fragmentShader
         .replace('#include <color_fragment>', `vec4 anM = texture2D(anMask, vMapUv);
           float anS = floor(vAnSeed * 1000.0 + 0.5), anH = floor(vAnSeed + 0.001), anB = fract(sin(mod(anH, 4099.0) * 17.31 + 4.7) * 43758.5453);   // (seeds made whole, so a face's hash never shimmers)
           diffuseColor.rgb *= mix(vec3(1.0), vColor, anM.b) * (0.86 + 0.16 * anB) * (1.0 - 0.2 * (1.0 - smoothstep(0.15, 1.3, vAnY)));
@@ -6176,7 +6209,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           { float row = floor(anM.g * 255.0 / 16.0), sq = mod(anS, 8191.0), h1 = fract(sin(sq * 12.9898 + row * 78.233) * 43758.5453), h2 = fract(sin(sq * 39.346 + row * 11.135) * 24634.6345);
             vec3 lc = h2 < 0.2 ? vec3(1.0, 0.62, 0.25) : h2 < 0.4 ? vec3(1.0, 0.69, 0.35) : h2 < 0.6 ? vec3(0.92, 0.53, 0.16) : h2 < 0.86 ? vec3(1.0, 0.76, 0.48) : vec3(0.5, 0.58, 1.0);
-            totalEmissiveRadiance *= lc * step(h1, 0.36) * smoothstep(0.3, 0.75, anM.r); }`); }));
+            totalEmissiveRadiance *= lc * step(h1, uWinLit) * smoothstep(0.3, 0.75, anM.r); }`); }));   // (each window its turn: lit once the share is past it)
     blockMats.push(mat); const fm = new THREE.Mesh(g, mat); fm.castShadow = fm.receiveShadow = true; scene.add(fm); };
     facade(FA, AN.color, AN.mask); facade(FB, AN.bcolor, AN.bmask);
     // the balconies near enough to see as things: slabs, coves, consoles, parapets, geraniums; their railings bellying out
@@ -6299,7 +6332,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   // a wooden house: its long sides in bays of the picture (a door in the front), its gable ends bare boards, a chimney by the ridge
   const wood = (cx, cz, ry, len, dep, st, c) => { at(cx, cz, ry); foot(len / 2 + 0.35, dep / 2 + 0.45); const Hw = st === 1 ? 3.3 : 6.3, hz = dep / 2, nb = Math.max(2, Math.round(len / 2.4)), bw = len / nb, door = 1 + (br() * (nb - 2) | 0), k_ = R(0.84, 1.02), tint = [k_, k_, k_];
     for (const s of [1, -1]) for (let i = 0; i < nb; i++){ const xa = s * (-len / 2 + i * bw), xb = s * (-len / 2 + (i + 1) * bw), kind = s > 0 && i === door ? 1 : 0;
-      for (let f = 0; f < st; f++){ const y0 = f * 3.3, y1 = f ? Hw : 3.3; poly(A, [[xa, y0, s * hz], [xb, y0, s * hz], [xb, y1, s * hz], [xa, y1, s * hz]], [0, 0, s], cellUV(WC(c, kind), 0, 1, y0 / 6.6, y1 / 6.6), tint, kind && !f ? 0 : br() < 0.35 ? 1 : 0); } }
+      for (let f = 0; f < st; f++){ const y0 = f * 3.3, y1 = f ? Hw : 3.3; poly(A, [[xa, y0, s * hz], [xb, y0, s * hz], [xb, y1, s * hz], [xa, y1, s * hz]], [0, 0, s], cellUV(WC(c, kind), 0, 1, y0 / 6.6, y1 / 6.6), tint, kind && !f ? 0 : 1 + br() * 1.15); } }
     const rise = Math.min(2.7, dep * R(0.27, 0.34)), cp = WC(c, 2);
     ends(len, hz, Hw, rise, 2.4, st === 1 ? [[0, 3.3, 0, 0.5]] : [[0, 3.3, 0, 0.5], [3.3, Hw, 0.5, Hw / 6.6]], () => cp, cp, (c, h) => c[1] + (c[3] - c[1]) * (3.4 + h) / 6.6, tint);   // (the gable's boards from over the belt)
     const t = 0.13, yT = gable(len, hz, Hw, rise, 0.35, 0.3, t, C(PK(['#5a5c5a', '#6e3e2c', '#4e5a52', '#646058', '#7a4a32'])));
@@ -6309,7 +6342,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const brick = (cx, cz, ry, len, dep, st) => { at(cx, cz, ry); foot(len / 2 + 0.25, dep / 2 + 0.3); const Hs = 3.2, Hw = st * Hs, hz = dep / 2, nb = Math.max(2, Math.round(len / 3)), bw = len / nb, door = br() * nb | 0, k_ = R(0.78, 1), tint = [k_, k_ * R(0.92, 1), k_ * R(0.86, 1)];
     for (const s of [1, -1]) for (let i = 0; i < nb; i++){ const xa = s * (-len / 2 + i * bw), xb = s * (-len / 2 + (i + 1) * bw);
       for (let f = 0; f < st; f++){ const q = br(), kind = s > 0 && !f && i === door ? 4 : q < (s > 0 ? 0.5 : 0.35) ? 0 : q < (s > 0 ? 0.67 : 0.55) ? 1 : q < (s > 0 ? 0.82 : 0.75) ? 2 : 3;
-        poly(A, [[xa, f * Hs, s * hz], [xb, f * Hs, s * hz], [xb, (f + 1) * Hs, s * hz], [xa, (f + 1) * Hs, s * hz]], [0, 0, s], cellUV(BC(kind), 0, 1, 0, 1), tint, kind === 0 && br() < 0.3 ? 1 : 0); } }
+        poly(A, [[xa, f * Hs, s * hz], [xb, f * Hs, s * hz], [xb, (f + 1) * Hs, s * hz], [xa, (f + 1) * Hs, s * hz]], [0, 0, s], cellUV(BC(kind), 0, 1, 0, 1), tint, kind === 0 ? 1 + br() * 1.5 : 0); } }
     const rise = dep * R(0.17, 0.24);
     ends(len, hz, Hw, rise, 3, Array.from({ length: st }, (_, f) => [f * Hs, (f + 1) * Hs, 0, 1]), () => BC(br() < 0.3 ? 6 : 5), BC(5), (c, h) => c[1] + (c[3] - c[1]) * Math.min(1, h / 3.2), tint);
     const t = 0.15, yT = gable(len, hz, Hw, rise, 0.25, 0.2, t, C(PK(['#6e3e2c', '#7a4a32', '#5c5e5c', '#6a6a66', '#4e504e', '#7a5a46'])));
@@ -6352,7 +6385,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); if (col) g.setAttribute('color', new THREE.Float32BufferAttribute(B.c, 3)); if (lit) g.setAttribute('aLit', new THREE.Float32BufferAttribute(B.l, 1)); g.setIndex(B.i); return g; };
   const wallMat = shaderChain(snowify(new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlasEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.5), 'backLit', sh => {   // (at night a window lit here and there)
     sh.vertexShader = 'attribute float aLit;\nvarying float vBLit;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBLit = aLit;');
-    sh.fragmentShader = 'varying float vBLit;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vBLit;'); });
+    sh.uniforms.uWinLit = WINLIT; sh.fragmentShader = 'uniform float uWinLit;\nvarying float vBLit;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vBLit > 0.5 ? step(vBLit - 1.0, uWinLit) : 0.0;'); });   // (0: never; else 1 + its turn)
   blockMats.push(wallMat);
   const roadT = dirtTex.clone(); roadT.repeat.set(1, 1); roadT.needsUpdate = true;
   const meshes = [new THREE.Mesh(geo(A, true, true, true), wallMat), new THREE.Mesh(geo(RF, true, true), wetRoof(roofWear(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)))),
@@ -6611,7 +6644,7 @@ function updateWeather(dt, t, sp){
   for (const c of CLOUDS){ c.sp.material.opacity = clamp((W.cloud * 1.25 - c.r) / 0.25) * 0.92; c.sp.material.color.copy(tmpC); c.sp.visible = c.sp.material.opacity > 0.01;
     c.sp.position.x += dt * (2 + windU.value * 3); if (c.sp.position.x - camera.position.x > 800) c.sp.position.x -= 1600; }
   // rain streaks (in deep winter the "rain" button brings heavy snow instead)
-  const snowy = sp.snow > 0.3 ? 1 : 0, rv = W.rain * (1 - snowy);
+  const snowy = smooth((sp.snow - 0.2) / 0.2), rv = W.rain * (1 - snowy);   // (rain going over to snow gradually)
   rainMat.opacity = rv * 0.55; rain.visible = rv > 0.01;
   if (rain.visible){ const cx = camera.position.x, cz = camera.position.z, slant = 0.6 + windU.value * 0.6, y0 = Math.max(0, camera.position.y - 14);   // (26 m of it, from the ground; up on a roof, from a little below us to well over our heads)
     for (let i = 0; i < RAIN_N; i++){ const k3 = i * 3; let x = rainState[k3], y = rainState[k3 + 1], z = rainState[k3 + 2];
@@ -8032,8 +8065,25 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
 const SEASON_RU = ['Зима', 'Весна', 'Лето', 'Осень'], SEASON_EN = ['Winter', 'Spring', 'Summer', 'Autumn'];
 const MONTH = ['December', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November'];
 const SEASON_MID = [0.42, 1.65, 2.3, 3.38];
-const TIMES = { Dawn: 0.29, Day: 0.5, Dusk: 0.735, Night: 0.93 };
-let S = 1.65, sTarget = null, TOD = 0.62, todTarget = null, drift = false;
+const TIMES = { Dawn: 0.29, Day: 0.5, Dusk: 0.735, Night: 0.93 };   // (by the date: see rigaTimes)
+let S = 1.65, sTarget = null, TOD = 0.62, todTarget = null, drift = false, timeSel = null;   // (timeSel: the time last asked for, kept to as the season changes)
+/* ---------- the sun over Riga, 56.95° N, 24.1° E, by the clocks of 1984: Moscow time, three hours ahead of Greenwich, and four in summer
+   time (1 April to 30 September). So in midwinter the sun is up only from ten to a quarter to five, ten degrees high at most, and in June
+   from half past five to twenty past eleven, never far below the horizon all night. S: the season (0 the middle of December, a month a
+   third of it); hour: by the clock. The world's x is east, z south ---------- */
+const RIGA = { lat: 56.95 * Math.PI / 180, lon: 24.1 };
+function rigaAstro(S){ const d = ((349 + S * 365.25 / 4) % 365 + 365) % 365, B = TAU * (d - 81) / 364;   // (d: the day of the year, 0 the first of January)
+  return { dec: -23.44 * Math.PI / 180 * Math.cos(TAU * (d + 10) / 365), eot: 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B),   // the sun's declination; the equation of time, in minutes
+    zone: 3 + smooth((d - 89.75) / 0.5) * (1 - smooth((d - 271.75) / 0.5)) }; }   // (summer time from 1 April to 30 September: eased over half a day, for the season's slider)
+function rigaSun(S, hour, out){ const { dec, eot, zone } = rigaAstro(S), H = TAU * (hour - zone + RIGA.lon / 15 + eot / 60 - 12) / 24;   // the hour angle, from the sun's own time
+  const cl = Math.cos(RIGA.lat), sl = Math.sin(RIGA.lat), cd = Math.cos(dec), sd = Math.sin(dec);
+  return out.set(-cd * Math.sin(H), sl * sd + cl * cd * Math.cos(H), -(sd * cl - cd * sl * Math.cos(H))); }   // east, up, south
+// the times the buttons go to on the date: Dawn half an hour after sunrise, Day an hour before the sun is highest, Dusk twenty minutes
+// before sunset, Night at eleven (or, in the light summer nights, an hour and three quarters after sunset)
+function rigaTimes(S, out){ const { dec, eot, zone } = rigaAstro(S), noon = 12 + zone - RIGA.lon / 15 - eot / 60, cl = Math.cos(RIGA.lat), sl = Math.sin(RIGA.lat);
+  const H0 = Math.acos(clamp((Math.sin(-0.833 * Math.PI / 180) - sl * Math.sin(dec)) / (cl * Math.cos(dec)), -1, 1)) * 24 / TAU, rise = noon - H0, set = noon + H0;
+  out.Dawn = (rise + 0.5) / 24 % 1; out.Day = (noon - 1) / 24 % 1; out.Dusk = (set - 0.35) / 24 % 1; out.Night = Math.max(set + 1.75, 23) / 24 % 1; return out; }
+rigaTimes(S, TIMES);
 function bump(s, a, b, c, d){ if (s <= a || s >= d) return 0; if (s < b) return smooth((s - a) / (b - a)); if (s <= c) return 1; return 1 - smooth((s - c) / (d - c)); }
 function SP(s){
   const snow = s < 0.8 ? 1 : s < 1.02 ? 1 - smooth((s - 0.8) / 0.22) : s > 3.93 ? smooth((s - 3.93) / 0.07) : 0;
@@ -8065,21 +8115,25 @@ const WEATHERS = {
   rain: { label: 'Rain', cloud: 1, rain: 1, say: (sp) => sp.snow > 0.3 ? 'Heavy wet snow, the Rīga kind.' : 'Rain again. Latvia.' } };
 let weather = 'fair', weatherT = 60;
 const W = { cloud: 0.28, rain: 0, wet: 0, leafWet: 0, drip: 0 };
-const sunDir = new V3(), moonDir = new V3(), overcastTop = C('#9aa4ae'), overcastHor = C('#cfd3d6');
+const sunDir = new V3(), moonDir = new V3(), overcastTop = C('#9aa4ae'), overcastHor = C('#cfd3d6'), hemiBare = C('#5a5040'), hemiSnow = C('#9aa0a8');
+// the sunlight's colour by the sun's height, and its glow in the sky's: deep orange on the horizon, through gold, to near white when it is
+// well up (the low winter sun stays warm all day); stepped through gradually, never switched
+const SUNLIGHT = [[-0.02, C('#ff9858')], [0.04, C('#ffb27a')], [0.12, C('#ffcf9c')], [0.22, C('#ffe6c4')], [0.32, C('#fff2df')]];
+const SUNGLOW = [[-0.02, C('#ffa060')], [0.04, C('#ffb070')], [0.12, C('#ffd29e')], [0.22, C('#ffe8c8')], [0.3, C('#fff4e0')]];
+function ramp(R, x, out){ if (x <= R[0][0]) return out.copy(R[0][1]); for (let i = 1; i < R.length; i++) if (x <= R[i][0]) return out.copy(R[i - 1][1]).lerp(R[i][1], (x - R[i - 1][0]) / (R[i][0] - R[i - 1][0]));
+  return out.copy(R[R.length - 1][1]); }
 function updateEnv(sp){
-  const elevMax = lerp(0.22, 0.92, 0.5 - 0.5 * Math.cos(TAU * (S - 0.5) / 4));
-  const a = (TOD - 0.25) * TAU;
-  sunDir.set(Math.cos(a), Math.sin(a) * elevMax, Math.sin(a) * 0.75 + 0.15).normalize();
+  rigaSun(S, TOD * 24, sunDir);   // (the sun where it stands over Riga at this hour of this day)
   moonDir.set(-sunDir.x * 0.8 + 0.2, Math.max(0.25, -sunDir.y), -sunDir.z * 0.5 + 0.4).normalize();
   const e = sunDir.y; env.e = e;
   env.day = smooth((e + 0.06) / 0.26); env.night = 1 - smooth((e + 0.2) / 0.18);
-  const over = clamp(sp.snow * 0.55 + (S > 3.4 && S < 3.95 ? 0.2 : 0) + W.cloud * 0.8 - 0.18);
+  const over = clamp(sp.snow * 0.55 + 0.2 * bump(S, 3.3, 3.45, 3.88, 4) + W.cloud * 0.8 - 0.18);   // (November's grey coming on and going gradually)
   skyAt(e, skyU.top.value, skyU.horizon.value);
   skyU.top.value.lerp(tmpC.copy(overcastTop).multiplyScalar(0.25 + 0.75 * env.day), over * env.day);
   skyU.horizon.value.lerp(tmpC.copy(overcastHor).multiplyScalar(0.25 + 0.75 * env.day), over * env.day);
   skyU.ground.value.copy(skyU.horizon.value).multiplyScalar(0.7);
   skyU.sunDir.value.copy(sunDir); skyU.moonDir.value.copy(moonDir); skyU.night.value = env.night;
-  skyU.sunCol.value.set(e > 0.15 ? '#fff4e0' : '#ffb070').multiplyScalar(smooth((e + 0.05) / 0.1) * (1 - over * 0.7));
+  ramp(SUNGLOW, e, skyU.sunCol.value).multiplyScalar(smooth((e + 0.05) / 0.1) * (1 - over * 0.7));
   const gloom = 1 - 0.4 * W.rain; skyU.top.value.multiplyScalar(gloom); skyU.horizon.value.multiplyScalar(0.3 + 0.7 * gloom);
   scene.fog.color.copy(skyU.horizon.value);
   scene.fog.density = 0.0032 + sp.snow * 0.0025 + sp.snowfall * 0.002 + env.night * 0.0015 + W.cloud * 0.0008 + W.rain * 0.004;
@@ -8088,16 +8142,16 @@ function updateEnv(sp){
   const tgt = camera.position.clone().add(new V3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)).multiplyScalar(18)); tgt.y = 0;
   if (tgt.distanceTo(TREE) < 45) tgt.lerp(TREE, 0.5);
   sun.target.position.copy(tgt);
-  if (e > -0.03){ sun.position.copy(tgt).addScaledVector(sunDir, 120); sun.color.set(e > 0.18 ? '#fff2df' : '#ffb27a'); sun.intensity = sunI; }
-  else { sun.position.copy(tgt).addScaledVector(moonDir, 120); sun.color.set('#9fb4ff'); sun.intensity = 0.45 * env.night; }
+  if (e > -0.03){ sun.position.copy(tgt).addScaledVector(sunDir, 120); ramp(SUNLIGHT, e, sun.color); sun.intensity = sunI; }
+  else { sun.position.copy(tgt).addScaledVector(moonDir, 120); sun.color.set('#9fb4ff'); sun.intensity = 0.45 * env.night * smooth((-0.03 - e) / 0.06); }   // (the moon's light comes up from nothing, so the hand-over from the sun's, with both dark, is never seen)
   { const fd = e > -0.03 ? sunDir : moonDir, fw = camera.getWorldDirection(FAR.v); fw.y = 0; fw.normalize();   // the far map: centred ahead of where we look, on a coarse grid
     const ft = FAR.u.copy(camera.position).addScaledVector(fw, FAR.ahead); ft.set(Math.round(ft.x / FAR.snap) * FAR.snap, 0, Math.round(ft.z / FAR.snap) * FAR.snap);
     if (!FAR.on || ft.x !== FAR.t.x || ft.z !== FAR.t.z || fd.angleTo(FAR.d) > 0.0015){ FAR.on = true; FAR.t.copy(ft); FAR.d.copy(fd); sunFar.target.position.copy(ft); sunFar.position.copy(ft).addScaledVector(fd, FAR.dist); sunFar.shadow.needsUpdate = true; } }
-  hemi.color.copy(skyU.top.value).lerp(C('#ffffff'), 0.35); hemi.groundColor.set(sp.snow > 0.5 ? '#9aa0a8' : '#5a5040');
+  hemi.color.copy(skyU.top.value).lerp(C('#ffffff'), 0.35); hemi.groundColor.copy(hemiBare).lerp(hemiSnow, smooth((sp.snow - 0.3) / 0.4));
   hemi.intensity = 0.25 + 0.95 * env.day;
   renderer.toneMappingExposure = 1.0 + env.night * 0.55;
   for (const s of stars) s.material.opacity = env.night * (1 - over * 0.6) * (1 - W.cloud * 0.9);
-  const lit = 1 - env.day;
+  const lit = 1 - env.day; WINLIT.value = winShare(TOD * 24, e, Math.max(over, W.cloud));   // (how many windows are lit: the hour, and the dark)
   buildingFront.emissiveIntensity = buildingBack.emissiveIntensity = lit * 1.6; for (const m of blockMats) m.emissiveIntensity = lit * 1.2;
   lamp.intensity = lit * 14; lampGlow.material.opacity = lit * 0.9;
   const lampOn = mode === 'window' && deskLamp.on;
@@ -8641,7 +8695,7 @@ function setLang(l){ LANG = l; try { localStorage.setItem('kashtan-lang', l); } 
   document.querySelectorAll('#langs button').forEach(b => b.classList.toggle('on', b.dataset.l === l));
   lastMonth = -1; ctxState = '?'; syncButtons(); }
 function setSeason(i){ drift = false; sTarget = SEASON_MID[i]; syncButtons(); }
-function setTime(n){ todTarget = TIMES[n]; syncButtons(); }
+function setTime(n){ todTarget = TIMES[n]; timeSel = n; syncButtons(); }
 function syncButtons(){
   const si = Math.floor(sTarget ?? S) % 4;
   SEASON_EN.forEach((_, i) => $('bs' + i).classList.toggle('on', i === si && !drift));
@@ -8742,8 +8796,10 @@ function frame(){
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime; timeU.value = t;
   // advance season & time
+  const S0 = S;
   if (drift) S = (S + dt / 150) % 4;
   else if (sTarget !== null){ const diff = ((sTarget - S) % 4 + 4) % 4, step = dt * (diff > 1 ? 0.7 : 0.35); if (diff < 0.003 || diff > 3.997 || step >= diff){ S = sTarget; sTarget = null; } else S = (S + step) % 4; }
+  rigaTimes(S, TIMES); if (drift) timeSel = null; else if (S !== S0 && timeSel && todTarget === null) TOD = TIMES[timeSel];   // (dusk stays dusk as the season changes under it)
   if (todTarget !== null){ const diff = ((todTarget - TOD) % 1 + 1) % 1, step = dt * 0.09; if (diff < 0.002 || diff > 0.998 || step >= diff){ TOD = todTarget; todTarget = null; } else TOD = (TOD + step) % 1; }
   else if (drift) TOD = (TOD + dt / 240) % 1;
   const sp = SP(S);
