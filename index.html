@@ -787,7 +787,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     const feeder = (key, pos) => { const m = new Map(); for (const S of LS){ const k = key(S); if (k === null) continue; if (!m.has(k)) m.set(k, []); m.get(k).push(S); }
       for (const arr of m.values()){ arr.sort((a, b) => pos(a) - pos(b)); for (let k = 1; k < arr.length; k++) if (pos(arr[k]) - pos(arr[k - 1]) < 31) wire([arr[k - 1].x, arr[k - 1].z], [arr[k].x, arr[k].z], LAMP.hy, LAMP.hy, 0.35, 8); } };
     feeder(S => S.L === 2 ? null : Math.round(S.z), S => S.x); feeder(S => S.L === 1 ? null : Math.round(S.x), S => S.z);
-    { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(W, 3)); scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#1e1d1c' }))); }
+    { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(W, 3)); const wl = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#1e1d1c' })); wl.castShadow = true; scene.add(wl); }   // (their shadows thin lines across the street and up the fronts: a texel of the shadow map wide, as a wire's soft shadow is)
     // the lamp: its shade (a dished hood of dark enamelled iron, the neck up to the wires), the reflector inside it, the globe under it
     const prof = [[0.02, 0.5], [0.02, 0.36], [0.07, 0.34], [0.11, 0.31], [0.17, 0.25], [0.25, 0.15], [0.31, 0.07], [0.335, 0.035], [0.33, 0.02]];
     const shadeG = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 14), innerG = new THREE.LatheGeometry(prof.slice(2, 8).map(([r, y]) => new THREE.Vector2(r * 0.95, y - 0.015)), 14), globeG = new THREE.SphereGeometry(0.16, 14, 10);
@@ -795,11 +795,11 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
       list.forEach((S, k) => m.setMatrixAt(k, M.compose(new V3(S.x, LAMP.y, S.z), q.setFromAxisAngle(new V3(0, 1, 0), S.yaw), one))); m.count = list.length; m.receiveShadow = true; scene.add(m); return m; };
     for (const S of LS) S.yaw = lr() * TAU;
     const lit = LS.filter(S => !S.dead), dead = LS.filter(S => S.dead);
-    inst(shadeG, snowify(new THREE.MeshStandardMaterial({ color: '#2b2c2a', roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }), 1), LS);
+    inst(shadeG, snowify(new THREE.MeshStandardMaterial({ color: '#2b2c2a', roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }), 1), LS).castShadow = true;   // (the shade and the globe under it shadowed on the street)
     const inner = new THREE.MeshBasicMaterial({ color: '#3a3834', side: THREE.BackSide }), innerOn = new THREE.Color('#c8964a'), innerOff = new THREE.Color('#3a3834');
     inst(innerG, inner, lit); inst(innerG, new THREE.MeshBasicMaterial({ color: '#3a3834', side: THREE.BackSide }), dead);
     const globe = new THREE.MeshStandardMaterial({ color: '#d2cdc2', roughness: 0.3, emissive: '#ffcf78', emissiveIntensity: 0 });
-    inst(globeG, globe, lit); inst(globeG, new THREE.MeshStandardMaterial({ color: '#bcb8ae', roughness: 0.3 }), dead);
+    inst(globeG, globe, lit).castShadow = true; inst(globeG, new THREE.MeshStandardMaterial({ color: '#bcb8ae', roughness: 0.3 }), dead).castShadow = true;
     // the glow round each lit globe, drawn toward us a little so the glass doesn't cut it, fading into the haze with the rest
     const glowMat = new THREE.ShaderMaterial({ uniforms: { uK: LAMP.k, uC: { value: new THREE.Color(1, 0.78, 0.42) }, uT: timeU, uFog: LAMP.fog }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       vertexShader: `attribute vec3 aId; uniform float uT, uFog; varying vec2 vUv; varying float vA;
@@ -3898,6 +3898,11 @@ function updateVines(){
    flower's colour (the painted eye, the disc and the stamens keep their own); they glow a little with the sun behind them. Each plant
    bends from its base in the wind; the flowers open and close by growing out of their own centres */
 function shaderChain(mat, key, fn){ const prev = mat.onBeforeCompile, pk = mat.customProgramCacheKey(); mat.onBeforeCompile = (sh, r) => { prev.call(mat, sh, r); fn(sh); }; mat.customProgramCacheKey = () => pk + '|' + key; return mat; }
+// thin cut-out things (railings' bars) that are not to vanish far off or edge on: the smaller mip levels average their bars into the gaps,
+// and the alpha test throws the lot away; so the alpha is scaled up a quarter for each level down the map is read at (near, unchanged)
+function keepAlpha(mat, k = 0.25){ return shaderChain(mat, 'keepAlpha' + k, sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', `{ vec2 kaS = vec2(textureSize(map, 0)), kaX = dFdx(vMapUv * kaS), kaY = dFdy(vMapUv * kaS);
+    diffuseColor.a *= 1.0 + ${k.toFixed(2)} * max(0.0, 0.5 * log2(max(dot(kaX, kaX), dot(kaY, kaY)))); }
+  #include <alphatest_fragment>`); }); }
 // thin petals and leaves glow a little with the sun behind them (gentler than the chestnut's leaves)
 function petalGlow(mat, k = 1){ return shaderChain(mat, 'pglow', (sh) => { Object.assign(sh.uniforms, { uSunV: leafU.sunV, uSunC: leafU.sunC, uTr: leafU.tr, uPG: { value: k } });
   sh.fragmentShader = 'uniform vec3 uSunV; uniform vec3 uSunC; uniform float uTr; uniform float uPG;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
@@ -5923,15 +5928,18 @@ var blockMats = [];
         if (D.top === 'dome'){ const dk = hpk(['helmet', 'onion']); dome(D.red ? 'cap' : dk, 0.95, 8, Math.PI / 8, xc, yt, z + e * 0.45, rcol); }
         if (D.top === 'dome' || D.top === 'flat') flat(FX, [[xc - hb, yt, z], [xc + hb, yt, z], [xc + hf, yt, z + e], [xc - hf, yt, z + e]], [0, 1, 0], trimUV);
         if (D.top !== 'dome' && D.top !== 'flat'){ const ap = [xc, yt + 1.05, z + 0.05], FL = [xc - hf - 0.08, yt, z + e + 0.08], FR = [xc + hf + 0.08, yt, z + e + 0.08], BL = [xc - hb - 0.06, yt, z], BR = [xc + hb + 0.06, yt, z];
-          roofPiece(tris([FL, FR, ap, BL, FL, ap, FR, BR, ap]), rcol); } }
-      else if (D.axis === 'balcony') for (const k of D.balc){ const yk = D.g + (k - 1) * D.f, hw = 1.15 * sx, e = 0.75;   // balconies: near, as things; further off, slab and railing
-        if (D.bal === 'solid' || D.bal === 'grand' || D.bal === 'baluster' || D.bal === 'iron'){ const lx0 = xc - hw, lx1 = xc + hw, lz = z + e, y = yk - 0.15; BIC.push({ x0: T.cx + lx0 * T.co + lz * T.si, z0: T.cz - lx0 * T.si + lz * T.co, x1: T.cx + lx1 * T.co + lz * T.si, z1: T.cz - lx1 * T.si + lz * T.co, y }); }   // rectangular-base balconies: icicles under the front slab edge
+          roofPiece(tris([FL, FR, ap, BL, FL, ap, FR, BR, ap]), rcol);
+          roofPiece(tris([BL, FR, FL, BL, BR, FR]), rcol); } }   // (and closed underneath: seen from the street, its eaves, not the sky through them)
+      else if (D.axis === 'balcony') for (const k of D.balc){ const yk = D.g + (k - 1) * D.f, hw = 1.15 * sx, e = 0.75;   // balconies: near, as things; further off (out to the town's edge), slab and railing or parapet
+        { const near_ = D.bal !== 'iron' && detail, bw_ = D.bal === 'round' ? 0.95 * sx : hw, be = D.bal === 'round' ? 0.85 : D.bal === 'grand' ? 0.9 : D.bal === 'bow' ? 0.8 : e;   // icicles in winter all along a balcony's free edge, under its slab:
+          const O = near_ ? bOutline(D.bal, bw_, be) : [[-hw, 0], [-hw, e], [hw, e], [hw, 0]], yb = yk - (!near_ ? 0.15 : D.bal === 'grand' ? 0.26 : D.bal === 'round' ? 0.17 : 0.2);   // (its own outline, square, bowed or round; far off, the slab's)
+          for (let k = 0; k + 1 < O.length; k++){ const [ax, , az] = W3(xc + O[k][0], 0, z + O[k][1]), [bx, , bz] = W3(xc + O[k + 1][0], 0, z + O[k + 1][1]); BIC.push({ x0: ax, z0: az, x1: bx, z1: bz, y: yb }); } }
         if (D.bal !== 'iron' && detail){ balcony(D.bal, xc, yk, z, D.bal === 'round' ? 0.95 * sx : hw, D.bal === 'round' ? 0.85 : D.bal === 'grand' ? 0.9 : D.bal === 'bow' ? 0.8 : e, k === D.balc[0]); continue; }
         flat(FX, [[xc - hw, yk, z + e], [xc + hw, yk, z + e], [xc + hw, yk - 0.15, z + e], [xc - hw, yk - 0.15, z + e]], [0, 0, 1], trimUV);
         flat(FX, [[xc - hw, yk - 0.15, z], [xc + hw, yk - 0.15, z], [xc + hw, yk - 0.15, z + e], [xc - hw, yk - 0.15, z + e]], [0, -1, 0], trimUV);
         flat(FX, [[xc - hw, yk, z], [xc + hw, yk, z], [xc + hw, yk, z + e], [xc - hw, yk, z + e]], [0, 1, 0], trimUV);
         for (const s of [-1, 1]) flat(FX, [[xc + s * hw, yk - 0.15, z], [xc + s * hw, yk - 0.15, z + e], [xc + s * hw, yk, z + e], [xc + s * hw, yk, z]], [s, 0, 0], trimUV);
-        if (near && !farBalcony(D.bal, xc, yk, z, hw, e)){ const q = (x0_, z0_, x1_, z1_, n) => { const l = Math.hypot(x1_ - x0_, z1_ - z0_) / 1.9; face(RA, [[x0_, yk, z0_], [x1_, yk, z1_], [x1_, yk + 0.95, z1_], [x0_, yk + 0.95, z0_]], n, [[0, 0], [l, 0], [l, 1], [0, 1]]); };
+        if (!farBalcony(D.bal, xc, yk, z, hw, e)){ const q = (x0_, z0_, x1_, z1_, n) => { const l = Math.hypot(x1_ - x0_, z1_ - z0_) / 1.9; face(RA, [[x0_, yk, z0_], [x1_, yk, z1_], [x1_, yk + 0.95, z1_], [x0_, yk + 0.95, z0_]], n, [[0, 0], [l, 0], [l, 1], [0, 1]]); };
           q(xc - hw + 0.03, z + e - 0.03, xc + hw - 0.03, z + e - 0.03, [0, 0, 1]); q(xc - hw + 0.03, z, xc - hw + 0.03, z + e - 0.03, [-1, 0, 0]); q(xc + hw - 0.03, z + e - 0.03, xc + hw - 0.03, z, [1, 0, 0]); } } });
     // the cornice's underside and top, and its ends
     flat(FX, [[-w / 2, H - 0.42, z], [w / 2, H - 0.42, z], [w / 2, H - 0.42, z + D.cd], [-w / 2, H - 0.42, z + D.cd]], [0, -1, 0], trimUV);
@@ -6142,11 +6150,11 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     facade(FA, AN.color, AN.mask); facade(FB, AN.bcolor, AN.bmask);
     // the balconies near enough to see as things: slabs, coves, consoles, parapets, geraniums; their railings bellying out
     const mk = (A, extra) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(A.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(A.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(A.uv, 2)); if (A.c) g.setAttribute('color', new THREE.Float32BufferAttribute(A.c, 3)); g.setIndex(A.i); return g; };
-    if (BA.p.length){ const bm = new THREE.Mesh(mk(BA), lampLit(snowify(new THREE.MeshStandardMaterial({ map: AN.parts, vertexColors: true, roughness: 0.9 }), 0.8))); bm.castShadow = bm.receiveShadow = true; scene.add(bm); }
-    if (RB.p.length) scene.add(new THREE.Mesh(mk(RB), lampLit(new THREE.MeshStandardMaterial({ map: AN.rail2, alphaTest: 0.45, side: THREE.DoubleSide, color: '#8a8580', roughness: 0.6, metalness: 0.35 }))));
+    if (BA.p.length){ const bm = new THREE.Mesh(mk(BA), lampLit(snowify(new THREE.MeshStandardMaterial({ map: AN.parts, vertexColors: true, roughness: 0.9 }), 0.8))); bm.material.shadowSide = THREE.FrontSide; bm.castShadow = bm.receiveShadow = true; scene.add(bm); }   // (their shadows from their faces to the sun: from their undersides, against the wall, the bias let a strip of light in between)
+    if (RB.p.length) scene.add(new THREE.Mesh(mk(RB), lampLit(keepAlpha(new THREE.MeshStandardMaterial({ map: AN.rail2, alphaTest: 0.45, side: THREE.DoubleSide, color: '#8a8580', roughness: 0.6, metalness: 0.35 })))));   // (not vanishing far off, or edge on)
     // the balconies' railings, near enough to see
     const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(RA.p, 3)); rg.setAttribute('normal', new THREE.Float32BufferAttribute(RA.n, 3)); rg.setAttribute('uv', new THREE.Float32BufferAttribute(RA.uv, 2)); rg.setIndex(RA.i);
-    scene.add(new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: AN.rail, alphaTest: 0.45, side: THREE.DoubleSide, color: '#8a8580', roughness: 0.6, metalness: 0.35 })));
+    scene.add(new THREE.Mesh(rg, keepAlpha(new THREE.MeshStandardMaterial({ map: AN.rail, alphaTest: 0.45, side: THREE.DoubleSide, color: '#8a8580', roughness: 0.6, metalness: 0.35 }))));
     // and the shops' names (lit at night)
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(SA.p, 3)); sg.setAttribute('normal', new THREE.Float32BufferAttribute(SA.n, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(SA.uv, 2)); sg.setIndex(SA.i);
     const sm = lampLit(new THREE.MeshStandardMaterial({ map: AN.signs, emissiveMap: AN.signs, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
@@ -6357,7 +6365,7 @@ const FICES = [];
       row(WOOD.x0 - 0.33, z, WOOD.x1 + 0.33, z, y, [0.06, 0.2], [0.15, 0.9], [0.025, 0.06], ICES, 0.1); } }
   for (const E of EAVES){ const c = Math.cos(E.ry), sn = Math.sin(E.ry), W = (x, z) => [E.cx + x * c + z * sn, E.cz - x * sn + z * c];   // the five-storey houses: both eaves
     for (const sd of [-1, 1]){ const zl = sd > 0 ? (E.zf ?? E.d / 2 + 0.3) : -(E.d / 2 + 0.3), [ax, az] = W(-E.w / 2, zl), [bx, bz] = W(E.w / 2, zl); row(ax, az, bx, bz, (E.h ?? 19) - 0.02, [0.2, 0.55], [0.3, 1.3], [0.05, 0.1], FICES, 0.06); } }
-  for (const b of BIC) row(b.x0, b.z0, b.x1, b.z1, b.y, [0.2, 0.5], [0.08, 0.4], [0.02, 0.045], FICES, 0.05);   // the front edge of the rectangular balconies
+  for (const b of BIC) row(b.x0, b.z0, b.x1, b.z1, b.y, [0.2, 0.5], [0.08, 0.4], [0.02, 0.045], FICES, 0.05);   // the balconies' free edges, all round
 }
 const iceGeo = new THREE.ConeGeometry(1, 1, 7, 3).rotateX(Math.PI).translate(0, -0.5, 0);
 { const pp = iceGeo.attributes.position; for (let i = 0; i < pp.count; i++){ const y = pp.getY(i); const k = 1 + Math.sin(y * 31) * 0.12; pp.setX(i, pp.getX(i) * k); pp.setZ(i, pp.getZ(i) * k); } iceGeo.computeVertexNormals(); }
