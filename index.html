@@ -1033,7 +1033,7 @@ const roofTex = tex(512, 512, (g, w, h) => {
 }
 /* ---------- paths and overgrowth: narrow, cracked, mossy asphalt paths to the entrances, a trodden track to the tree,
    and grass running wild along every edge, the lane's verges and between its ruts ---------- */
-const TUFTS = [], DANDS = [];
+const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' round the workshops, sparser: see 'the rest of our block')
 {
   const pr = mkRng(5150), rn = (a, b) => a + pr() * (b - a);
   const surfaceTex = (base, fn) => tex(256, 512, (g, w, h) => {
@@ -1148,10 +1148,11 @@ const TUFTS = [], DANDS = [];
 let dandS = -1;
 function updateDandelions(){
   if (Math.abs(S - dandS) < 0.002) return; dandS = S;
-  const leafA = bump(S, 1.3, 1.5, 3.4, 3.75), sn = SP(S).snow, D = DANDS, up = new V3(0, 1, 0), q = new THREE.Quaternion(), top = new V3();
+  const leafA = bump(S, 1.3, 1.5, 3.4, 3.75), sn = SP(S).snow, up = new V3(0, 1, 0), q = new THREE.Quaternion(), top = new V3();
+  for (const D of [DANDS, LDANDS]){ if (!D.leaves) continue; const nl = D.rosette ? 1 : 6;   // (the yard's; the lots', each plant's six leaves one rosette)
   let i = 0, li = 0;
   for (const p of D){
-    for (let k = 0; k < 6; k++){ const l = leafA * (1 - sn) * p.s; SC.set(0.05 * l, 0.06 * l, (0.13 + 0.05 * (k % 3)) * l); M4.compose(P3.set(p.x, 0.005, p.z), p.lq[k], SC); D.leaves.setMatrixAt(li, M4);
+    for (let k = 0; k < nl; k++){ const l = leafA * (1 - sn) * p.s; if (D.rosette) SC.setScalar(l); else SC.set(0.05 * l, 0.06 * l, (0.13 + 0.05 * (k % 3)) * l); M4.compose(P3.set(p.x, 0.005, p.z), p.lq[k], SC); D.leaves.setMatrixAt(li, M4);
       D.leaves.setColorAt(li++, tmpC.set('#3d6a26').lerp(tmpC2.set('#7a7a3a'), clamp((S - 3.0) / 0.5)).multiplyScalar(0.85 + 0.1 * (k % 3))); }
     for (const H of p.heads){ const j = p.j + H.j;
       const open = smooth((S - 1.58 - j) / 0.04) * (1 - smooth((S - 1.83 - j) / 0.025));
@@ -1164,14 +1165,14 @@ function updateDandelions(){
       SC.setScalar(clock); M4.compose(top, q, SC); D.clocks.setMatrixAt(i, M4); i++; }
   }
   for (const m of [D.leaves, D.stems, D.yellow, D.clocks]) m.instanceMatrix.needsUpdate = true; D.leaves.instanceColor.needsUpdate = true;
-  D.leaves.visible = leafA > 0.001 && sn < 0.99; const any = S > 1.5 && S < 2.2; D.stems.visible = D.yellow.visible = D.clocks.visible = any;
+  D.leaves.visible = leafA > 0.001 && sn < 0.99; const any = S > 1.5 && S < 2.2; D.stems.visible = D.yellow.visible = D.clocks.visible = any; }
 }
 const tuftKeys = [[0.6, C('#8a7e58')], [1.2, C('#6e7e40')], [1.7, C('#6a9a3c')], [2.5, C('#4a7a2a')], [3.1, C('#647a34')], [3.6, C('#8a8048')], [3.95, C('#857652')]];
 let tuftS = -1;
 function updateTufts(){
   if (Math.abs(S - tuftS) < 0.002) return; tuftS = S;
   const sn = SP(S).snow, grow = 0.3 + 0.7 * bump(S, 1.35, 2.3, 3.6, 4.2), col = cyc(S, tuftKeys, tmpC2).clone(), dryK = clamp((S - 3.0) / 0.6) + (S < 1.2 ? 1 : 0);
-  for (const L of [TUFTS, GTUFTS]){ const m = L.mesh;   // (the gardens' own grass: shorter and spread wider, none gone to seed)
+  for (const L of [TUFTS, GTUFTS, LTUFTS]){ const m = L.mesh; if (!m) continue;   // (the gardens' own grass: shorter and spread wider, none gone to seed; the lots')
     L.forEach((T, i) => { const wk = T.wk ?? 1, h = T.s * (T.hk ?? 1) * grow * (1 - sn * (0.75 + 0.25 * T.r)); SC.set(T.s * wk, Math.max(0.001, h), T.s * wk); Q.setFromAxisAngle(P3.set(0, 1, 0), T.yaw); M4.compose(P3.set(T.x, 0, T.z), Q, SC); m.setMatrixAt(i, M4);
       m.setColorAt(i, tmpC.copy(col).lerp(tmpC2.set('#b3a46a'), Math.min(1, dryK * T.dry * 0.6 + (T.dry > 0.9 ? 0.55 : 0))).multiplyScalar(T.v)); });   // a few always gone to seed, straw-coloured
     m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.visible = sn < 0.97; }
@@ -2561,7 +2562,7 @@ const tarMat = wetRoof(tarWear(snowify(new THREE.MeshStandardMaterial({ color: '
 
 /* ============================== gardens ============================== */
 const shrubLeafMat = new THREE.MeshStandardMaterial({ color: '#4a7a35', roughness: 0.9, flatShading: true });
-let shrubs, veg, flowers, stems, sunHeads, sunStems, lilacBloom;
+let shrubs, veg, flowers, stems, sunHeads, sunStems, lilacBloom, lotBloom;   // (lotBloom: the lilacs' in the lots round the workshops)
 const FLOWER_KINDS = [ // bloom windows on the season axis (0 = Dec … 4), so something is flowering from March to October
   { win: [0.86, 0.96, 1.18, 1.3], h: [0.1, 0.14], s: [0.45, 0.6], cols: ['#ffffff', '#f4f4ff'] },                                   // snowdrops
   { win: [1.1, 1.2, 1.4, 1.5], h: [0.1, 0.16], s: [0.55, 0.75], cols: ['#9a6ad8', '#ffffff', '#f2c73a', '#b890e8'] },                // crocuses
@@ -2834,13 +2835,13 @@ const leafCoreGeo = new THREE.IcosahedronGeometry(1, 3); { const p = leafCoreGeo
   for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); const k = 1 + 0.1 * Math.sin(v.x * 5.1 + v.y * 2.3) * Math.sin(v.z * 4.7 - v.y * 1.9) + 0.06 * Math.sin(v.x * 11 + v.z * 9); p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
   leafCoreGeo.computeVertexNormals(); }
 
-function leafyBushes(o){
-  const lr = mkRng(o.seed), lrn = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0);
+function leafyBushes(o){   // (o.like: another set of the same bush, whose leaf, shoots and materials these share)
+  const lr = mkRng(o.seed), lrn = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0), LK = o.like && o.like.parts;
   // the leaf texture: the leaf (with its stalk) in x 28-w, its stalk's foot 4 px off the bottom; stalk colour at x 0-14, for the stems
   const TWd = o.tex.w, THt = o.tex.h, X0 = 28, mpp = o.tex.len / THt, U0 = X0 / TWd, US = (TWd - X0) / TWd, HW = (TWd - X0) / 2 * mpp, LM = THt * mpp, TB = 4 / THt;
   const at0 = (g, w, h) => { g.translate((X0 + w) / 2, h - 4); };
-  const leafTex = tex(TWd, THt, (g, w, h) => { g.clearRect(0, 0, w, h); g.save(); at0(g, w, h); o.draw(g, 'color'); g.restore(); g.fillStyle = o.stemTex; g.fillRect(0, 0, 14, h); }, {});
-  const leafNrm = reliefNormals(TWd, THt, (g, w, h) => { g.save(); at0(g, w, h); o.draw(g, 'height'); g.restore(); });
+  const leafTex = LK ? LK.leafTex : tex(TWd, THt, (g, w, h) => { g.clearRect(0, 0, w, h); g.save(); at0(g, w, h); o.draw(g, 'color'); g.restore(); g.fillStyle = o.stemTex; g.fillRect(0, 0, 14, h); }, {});
+  const leafNrm = LK ? LK.leafNrm : reliefNormals(TWd, THt, (g, w, h) => { g.save(); at0(g, w, h); o.draw(g, 'height'); g.restore(); });
   leafTex.wrapS = leafTex.wrapT = leafNrm.wrapS = leafNrm.wrapT = THREE.ClampToEdgeWrapping;
   // one shoot, built the right way up (y up), the stem out along +z at elevation e, so the leaves droop the right way
   const ROWS = [0, 0.3, 0.65, 1], COLS = [-1, 0, 1], SP = o.shoot;
@@ -2870,17 +2871,17 @@ function leafyBushes(o){
         const f0 = F.P.length / 3; for (const t of [0, 1]) for (const u of [-1, 1]) vtx(F, pos(t, u), U0 + US * (0.5 + 0.5 * u), t, c); F.I.push(f0, f0 + 1, f0 + 3, f0, f0 + 3, f0 + 2); } });
     return [A, F].map(B => { const g = new THREE.BufferGeometry(); g.userData.tip = pts[N].clone(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.U, 2));
       g.setAttribute('color', new THREE.Float32BufferAttribute(B.C, 3)); g.setIndex(B.I); g.computeVertexNormals(); return g; }); }
-  const EL = [-0.2, 0.45, 1.1], geos = EL.map((e, i) => shoot(e, o.seed * 7 + i * 17));
+  const EL = [-0.2, 0.45, 1.1], geos = LK ? LK.geos : EL.map((e, i) => shoot(e, o.seed * 7 + i * 17));
   const ds = [TWd * mpp / 0.0115 / 13, LM / 0.0115 / 34];   // (raindrops the same size as on the chestnut's leaves)
   const mkMat = (near) => lodify(leafWet(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: leafTex, normalMap: leafNrm, normalScale: new THREE.Vector2(o.nScale, o.nScale), vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: o.rough }), o.sway[0], o.sway[1])), true, false, ds), near);
   const mkDepth = (near) => lodify(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), near);   // (three copies the leaf's map and alpha test onto it)
-  const matN = mkMat(true), matF = mkMat(false), depN = mkDepth(true), depF = mkDepth(false);
-  if (o.mipAlpha) for (const m of [matN, matF]) shaderChain(m, 'mipA' + o.mipAlpha, (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', `#ifdef USE_MAP
+  const [matN, matF, depN, depF] = LK ? LK.mats : [mkMat(true), mkMat(false), mkDepth(true), mkDepth(false)];
+  if (o.mipAlpha && !LK) for (const m of [matN, matF]) shaderChain(m, 'mipA' + o.mipAlpha, (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', `#ifdef USE_MAP
     { vec2 ts = vec2(textureSize(map, 0)), gx = dFdx(vMapUv * ts), gy = dFdy(vMapUv * ts); diffuseColor.a *= 1.0 + max(0.0, 0.5 * log2(max(max(dot(gx, gx), dot(gy, gy)), 1e-8))) * ${o.mipAlpha}; }
     #endif
     #include <alphatest_fragment>`); });   // (leaves of thin leaflets: further off, their averaged alpha would fall under the test and they would vanish; the further, the more it is made up)
-  const coreMat = new THREE.MeshStandardMaterial({ map: leafMassTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
-  o.bushes = o.bushes || []; const core = new THREE.InstancedMesh(leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true; core.count = o.bushes.length;
+  const coreMat = LK ? LK.coreMat : new THREE.MeshStandardMaterial({ map: leafMassTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 });
+  o.bushes = o.bushes || []; const core = new THREE.InstancedMesh(o.coreGeo || leafCoreGeo, coreMat, Math.max(1, o.bushes.length)); core.castShadow = core.receiveShadow = true; core.count = o.bushes.length;
 
   // the bushes: a mound of shoots round each, pointing out and up from it, a few deeper in and darker
   const SH = [], CORES = [], blocks = new Map();
@@ -2909,7 +2910,7 @@ function leafyBushes(o){
   for (const sh of SH) sh.tip = geos[sh.vI][0].userData.tip.clone().multiply(Sc.set(sh.s * sh.mx, sh.s, sh.s)).applyQuaternion(sh.q).add(sh.p);   // (where each shoot ends)
   CORES.forEach((c, i) => { M.compose(c.p, c.q, c.s); core.setMatrixAt(i, M); }); core.computeBoundingSphere(); scene.add(core);
   const col = new THREE.Color(), last = { amt: -1, s: -1 }, yel = C(o.turn.yel), brn = C(o.turn.brn), on = { v: false };
-  return { name: o.name, meshes, core, geos, tris: geos.map(g => g.map(x => x.index.count / 3)), shoots: SH, tex: leafTex, blocks: near,
+  return { name: o.name, meshes, core, geos, tris: geos.map(g => g.map(x => x.index.count / 3)), shoots: SH, tex: leafTex, blocks: near, opts: o, parts: { leafTex, leafNrm, geos, mats: [matN, matF, depN, depF], coreMat },
     update(S){ const amt = bump(S, ...o.amt);
       if (Math.abs(amt - last.amt) < 0.002 && Math.abs(S - last.s) < 0.004 && (amt === 0) === (last.amt === 0)) return; last.amt = amt; last.s = S;
       cyc(S, o.keys, col); const grow = 0.55 + 0.45 * smooth((S - o.amt[0]) / 0.45), turnA = clamp((S - o.turn.at) / o.turn.span);   // the young leaves open small and grow
@@ -3158,8 +3159,8 @@ function lodSet(items, geos, matN, matF, dU = lodU.d, bs = [16, 20]){   // (bs: 
 /* elder: in June, flat heads of tiny cream flowers held up at the ends of the shoots, each head five clusters round a sixth on
    spreading stalks; by August they have turned over into drooping clusters of tiny berries on red stalks, green and then glossy
    purple-black, gone by October */
-const ELDERFLOW = (() => { const er = mkRng(8101), ern = (a, b) => a + (b - a) * er(), up = new V3(0, 1, 0), heads = [];
-  for (const sh of ELDER.shoots) if (sh.v > 0.8 && er() < 0.5){ const out = sh.tip.clone().sub(sh.p); out.y = 0; out.normalize();   // held up and out at the shoot's end, tipped towards the light
+function elderFlowers(shoots, seed){ const er = mkRng(seed), ern = (a, b) => a + (b - a) * er(), up = new V3(0, 1, 0), heads = [];
+  for (const sh of shoots) if (sh.v > 0.8 && er() < 0.5){ const out = sh.tip.clone().sub(sh.p); out.y = 0; out.normalize();   // held up and out at the shoot's end, tipped towards the light
     const tilt = out.multiplyScalar(ern(0.5, 1.1)).add(up).normalize(); heads.push({ p: sh.tip, q: new THREE.Quaternion().setFromUnitVectors(up, tilt).multiply(new THREE.Quaternion().setFromAxisAngle(up, er() * TAU)), s: ern(0.85, 1.15), r: er(), r2: er(), vI: 0 }); }
   const subs = (r) => [[128, 128, 36]].concat([0, 1, 2, 3, 4].map(k => { const a = k * TAU / 5 + r() * 0.4; return [128 + Math.cos(a) * 70, 128 + Math.sin(a) * 70, 44]; }));
   const flTex = tex(256, 256, (g) => { g.clearRect(0, 0, 256, 256); g.fillStyle = '#9aa860'; g.fillRect(0, 0, 12, 12); const r = mkRng(41);   // (stalk colour in the corner)
@@ -3195,13 +3196,15 @@ const ELDERFLOW = (() => { const er = mkRng(8101), ern = (a, b) => a + (b - a) *
         const bh = bheads[i], vb = smooth(clamp((b * 1.25 - h.r) / 0.25)); M.compose(bh.p, bh.q, Sc.setScalar(bh.s * vb)); be.set(bh, M, col.copy(green).lerp(black, clamp(ripe * 1.3 - h.r2 * 0.3))); });
       fl.touch(); be.touch(); },
     lod(){ fl.lod(on.f); be.lod(on.b); } };
-})();
+}
+const ELDERFLOW = elderFlowers(ELDER.shoots, 8101);
 
 /* mock orange: in June the bush is covered in flowers, white and cup-shaped, four broad petals round a boss of yellow stamens,
    several together at the ends of the shoots, buds among them */
-const MOCK_B = blossomTrees({ name: 'mock orange', seed: 7409, bloom: [1.98, 2.06, 2.2, 2.3], flowers: 7, buds: 2, np: 4, rf: 0.04, ped: [0.03, 0.06], spread: [0.5, 1.1],
-  petal: { wk: 1.25, flush: 0 }, centre: { anther: '#f0d040', n: 34, disc: '#d8dc98' }, bud: { c0: '#ffffff', c1: '#dfe8cc' },
-  spots: (() => { const mr = mkRng(7411), up = new V3(0, 1, 0), out = []; for (const sh of MOCK.shoots) if (sh.v > 0.8 && mr() < 0.9) out.push({ p: sh.tip, dir: sh.tip.clone().sub(sh.p).normalize().multiplyScalar(0.8).add(up).normalize() }); return out; })() });
+const MOCK_BO = { name: 'mock orange', seed: 7409, bloom: [1.98, 2.06, 2.2, 2.3], flowers: 7, buds: 2, np: 4, rf: 0.04, ped: [0.03, 0.06], spread: [0.5, 1.1],
+  petal: { wk: 1.25, flush: 0 }, centre: { anther: '#f0d040', n: 34, disc: '#d8dc98' }, bud: { c0: '#ffffff', c1: '#dfe8cc' } };
+const mockSpots = (shoots, seed) => { const mr = mkRng(seed), up = new V3(0, 1, 0), out = []; for (const sh of shoots) if (sh.v > 0.8 && mr() < 0.9) out.push({ p: sh.tip, dir: sh.tip.clone().sub(sh.p).normalize().multiplyScalar(0.8).add(up).normalize() }); return out; };
+const MOCK_B = blossomTrees({ ...MOCK_BO, spots: mockSpots(MOCK.shoots, 7411) });
 
 /* red currants hang in strings from under the leaves: a dozen berries down a thin stalk, the biggest at the top; green, then glossy
    red, a string at a time */
@@ -6192,6 +6195,260 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   blockMats.push(cityMat);
 }
 
+/* ---------- the rest of our block, behind the workshops and behind our house, round dirt roads: old wooden houses of one storey and two,
+   painted whatever colour came to hand and long gone pale; brick houses and stores of one storey to three, run down, their windows broken,
+   boarded, bricked up, plaster patched on the brick; rows of garages gone to rust; and right behind our house, across the road from it, the
+   long garage under its one sloping roof. All from their own numbers (nothing else in the world moves) ---------- */
+{ const br = mkRng(19840611), R = (a, b) => a + (b - a) * br(), PK = a => a[br() * a.length | 0];
+  // the picture, 40 px to the metre: wooden bays 2.4 m wide and two storeys high (a window over a window, a door under a window, bare boards)
+  // in six paints; brick bays a storey high (a window, broken, boarded, bricked up; a door; bare wall; wall patched with plaster); garage
+  // fronts (a door in five paints gone to rust) and rusted corrugated iron. Where there is glass, the night's light behind it (in its own map)
+  const AW = 2048, AH = 512, PPM = 40, WOODC = ['#7a3a2a', '#b0893c', '#4c6446', '#6c7a86', '#5e4632', '#8e8a7a'], DOORC = ['#5d7a5a', '#4a6a8a', '#8a8a80', '#7a4a3a', '#6b6a3a'];
+  const UVR = (x, y, w, h) => [x / AW, 1 - (y + h) / AH, (x + w) / AW, 1 - y / AH];   // (a cell in uv: u0, v0 at its foot, u1, v1)
+  const WC = (c, k) => UVR((c * 3 + k) * 96, 0, 96, 264), BC = k => UVR(k * 120, 272, 120, 128), GC = k => UVR(k * 136, 408, 136, 100);
+  const hx = (h, k = 1) => { const n = parseInt(h.slice(1), 16), f = v => Math.min(255, v * k) | 0; return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`; };
+  const sp = (g, x, y, w, h, n, cols, r0 = 0.5, r1 = 1.6) => { for (let i = 0; i < n; i++){ g.fillStyle = cols[br() * cols.length | 0]; g.beginPath(); g.arc(x + br() * w, y + br() * h, R(r0, r1), 0, TAU); g.fill(); } };
+  const blots = (g, x, y, w, h, n, col, a, b) => { for (let i = 0; i < n; i++){ g.fillStyle = col(); g.beginPath(); g.ellipse(x + br() * w, y + br() * h, R(a, b), R(a, b) * 0.6, 0, 0, TAU); g.fill(); } };
+  const clip = (g, x, y, w, h, fn) => { g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); fn(); g.restore(); };
+  const GL = [];   // the glass: [x, y, w, h, panes across, transom at]
+  const atlas = tex(AW, AH, g => { g.fillStyle = '#5a5650'; g.fillRect(0, 0, AW, AH);
+    const win = (x, Y, W, H) => { g.fillStyle = '#1c262c'; g.fillRect(x, Y, W, H); g.fillStyle = 'rgba(160,180,190,.18)'; g.fillRect(x + 2, Y + 2, W * 0.45, H * 0.5); GL.push([x, Y, W, H]);
+      g.fillStyle = '#e2dccd'; g.fillRect(x + W / 2 - 1.5, Y + H * 0.27, 3, H * 0.73); g.fillRect(x, Y + H * 0.27 - 1.5, W, 3); g.fillRect(x, Y + H * 0.62, W, 2);   // the casements and the transom
+      if (br() < 0.5){ g.fillStyle = 'rgba(240,236,226,.5)'; g.fillRect(x + 2, Y + H * 0.29, W - 4, H * 0.32); } };   // net curtains
+    // the wooden bays
+    for (let c = 0; c < 6; c++) for (let k = 0; k < 3; k++){ const X = (c * 3 + k) * 96, base = WOODC[c], py = y => 264 - y * PPM;
+      clip(g, X, 0, 96, 264, () => {
+        for (let y = 0; y < 264; y += 8){ g.fillStyle = hx(base, R(0.86, 1.08)); g.fillRect(X, y, 96, 7); g.fillStyle = 'rgba(20,10,6,.45)'; g.fillRect(X, y + 7, 96, 1); }   // clapboards
+        blots(g, X, 0, 96, 264, 26, () => br() < 0.6 ? 'rgba(175,165,150,.24)' : 'rgba(30,20,14,.22)', 3, 14);   // paint flaked to grey wood; damp
+        { const gr = g.createLinearGradient(0, 150, 0, 264); gr.addColorStop(0, 'rgba(20,14,10,0)'); gr.addColorStop(1, 'rgba(20,14,10,.32)'); g.fillStyle = gr; g.fillRect(X, 150, 96, 114); }
+        g.fillStyle = hx(base, 0.55); g.fillRect(X, py(3.3), 96, 5); g.fillRect(X, py(6.3), 96, 7);   // the belt board (on one storey, its eaves board), the eaves board
+        g.fillStyle = '#7a756c'; g.fillRect(X, py(0.55), 96, 0.55 * PPM); sp(g, X, py(0.55), 96, 22, 140, ['rgba(40,38,34,.3)', 'rgba(220,215,200,.2)']);   // the plinth
+        const casing = (y0, h) => { const x = X + 29, W = 38, Y = py(y0 + h), H = h * PPM; g.fillStyle = '#d6cfbf'; g.fillRect(x - 6, Y - 10, W + 12, H + 16); g.fillRect(x - 9, Y - 14, W + 18, 5); g.fillStyle = '#bdb4a2'; g.fillRect(x - 8, Y + H + 3, W + 16, 4); win(x, Y, W, H); };
+        if (k === 0) casing(1.15, 1.45);
+        if (k === 1){ const x = X + 28, Y = py(2.65); g.fillStyle = '#2e140e'; g.fillRect(x - 4, Y - 6, 48, 2.1 * PPM + 6); g.fillStyle = PK(['#5a2a1c', '#3e4a3a', '#4a3a2a']); g.fillRect(x, Y, 40, 2.1 * PPM);
+          g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 2; g.strokeRect(x + 4, Y + 5, 14, 2.1 * PPM - 10); g.strokeRect(x + 22, Y + 5, 14, 2.1 * PPM - 10); g.fillStyle = '#7a756c'; g.fillRect(x - 6, py(0.55) - 2, 52, 4); }   // the door, its step
+        if (k < 2) casing(4.2, 1.45); }); }
+    // the brick bays
+    for (let k = 0; k < 7; k++){ const X = k * 120, Y0 = 272, py = y => Y0 + 128 - y * PPM;
+      clip(g, X, Y0, 120, 128, () => {
+        g.fillStyle = '#6e6458'; g.fillRect(X, Y0, 120, 128);   // the mortar, and the bricks, a quarter metre long and a course every 7.5 cm
+        for (let row = 0; row < 43; row++) for (let x = -(row % 2) * 5; x < 120; x += 10){ g.fillStyle = `hsl(${R(6, 18)},${R(30, 50)}%,${R(21, 35)}%)`; g.fillRect(X + x + 0.6, Y0 + row * 3 + 0.6, 8.8, 2.2); }
+        blots(g, X, Y0, 120, 128, 16, () => br() < 0.55 ? 'rgba(25,18,14,.22)' : 'rgba(215,205,185,.14)', 4, 22);   // soot, salts
+        const ox = X + 36, ow = 48, oy = py(2.55), oh = 1.65 * PPM;   // the window: 1.2 by 1.65 m, its sill at 0.9
+        if (k <= 3){ g.fillStyle = '#3e241c'; g.beginPath(); g.moveTo(ox - 5, oy + 5); g.quadraticCurveTo(ox + ow / 2, oy - 13, ox + ow + 5, oy + 5); g.lineTo(ox + ow + 5, oy + 8); g.lineTo(ox - 5, oy + 8); g.fill();   // a segmental arch of bricks on end
+          g.fillStyle = '#86817a'; g.fillRect(ox - 4, oy + oh, ow + 8, 4); }   // a concrete sill
+        if (k === 0){ g.fillStyle = '#a19c90'; g.fillRect(ox - 2, oy - 1, ow + 4, oh + 2); win(ox + 2, oy + 2, ow - 4, oh - 3); }
+        if (k === 1){ g.fillStyle = '#8a857a'; g.fillRect(ox - 2, oy - 1, ow + 4, oh + 2); g.fillStyle = '#20282a'; g.fillRect(ox + 2, oy + 2, ow - 4, oh - 3);   // broken: holes, cardboard, the paint gone from the frames
+          for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++){ const q = br(); g.fillStyle = q < 0.3 ? '#060606' : q < 0.5 ? '#8a7a5e' : q < 0.62 ? '#a8ac9e' : '#2a3436'; g.fillRect(ox + 3 + c * (ow - 6) / 2, oy + 3 + r * (oh - 5) / 3, (ow - 6) / 2 - 2, (oh - 5) / 3 - 2); }
+          g.strokeStyle = 'rgba(200,200,190,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(ox + 6, oy + 8); g.lineTo(ox + 18, oy + 22); g.lineTo(ox + 12, oy + 30); g.stroke(); }
+        if (k === 2){ for (let x = ox; x < ox + ow; x += 8){ g.fillStyle = hx('#6a5a44', R(0.75, 1.15)); g.fillRect(x, oy, 7, oh); }   // boarded
+          g.fillStyle = 'rgba(30,22,16,.6)'; for (const y of [oy + 10, oy + oh - 14]) g.fillRect(ox - 2, y, ow + 4, 5); }
+        if (k === 3){ const sil = br() < 0.5; g.fillStyle = '#4e463e'; g.fillRect(ox, oy, ow, oh);   // bricked up, in newer brick (silicate grey, or a brighter red)
+          for (let row = 0; row * 3 < oh; row++) for (let x = -(row % 2) * 5; x < ow; x += 10){ g.fillStyle = sil ? `hsl(40,${R(4, 10)}%,${R(58, 70)}%)` : `hsl(${R(4, 12)},${R(48, 62)}%,${R(34, 44)}%)`; g.fillRect(ox + Math.max(0, x) + 0.6, oy + row * 3 + 0.6, Math.min(8.8, ow - Math.max(0, x)), 2.2); } }
+        if (k === 4){ const dx = X + 34, dw = 52, dy = py(2.35), dh = 2.35 * PPM;   // a door under an arch, its planks' paint peeling
+          g.fillStyle = '#3e241c'; g.beginPath(); g.moveTo(dx - 5, dy + 6); g.quadraticCurveTo(dx + dw / 2, dy - 12, dx + dw + 5, dy + 6); g.lineTo(dx + dw + 5, dy + 9); g.lineTo(dx - 5, dy + 9); g.fill();
+          const dc = PK(['#3e5a44', '#5a3a2a', '#44505a']); for (let x = dx; x < dx + dw; x += 6.5){ g.fillStyle = hx(dc, R(0.8, 1.15)); g.fillRect(x, dy + 2, 6, dh - 2); }
+          blots(g, dx, dy, dw, dh, 14, () => 'rgba(150,140,120,.35)', 2, 7); g.fillStyle = '#1a1410'; g.fillRect(dx + dw - 12, dy + dh * 0.5, 4, 4); }
+        if (k === 6){ g.fillStyle = '#9a958a'; g.beginPath(); const cx = X + R(30, 90), cy = Y0 + R(30, 100); for (let a = 0; a < 18; a++){ const t = a / 18 * TAU, r = R(18, 34); g.lineTo(cx + Math.cos(t) * r * 1.3, cy + Math.sin(t) * r); } g.fill();   // what is left of the plaster
+          sp(g, cx - 40, cy - 34, 80, 68, 160, ['rgba(60,56,50,.3)', 'rgba(230,226,215,.25)']); }
+        if (br() < 0.45){ g.strokeStyle = 'rgba(20,14,10,.6)'; g.lineWidth = 1.2; g.beginPath(); let x = X + R(10, 110), y = Y0; g.moveTo(x, y); while (y < Y0 + 128){ x += R(-6, 6); y += R(4, 12); g.lineTo(x, y); } g.stroke(); }   // a crack
+        { const gr = g.createLinearGradient(0, Y0 + 90, 0, Y0 + 128); gr.addColorStop(0, 'rgba(20,16,12,0)'); gr.addColorStop(1, 'rgba(20,16,12,.25)'); g.fillStyle = gr; g.fillRect(X, Y0 + 90, 120, 38); } }); }
+    // the garages: a door in a rusted front, and the corrugated iron of their sides and backs
+    for (let k = 0; k < 6; k++){ const X = k * 136, Y0 = 408;
+      clip(g, X, Y0, 136, 100, () => {
+        for (let x = 0; x < 136; x += 6){ g.fillStyle = (x / 6) % 2 ? '#6e6a62' : '#58554f'; g.fillRect(X + x, Y0, 6, 100); }
+        blots(g, X, Y0, 136, 100, 40, () => `rgba(${130 + br() * 40 | 0},${58 + br() * 25 | 0},22,${R(0.3, 0.7)})`, 3, 18);
+        { const gr = g.createLinearGradient(0, Y0 + 100, 0, Y0 + 50); gr.addColorStop(0, 'rgba(105,50,18,.7)'); gr.addColorStop(1, 'rgba(105,50,18,0)'); g.fillStyle = gr; g.fillRect(X, Y0 + 50, 136, 50); }
+        if (k < 5){ const dx = X + 16, dw = 104, dy = Y0 + 16, dh = 84; g.fillStyle = DOORC[k]; g.fillRect(dx, dy, dw, dh);
+          blots(g, dx, dy + 10, dw, dh - 10, 50, () => `rgba(${125 + br() * 40 | 0},${55 + br() * 25 | 0},20,${R(0.35, 0.8)})`, 2, 12);
+          for (let i = 0; i < 18; i++){ const x = dx + br() * dw, y = dy + br() * dh * 0.6, gr = g.createLinearGradient(0, y, 0, y + 30); gr.addColorStop(0, 'rgba(120,58,20,.55)'); gr.addColorStop(1, 'rgba(120,58,20,0)'); g.fillStyle = gr; g.fillRect(x, y, R(1.5, 4), 30); }
+          g.strokeStyle = 'rgba(28,22,18,.85)'; g.lineWidth = 3; g.strokeRect(dx, dy, dw, dh); g.lineWidth = 2; g.beginPath(); g.moveTo(dx + dw / 2, dy); g.lineTo(dx + dw / 2, dy + dh); g.stroke();
+          g.fillStyle = '#2a2420'; g.fillRect(dx + dw / 2 - 8, dy + dh * 0.5, 5, 9); } }); } });
+  const atlasEm = tex(AW, AH, g => { g.fillStyle = '#000'; g.fillRect(0, 0, AW, AH);
+    for (const [x, Y, W, H] of GL){ g.fillStyle = PK(['#ffcf8a', '#ffd9a0', '#f6c070', '#ffe2b8', '#ffc070']); g.fillRect(x, Y, W, H);
+      g.fillStyle = '#000'; g.fillRect(x + W / 2 - 1.5, Y + H * 0.27, 3, H * 0.73); g.fillRect(x, Y + H * 0.27 - 1.5, W, 3); g.fillRect(x, Y + H * 0.62, W, 2); } });
+  // the meshes' parts, in the world: walls (the picture), roofs (tin, weathered, each its own colour), the garages' flat roofs, the roads
+  const A = { p: [], n: [], uv: [], c: [], l: [], i: [] }, RF = { p: [], n: [], uv: [], c: [], i: [] }, GR = { p: [], n: [], i: [] }, RD = { p: [], n: [], uv: [], i: [] }, K = { p: [], n: [], uv: [], c: [], i: [] };
+  let F = null;   // the frame of what is being built: its centre, which way it faces (its front +z)
+  const W = (x, y, z) => [F.cx + x * F.co + z * F.si, y, F.cz - x * F.si + z * F.co], NW = (x, y, z) => [x * F.co + z * F.si, y, -x * F.si + z * F.co];
+  const poly = (B, pts, n, uvs, tint, lit) => { const o = B.p.length / 3, nn = NW(...n), w = pts.map(p => W(...p));
+    for (let k = 0; k < w.length; k++){ B.p.push(...w[k]); B.n.push(...nn); if (B.uv) B.uv.push(...uvs[k]); if (B.c) B.c.push(...tint); if (B.l) B.l.push(lit); }
+    const a = w[0], b = w[1], c = w[2], ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const flip = (uy * vz - uz * vy) * nn[0] + (uz * vx - ux * vz) * nn[1] + (ux * vy - uy * vx) * nn[2] < 0;   // (wound to face n)
+    for (let k = 1; k < w.length - 1; k++) flip ? B.i.push(o, o + k + 1, o + k) : B.i.push(o, o + k, o + k + 1); };
+  const cellUV = (cell, f0, f1, g0, g1) => { const u = t => cell[0] + (cell[2] - cell[0]) * t, v = t => cell[1] + (cell[3] - cell[1]) * t; return [[u(f0), v(g0)], [u(f1), v(g0)], [u(f1), v(g1)], [u(f0), v(g1)]]; };   // (a part of a cell: across f0..f1, up g0..g1)
+  const ROOFU = [1, 0], DARK = WC(4, 2);
+  // a gabled roof over walls len by 2·hz, Hw high: tin a hand thick on boards, out over the eaves and the gables; boarded under, a fascia, barge boards
+  const gable = (len, hz, Hw, rise, ov, ox, t, col) => { const yT = u => Hw + t + rise * (1 - Math.abs(u) / hz), yB = u => yT(u) - t, xa = -len / 2 - ox, xb = len / 2 + ox, e = hz + ov, rc = [col.r, col.g, col.b], dk = [0.5, 0.5, 0.5];
+    for (const s of [1, -1]){ const n = [0, hz, s * rise], l = Math.hypot(hz, rise); n[1] /= l; n[2] /= l;
+      poly(RF, [[xa, yT(e), s * e], [xb, yT(e), s * e], [xb, yT(0), 0], [xa, yT(0), 0]], n, [ROOFU, ROOFU, ROOFU, ROOFU], rc);
+      poly(A, [[xa, yB(e), s * e], [xb, yB(e), s * e], [xb, yB(0), 0], [xa, yB(0), 0]], [0, -n[1], -n[2]], cellUV(DARK, 0, 1, 0.56, 0.9), dk, 0);
+      poly(A, [[xa, yB(e), s * e], [xb, yB(e), s * e], [xb, yT(e), s * e], [xa, yT(e), s * e]], [0, 0, s], cellUV(DARK, 0, 1, 0.5, 0.52), dk, 0);
+      for (const x of [xa, xb]) poly(A, [[x, yB(e), s * e], [x, yB(0), 0], [x, yT(0), 0], [x, yT(e), s * e]], [Math.sign(x), 0, 0], cellUV(DARK, 0, 1, 0.5, 0.52), dk, 0); }
+    return yT; };
+  // the gable ends, in strips no wider than a cell: the wall in its rows (g0..g1 of the cell), the gable over it (gv: a height over the eaves to v)
+  const ends = (len, hz, Hw, rise, cw, rows, wallCell, gc, gv, tint) => { const ns = Math.max(1, Math.round(2 * hz / cw)), top = z => Hw + rise * (1 - Math.abs(z) / hz);
+    for (const s of [1, -1]){ const x = s * len / 2;
+      for (let j = 0; j < ns; j++){ const za = s * (hz - j * 2 * hz / ns), zb = s * (hz - (j + 1) * 2 * hz / ns), u = z => gc[0] + (gc[2] - gc[0]) * (z - za) / (zb - za);
+        for (const [y0, y1, g0, g1] of rows) poly(A, [[x, y0, za], [x, y0, zb], [x, y1, zb], [x, y1, za]], [s, 0, 0], cellUV(wallCell(), 0, 1, g0, g1), tint, 0);
+        const pts = [[x, Hw, za], [x, Hw, zb], [x, top(zb), zb]]; if (Math.min(za, zb) < -1e-6 && Math.max(za, zb) > 1e-6) pts.push([x, Hw + rise, 0]); pts.push([x, top(za), za]);
+        poly(A, pts, [s, 0, 0], pts.map(p => [u(p[2]), gv(gc, p[1] - Hw)]), tint, 0); } } };
+  const chim = (lx, lz, yRoof, yTop, w = 0.3) => { chimneyInto(K, W, NW, lx, lz, yRoof - 0.2, yTop, [R(0.85, 1), R(0.8, 0.92), R(0.74, 0.86)], true, w, w); CHIMNEYS.push(new V3(...W(lx, yTop + 0.1, lz))); };
+  const at = (cx, cz, ry) => { F = { cx, cz, co: Math.cos(ry), si: Math.sin(ry) }; }, FOOT = [], ROADS = [], WOODS = [];
+  const foot = (hx, hz) => { const a = W(-hx, 0, -hz), b = W(hx, 0, hz); FOOT.push([Math.min(a[0], b[0]), Math.max(a[0], b[0]), Math.min(a[2], b[2]), Math.max(a[2], b[2])]); };   // (where a building stands, and its drip line: no grass)
+  // a wooden house: its long sides in bays of the picture (a door in the front), its gable ends bare boards, a chimney by the ridge
+  const wood = (cx, cz, ry, len, dep, st, c) => { at(cx, cz, ry); foot(len / 2 + 0.35, dep / 2 + 0.45); const Hw = st === 1 ? 3.3 : 6.3, hz = dep / 2, nb = Math.max(2, Math.round(len / 2.4)), bw = len / nb, door = 1 + (br() * (nb - 2) | 0), k_ = R(0.84, 1.02), tint = [k_, k_, k_];
+    for (const s of [1, -1]) for (let i = 0; i < nb; i++){ const xa = s * (-len / 2 + i * bw), xb = s * (-len / 2 + (i + 1) * bw), kind = s > 0 && i === door ? 1 : 0;
+      for (let f = 0; f < st; f++){ const y0 = f * 3.3, y1 = f ? Hw : 3.3; poly(A, [[xa, y0, s * hz], [xb, y0, s * hz], [xb, y1, s * hz], [xa, y1, s * hz]], [0, 0, s], cellUV(WC(c, kind), 0, 1, y0 / 6.6, y1 / 6.6), tint, kind && !f ? 0 : br() < 0.35 ? 1 : 0); } }
+    const rise = Math.min(2.7, dep * R(0.27, 0.34)), cp = WC(c, 2);
+    ends(len, hz, Hw, rise, 2.4, st === 1 ? [[0, 3.3, 0, 0.5]] : [[0, 3.3, 0, 0.5], [3.3, Hw, 0.5, Hw / 6.6]], () => cp, cp, (c, h) => c[1] + (c[3] - c[1]) * (3.4 + h) / 6.6, tint);   // (the gable's boards from over the belt)
+    const t = 0.13, yT = gable(len, hz, Hw, rise, 0.35, 0.3, t, C(PK(['#5a5c5a', '#6e3e2c', '#4e5a52', '#646058', '#7a4a32'])));
+    const lx = R(-len / 2 + 1.5, len / 2 - 1.5), lz = R(-0.6, 0.6); chim(lx, lz, yT(Math.abs(lz) + 0.3), Math.round((Hw + t + rise + 0.6) * 14) / 14);
+    EAVES.push({ cx, cz, w: len + 0.6, d: dep, ry, h: Hw - rise * 0.35 / hz + 0.02, zf: hz + 0.35, pk: rise }); WOODS.push([cx, cz, ry, len, dep]); };
+  // a brick house or store, run down: its windows whole, broken, boarded or bricked up, a door in the front; its roof low, its chimneys several
+  const brick = (cx, cz, ry, len, dep, st) => { at(cx, cz, ry); foot(len / 2 + 0.25, dep / 2 + 0.3); const Hs = 3.2, Hw = st * Hs, hz = dep / 2, nb = Math.max(2, Math.round(len / 3)), bw = len / nb, door = br() * nb | 0, k_ = R(0.78, 1), tint = [k_, k_ * R(0.92, 1), k_ * R(0.86, 1)];
+    for (const s of [1, -1]) for (let i = 0; i < nb; i++){ const xa = s * (-len / 2 + i * bw), xb = s * (-len / 2 + (i + 1) * bw);
+      for (let f = 0; f < st; f++){ const q = br(), kind = s > 0 && !f && i === door ? 4 : q < (s > 0 ? 0.5 : 0.35) ? 0 : q < (s > 0 ? 0.67 : 0.55) ? 1 : q < (s > 0 ? 0.82 : 0.75) ? 2 : 3;
+        poly(A, [[xa, f * Hs, s * hz], [xb, f * Hs, s * hz], [xb, (f + 1) * Hs, s * hz], [xa, (f + 1) * Hs, s * hz]], [0, 0, s], cellUV(BC(kind), 0, 1, 0, 1), tint, kind === 0 && br() < 0.3 ? 1 : 0); } }
+    const rise = dep * R(0.17, 0.24);
+    ends(len, hz, Hw, rise, 3, Array.from({ length: st }, (_, f) => [f * Hs, (f + 1) * Hs, 0, 1]), () => BC(br() < 0.3 ? 6 : 5), BC(5), (c, h) => c[1] + (c[3] - c[1]) * Math.min(1, h / 3.2), tint);
+    const t = 0.15, yT = gable(len, hz, Hw, rise, 0.25, 0.2, t, C(PK(['#6e3e2c', '#7a4a32', '#5c5e5c', '#6a6a66', '#4e504e', '#7a5a46'])));
+    const nc = st === 1 ? 1 + (br() * 2 | 0) : 2 + (br() * st | 0), side = br() < 0.5 ? 1 : -1;   // (the chimneys in a row along one side of the ridge, as on the roofs over the yards)
+    for (let k = 0; k < nc; k++){ const lx = -len / 2 + len * (k + 0.5) / nc + R(-0.6, 0.6), lz = side * R(0.5, 1.1); chim(lx, lz, yT(Math.abs(lz) + 0.4), Math.round((Hw + t + rise + 0.55) * 14) / 14, 0.36); }
+    EAVES.push({ cx, cz, w: len + 0.4, d: dep, ry, h: Hw - rise * 0.25 / hz + 0.02, zf: hz + 0.25, pk: rise }); };
+  // a row of garages, their doors in front: 3.4 m apiece, 6 deep, the roof falling a little to the back (felt or tin; or, on the long one,
+  // rusted tin in sheets under its one slope, higher over the doors)
+  const garages = (cx, cz, ry, n, hf = 2.55, hb = 2.25, rust = null) => { at(cx, cz, ry); foot(n * 1.7 + 0.2, 3.25); const len = n * 3.4, hz = 3, hy = z => hb + (hf - hb) * (z + hz) / (2 * hz), tint = [1, 1, 1];
+    for (let i = 0; i < n; i++){ const xa = -len / 2 + i * 3.4, xb = xa + 3.4;
+      const hd = Math.min(hf, 2.5); poly(A, [[xa, 0, hz], [xb, 0, hz], [xb, hd, hz], [xa, hd, hz]], [0, 0, 1], cellUV(GC(br() * 5 | 0), 0, 1, 0, hd / 2.5), tint, 0);
+      if (hf > hd) poly(A, [[xa, hd, hz], [xb, hd, hz], [xb, hf, hz], [xa, hf, hz]], [0, 0, 1], cellUV(GC(5), 0, 1, 0.55, 0.55 + (hf - hd) / 2.5), tint, 0);   // (over a tall front's doors, more of the iron)
+      poly(A, [[xb, 0, -hz], [xa, 0, -hz], [xa, hb, -hz], [xb, hb, -hz]], [0, 0, -1], cellUV(GC(5), 0, 1, 0, hb / 2.5), tint, 0); }
+    for (const s of [1, -1]){ const x = s * len / 2; for (const [za, zb] of [[hz, 0], [0, -hz]]) poly(A, [[x, 0, s * za], [x, 0, s * zb], [x, hy(s * zb), s * zb], [x, hy(s * za), s * za]], [s, 0, 0], cellUV(GC(5), 0, 0.88, 0, 1), tint, 0); }
+    const o = 0.18, t = 0.1, xa = -len / 2 - o, xb = len / 2 + o, za = hz + o, zb = -hz - o, yt = z => hy(z) + t, sl = (hf - hb) / (2 * hz), nl = Math.hypot(1, sl), nrm = [0, 1 / nl, -sl / nl];   // (falling to the back: facing up and back)
+    if (rust){ const rc = [rust.r, rust.g, rust.b]; poly(RF, [[xa, yt(za), za], [xb, yt(za), za], [xb, yt(zb), zb], [xa, yt(zb), zb]], nrm, [ROOFU, ROOFU, ROOFU, ROOFU], rc);
+      poly(A, [[xa, hy(za), za], [xb, hy(za), za], [xb, hy(zb), zb], [xa, hy(zb), zb]], [0, -1, 0], cellUV(DARK, 0, 1, 0.5, 0.9), [0.45, 0.45, 0.45], 0); }
+    else { poly(GR, [[xa, yt(za), za], [xb, yt(za), za], [xb, yt(zb), zb], [xa, yt(zb), zb]], nrm); poly(GR, [[xa, hy(za), za], [xb, hy(za), za], [xb, hy(zb), zb], [xa, hy(zb), zb]], [0, -1, 0]); }
+    for (const [z, s] of [[za, 1], [zb, -1]]) poly(rust ? RF : GR, [[xa, hy(z), z], [xb, hy(z), z], [xb, yt(z), z], [xa, yt(z), z]], [0, 0, s], [ROOFU, ROOFU, ROOFU, ROOFU], rust ? [rust.r * 0.8, rust.g * 0.8, rust.b * 0.8] : null);
+    for (const x of [xa, xb]) poly(rust ? RF : GR, [[x, hy(za), za], [x, hy(zb), zb], [x, yt(zb), zb], [x, yt(za), za]], [Math.sign(x), 0, 0], [ROOFU, ROOFU, ROOFU, ROOFU], rust ? [rust.r * 0.8, rust.g * 0.8, rust.b * 0.8] : null); };
+  // dirt roads, rutted, their edges ragged into the grass
+  const road = (x0, z0, x1, z1, w, y) => { const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, px = -uz, pz = ux, n = Math.ceil(L / 1.5), o = RD.p.length / 3; ROADS.push([x0, z0, ux, uz, L, w]);
+    for (let k = 0; k <= n; k++){ const t = k / n * L, hl = w / 2 + R(-0.25, 0.25), hr = w / 2 + R(-0.25, 0.25), cx = x0 + ux * t, cz = z0 + uz * t;
+      RD.p.push(cx - px * hl, y, cz - pz * hl, cx + px * hr, y, cz + pz * hr); RD.n.push(0, 1, 0, 0, 1, 0); RD.uv.push(0.5 - hl / w, t / 2.4, 0.5 + hr / w, t / 2.4); }
+    for (let k = 0; k < n; k++){ const a = o + k * 2; RD.i.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } };   // (facing up)
+  road(-61, -165.5, 71, -165.5, 4.2, 0.012);   // behind our house, along the back of the lot
+  road(-48, -165.5, -48, -61, 3.6, 0.016);     // and up through the lots either side, behind the workshops
+  road(52, -165.5, 52, -61, 3.6, 0.016);
+  // behind the western workshops: by the road, both sides
+  wood(-55, -73, Math.PI / 2, 14, 8, 2, 0); garages(-55, -100, Math.PI / 2, 6); brick(-56, -130, Math.PI / 2, 24, 11, 3); wood(-55, -152, Math.PI / 2, 11, 7, 1, 2);
+  wood(-41, -70, -Math.PI / 2, 10, 7, 1, 1); brick(-40.5, -92, -Math.PI / 2, 16, 8, 1); wood(-40.5, -118, -Math.PI / 2, 13, 8, 2, 3); garages(-41, -143, -Math.PI / 2, 3);
+  // behind the eastern ones
+  brick(43, -72, Math.PI / 2, 20, 10, 2); wood(44.5, -97, Math.PI / 2, 11, 7, 1, 5); garages(45, -127, Math.PI / 2, 7); wood(44, -153, Math.PI / 2, 12, 8, 2, 4);
+  wood(60, -71, -Math.PI / 2, 13, 8, 2, 2); brick(63, -105, -Math.PI / 2, 30, 12, 3); wood(59.5, -137, -Math.PI / 2, 10, 7, 1, 0); garages(58, -155, -Math.PI / 2, 4);
+  // behind our house: the long garage right across the road from it, its doors to us; beyond it, more
+  garages(0, -171, 0, 10, 3.0, 2.35, C('#6e4030'));
+  brick(-27, -175, 0, 12, 10, 2); wood(27, -174, 0, 12, 8, 2, 1); brick(-50.5, -176, 0, 21, 9, 1); wood(43, -175, 0, 10, 7, 1, 3); brick(63, -178, 0, 16, 12, 3); wood(-7, -186, 0, 10, 7, 1, 5);
+  // into the scene
+  const geo = (B, uv, col, lit) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3));
+    if (uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); if (col) g.setAttribute('color', new THREE.Float32BufferAttribute(B.c, 3)); if (lit) g.setAttribute('aLit', new THREE.Float32BufferAttribute(B.l, 1)); g.setIndex(B.i); return g; };
+  const wallMat = shaderChain(snowify(new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlasEm, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: 0.95 }), 0.5), 'backLit', sh => {   // (at night a window lit here and there)
+    sh.vertexShader = 'attribute float aLit;\nvarying float vBLit;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBLit = aLit;');
+    sh.fragmentShader = 'varying float vBLit;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vBLit;'); });
+  blockMats.push(wallMat);
+  const roadT = dirtTex.clone(); roadT.repeat.set(1, 1); roadT.needsUpdate = true;
+  const meshes = [new THREE.Mesh(geo(A, true, true, true), wallMat), new THREE.Mesh(geo(RF, true, true), wetRoof(roofWear(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)))),
+    new THREE.Mesh(geo(GR), tarMat), chimneyMesh(K)];
+  for (const m of meshes){ m.castShadow = m.receiveShadow = true; scene.add(m); }
+  const rm = new THREE.Mesh(geo(RD, true), snowify(new THREE.MeshStandardMaterial({ map: roadT, color: '#d8ccb8', roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 0.9)); rm.receiveShadow = true; scene.add(rm);
+
+  // and everywhere else the grass, in clumps, thick along the roads' verges and on the hump between their ruts; dandelions scattered through
+  // it in loose drifts: the yard's own grass and dandelions, only sparser (seen from the workshops' roofs, not walked through), each plant's
+  // leaves one rosette, its flowers simpler
+  const ZONES = [[-62.5, -34.6, -193.5, -58.6], [34.6, 72.5, -193.5, -58.6], [-34.6, 34.6, -193.5, -162.4], [-34.6, -18.4, -162.4, -150.3], [18.4, 34.6, -162.4, -150.3]];   // (the lots: all green but for the buildings and roads)
+  const inFoot = (x, z) => FOOT.some(([a, b, c, d]) => x > a && x < b && z > c && z < d);
+  const roadAt = (x, z) => { let r = -1; for (const [x0, z0, ux, uz, L, w] of ROADS){ const dx = x - x0, dz = z - z0, t = dx * ux + dz * uz, d = Math.abs(dz * ux - dx * uz) / (w / 2 + 0.1); if (t > -w / 2 && t < L + w / 2 && d < 1 && (r < 0 || d < r)) r = d; } return r; };   // (0 a road's middle, to 1 its edge; -1 off them)
+  { const lr = mkRng(19840612), ln = (a, b) => a + (b - a) * lr();
+    const tuft = (x, z, k) => { if (!inFoot(x, z)) LTUFTS.push({ x, z, s: k * ln(0.55, 1.25), yaw: ln(0, TAU), v: ln(0.8, 1.15), r: lr(), dry: lr() }); };
+    for (const [x0, x1, z0, z1] of ZONES) for (let i = 0, n = (x1 - x0) * (z1 - z0) * 3; i < n; i++){ const x = ln(x0, x1), z = ln(z0, z1), clump = fbm(x * 0.35 + 3, z * 0.35 - 7), r = roadAt(x, z);
+      if (lr() < clump * 1.5 - 0.15 && (r < 0 || (r < 0.22 && lr() < 0.3))) tuft(x, z, (0.55 + clump * 0.7) * (r < 0 ? 1.2 : 0.6)); }
+    for (const [x0, z0, ux, uz, L, w] of ROADS) for (let t = 0; t < L; t += 0.3) for (const sd of [-1, 1]){ const o = w / 2 + ln(-0.2, 1.3);   // the verges
+      const x = x0 + ux * t - uz * sd * o, z = z0 + uz * t + ux * sd * o; if (roadAt(x, z) < 0) tuft(x, z, o < w / 2 + 0.1 ? 0.6 : 1.15); }
+    for (const [x0, x1, z0, z1] of ZONES) for (let i = 0, n = (x1 - x0) * (z1 - z0) * 3; i < n; i++){ const x = ln(x0, x1), z = ln(z0, z1), k = fbm(x * 0.22 - 5, z * 0.22 + 9);
+      if (lr() > (k * 1.1 - 0.1) * 0.45 || inFoot(x, z) || roadAt(x, z) >= 0) continue;
+      const pl = { x, z, j: ln(-0.07, 0.07), yaw: ln(0, TAU), s: ln(0.7, 1.25), heads: [] }; LDANDS.push(pl);
+      for (let h = 0, nh = 1 + (lr() * lr() * 3 | 0); h < nh; h++){ const a = ln(0, TAU), lean = ln(0.05, 0.35);
+        pl.heads.push({ dir: new V3(Math.sin(a) * lean, 1, Math.cos(a) * lean).normalize(), h: ln(0.13, 0.26), j: ln(-0.035, 0.035), blow: lr(), yaw: ln(0, TAU) }); } }
+    LTUFTS.mesh = new THREE.InstancedMesh(TUFTS.geo, TUFTS.mat, Math.max(1, LTUFTS.length)); LTUFTS.mesh.count = LTUFTS.length; LTUFTS.mesh.receiveShadow = true; LTUFTS.mesh.frustumCulled = false; LTUFTS.mesh.setColorAt(0, new THREE.Color()); scene.add(LTUFTS.mesh);
+    // the dandelions' parts: a yellow head (a shallow dome of florets, deep orange at its heart), the yard's clocks and stalks; the rosette
+    const head = new THREE.CircleGeometry(0.021, 8).rotateX(-Math.PI / 2), hp = head.attributes.position, hc = new Float32Array(hp.count * 3), cy = new THREE.Color();
+    for (let i = 0; i < hp.count; i++){ const r = Math.hypot(hp.getX(i), hp.getZ(i)) / 0.021; hp.setY(i, 0.006 * (1 - r * r)); cy.set('#e89c00').lerp(new THREE.Color('#ffdc2e'), r).toArray(hc, i * 3); }
+    head.setAttribute('color', new THREE.BufferAttribute(hc, 3)); head.deleteAttribute('uv'); head.computeVertexNormals();
+    const leaf = new THREE.PlaneGeometry(1, 1, 1, 2).translate(0, 0.5, 0), lp = leaf.attributes.position; for (let i = 0; i < lp.count; i++){ const t = lp.getY(i); lp.setXYZ(i, lp.getX(i), 0.22 * t * t + 0.02, t); }
+    const rosette = mergeGeometries(Array.from({ length: 6 }, (_, k) => leaf.clone().scale(0.05, 0.06, 0.13 + 0.05 * (k % 3)).rotateY(k / 6 * TAU + (k % 2) * 0.3))); rosette.computeVertexNormals();
+    const nH = LDANDS.reduce((a, p) => a + p.heads.length, 0), mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); m.count = n; m.frustumCulled = false; scene.add(m); return m; };   // (no shadows: too small to see so far)
+    LDANDS.rosette = true; LDANDS.yellow = mk(head, DANDS.yellow.material, nH); LDANDS.clocks = mk(DANDS.clocks.geometry.clone(), DANDS.clocks.material, nH); LDANDS.stems = mk(DANDS.stems.geometry.clone(), DANDS.stems.material, nH);
+    { const B = []; for (const p of LDANDS) for (const H of p.heads) B.push([p.x, 0, p.z, H.yaw * 3.1 + p.x * 0.9 + p.z * 0.4]); for (const m of [LDANDS.yellow, LDANDS.clocks, LDANDS.stems]) bendBases(m, B); }
+    LDANDS.leaves = mk(rosette, DANDS.leaves.material, LDANDS.length); LDANDS.leaves.setColorAt(0, new THREE.Color());
+    for (const p of LDANDS) p.lq = [new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), p.yaw)]; }
+
+  // and bushes gone wild in the spaces between, as in the gardens: lilacs, and hazel, elder and mock orange; thick along the lots' back fences
+  // and under the workshops' back walls, in clumps in the gaps between the buildings, a lilac or two by each wooden house. The lilacs of
+  // every colour: the common purple, pale, white, a deep violet, a pinkish mauve, a bluish one. Bare twigs in winter. Own random numbers
+  { const ur = mkRng(19840613), un = (a, b) => a + (b - a) * ur(), BU = [], up = new V3(0, 1, 0);
+    const footD = (x, z) => FOOT.reduce((m, [a, b, c, d]) => Math.min(m, Math.hypot(Math.max(a - x, 0, x - b), Math.max(c - z, 0, z - d))), 1e9);
+    const roadD = (x, z) => ROADS.reduce((m, [x0, z0, ux, uz, L, w]) => { const dx = x - x0, dz = z - z0, t = clamp(dx * ux + dz * uz, 0, L); return Math.min(m, Math.hypot(dx - ux * t, dz - uz * t) - w / 2); }, 1e9);   // (from the nearest road's edge)
+    const inLots = (x, z, r) => [[-r, -r], [r, -r], [r, r], [-r, r]].every(([dx, dz]) => ZONES.some(([a, b, c, d]) => x + dx > a && x + dx < b && z + dz > c && z + dz < d));
+    const WILDK = ['hazel', 'hazel', 'elder', 'elder', 'mock'], LCOL = [0.28, 0.1, 0.2, 0.17, 0.15, 0.1];
+    const bush = (x, z, pLilac, s0, s1) => { const lilac = ur() < pLilac, kind = lilac ? 'lilac' : WILDK[ur() * WILDK.length | 0], s = un(s0, s1);
+      const R = (lilac ? 0.84 : 0.68) * s, rx = kind === 'mock' ? 1.12 : 1.05, ry = lilac ? un(1.08, 1.25) : kind === 'hazel' ? 1.1 : kind === 'mock' ? 0.9 : 1.0, Rx = R * rx;
+      if (!inLots(x, z, Rx * 0.7) || footD(x, z) < Rx * 0.8 || roadD(x, z) < Rx * 0.9 + 0.5 || BU.some(b => Math.hypot(b.p.x - x, b.p.z - z) < 0.72 * (b.R * b.rx + Rx))) return;
+      let col = 0; if (lilac){ let q = ur(); while (col < LCOL.length - 1 && (q -= LCOL[col]) > 0) col++; }
+      BU.push({ kind, p: new V3(x, R * ry * 0.9 + 0.1, z), R, rx, ry, col }); };
+    // along the fences and the workshops' walls, with gaps
+    for (const [x0, z0, x1, z1, nx, nz] of [[-61.6, -59.6, -61.6, -192.6, 1, 0], [71.6, -59.6, 71.6, -192.6, -1, 0], [-61.6, -192.6, 71.6, -192.6, 0, 1], [-35.6, -59.6, -35.6, -149.6, -1, 0], [35.6, -59.6, 35.6, -149.6, 1, 0],
+      [-61.6, -59.6, -35.6, -59.6, 0, -1], [35.6, -59.6, 71.6, -59.6, 0, -1], [-33.8, -150.6, -18.8, -150.6, 0, -1], [18.8, -150.6, 33.8, -150.6, 0, -1]]){
+      const L = Math.hypot(x1 - x0, z1 - z0); for (let t = un(0, 2); t < L; t += un(2.2, 4)){ if (ur() < 0.3) continue; const o = un(0, 1.3), k = t / L; bush(x0 + (x1 - x0) * k + nx * o, z0 + (z1 - z0) * k + nz * o, 0.3, 1.1, 2.0); } }
+    // a lilac or two by each wooden house: at its gable ends, at its corners, by its back wall
+    for (const [cx, cz, ry, len, dep] of WOODS){ const co = Math.cos(ry), si = Math.sin(ry), Wd = (x, z) => [cx + x * co + z * si, cz - x * si + z * co];
+      for (let k = 0, n = 2 + (ur() * 2 | 0); k < n; k++){ const q = ur(), sd = ur() < 0.5 ? -1 : 1, [x, z] = q < 0.45 ? Wd(sd * (len / 2 + un(1.2, 2.2)), un(-dep / 2, dep / 2)) : q < 0.75 ? Wd(un(-len / 2, len / 2), -(dep / 2 + un(1.4, 2.4))) : Wd(sd * (len / 2 - un(0, 1.5)), dep / 2 + un(1.3, 2));
+        bush(x, z, 0.85, 1.1, 1.8); } }
+    // and clumps in the gaps, where the ground was let go
+    for (const [x0, x1, z0, z1] of ZONES) for (let i = 0, n = (x1 - x0) * (z1 - z0) * 0.06; i < n; i++){ const x = un(x0, x1), z = un(z0, z1); if (ur() < fbm(x * 0.12 + 11, z * 0.12 - 4) * 1.6 - 0.35) bush(x, z, 0.35, 1.0, 1.9); }
+    const by = { lilac: [], hazel: [], elder: [], mock: [] }; for (const b of BU) by[b.kind].push(b);
+    const core = new THREE.IcosahedronGeometry(1, 2); { const p = core.attributes.position, v = new V3();   // (a coarser core than the gardens': seen from further)
+      for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); const k = 1 + 0.1 * Math.sin(v.x * 5.1 + v.y * 2.3) * Math.sin(v.z * 4.7 - v.y * 1.9) + 0.06 * Math.sin(v.x * 11 + v.z * 9); p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
+      core.computeVertexNormals(); }
+    const set = (B, seed, dens, list) => leafyBushes({ ...B.opts, seed, like: B, coreGeo: core, bushes: list.map(b => ({ p: b.p, R: b.R, rx: b.rx, ry: b.ry, n: Math.round(dens * b.R * b.R), k: 1.06 })) });   // (fewer shoots than the gardens', a little bigger)
+    const LL = set(LILAC, 7719, 68, by.lilac), HL = set(HAZEL, 6113, 72, by.hazel), EL_ = set(ELDER, 6217, 78, by.elder), ML = set(MOCK, 6319, 92, by.mock);
+    LEAFY.push(LL, HL, EL_, ML, elderFlowers(EL_.shoots, 8111), blossomTrees({ ...MOCK_BO, seed: 7419, spots: mockSpots(ML.shoots, 7423) }));
+    // the lilacs' blossom: the gardens' panicles, coarser (fewer florets, bigger) and more of them, old bushes covered in it; each bush its own colour
+    { const pr = mkRng(5317), prn = (a, b) => a + (b - a) * pr(), P = [], N = [], U = [], CL = [], NF = 36;
+      for (let i = 0; i < NF; i++){ const h = Math.pow(pr(), 0.85), a = pr() * TAU, rad = (0.11 * Math.pow(1 - h, 0.7) + 0.012) * prn(0.6, 1.05);
+        const c = new V3(Math.cos(a) * rad, h * 0.3, Math.sin(a) * rad), n = new V3(Math.cos(a), 0.55 + h * 0.6, Math.sin(a)).add(new V3(prn(-0.5, 0.5), prn(-0.3, 0.3), prn(-0.5, 0.5))).normalize();
+        const t1 = new V3().crossVectors(n, Math.abs(n.y) > 0.9 ? new V3(1, 0, 0) : up).normalize(), t2 = new V3().crossVectors(n, t1), sz = 0.052 * (1 - 0.35 * h) * prn(0.8, 1.2);
+        const b = (h > 0.85 ? 0.7 : 0.85 + 0.2 * h) * prn(0.88, 1.1), col = [b * prn(0.96, 1.04), b * prn(0.9, 1), b];
+        for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]){ P.push(c.x + (t1.x * (u - 0.5) + t2.x * (v - 0.5)) * 2 * sz, c.y + (t1.y * (u - 0.5) + t2.y * (v - 0.5)) * 2 * sz, c.z + (t1.z * (u - 0.5) + t2.z * (v - 0.5)) * 2 * sz); N.push(n.x, n.y, n.z); U.push(u, v); CL.push(...col); } }
+      const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); pg.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+      pg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); pg.setAttribute('color', new THREE.Float32BufferAttribute(CL, 3));
+      const PAL = [['#a77ad8', '#b48ae0', '#9a6ad0', '#bb93e4'], ['#c4a2e6', '#b892df', '#cfb0ec'], ['#fffaf0', '#fbf4e4', '#fff6e8'], ['#6e3c9c', '#7a46a8', '#64348e', '#7440a0'], ['#c87ec2', '#d48ccc', '#bc72b8'], ['#9c9ee6', '#a8aaec', '#9094dc']], LP = [];
+      for (const L of by.lilac){ const pal = PAL[L.col];
+        for (let k = 0, n = Math.round(42 * L.R + prn(0, 6)); k < n; k++){ const a = pr() * TAU, el = prn(-0.15, 1.05), f = prn(0.88, 1.1);
+          const d = new V3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)), pos = new V3(L.p.x + d.x * L.R * L.rx * f, L.p.y + d.y * L.R * L.ry * f + 0.1, L.p.z + d.z * L.R * L.rx * f);
+          const ax = new V3(0, 1, 0).addScaledVector(d, 0.65).add(new V3(prn(-0.25, 0.25), 0, prn(-0.25, 0.25))).normalize();
+          LP.push({ p: pos, q: new THREE.Quaternion().setFromUnitVectors(up, ax).multiply(new THREE.Quaternion().setFromAxisAngle(up, pr() * TAU)), s: prn(0.85, 1.3), c: new THREE.Color(pal[pr() * pal.length | 0]).multiplyScalar(prn(0.9, 1.08)) }); } }
+      lotBloom = new THREE.InstancedMesh(pg, lilacBloom.material, Math.max(1, LP.length)); lotBloom.count = LP.length; LP.forEach((l, i) => lotBloom.setColorAt(i, l.c)); lotBloom.userData.L = LP;
+      lotBloom.visible = false; scene.add(lotBloom); }   // (no shadows of their own: the bush's shadow is enough, seen from so far)
+    // the bare twigs under them all, for the winter
+    { const tw = [], seg = (a, b, r0, r1) => { const len = a.distanceTo(b), g = new THREE.CylinderGeometry(r1, r0, len, 4, 1, true); g.translate(0, len / 2, 0);
+        g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, b.clone().sub(a).normalize())); g.translate(a.x, a.y, a.z); tw.push(g); };
+      for (const b of BU){ const R = b.R * b.rx, top = b.p.y + 0.55 * b.R * b.ry, n = 10;
+        for (let k = 0; k < n; k++){ const az = ur() * TAU, sp = un(0.15, 0.85), base = new V3(b.p.x + un(-0.15, 0.15) * R, 0, b.p.z + un(-0.15, 0.15) * R);
+          const mid = base.clone().add(new V3(Math.cos(az) * sp * R * 0.6, top * un(0.45, 0.6), Math.sin(az) * sp * R * 0.6)), end = mid.clone().add(new V3(Math.cos(az) * sp * R * 0.5, top * un(0.35, 0.5), Math.sin(az) * sp * R * 0.5));
+          seg(base, mid, 0.035, 0.021); seg(mid, end, 0.021, 0.009);
+          for (let j = 0; j < 2; j++){ const o = mid.clone().lerp(end, un(0.1, 0.8)), a2 = az + un(-1.3, 1.3); seg(o, o.clone().add(new V3(Math.cos(a2) * R * un(0.25, 0.45), R * un(0.2, 0.5), Math.sin(a2) * R * un(0.25, 0.45))), 0.012, 0.004); } } }
+      const twigs = new THREE.Mesh(mergeGeometries(tw), snowify(new THREE.MeshStandardMaterial({ map: barkTex, color: '#6a5a4c', roughness: 0.95 }), 1.6)); twigs.receiveShadow = true; scene.add(twigs); }
+    if (new URLSearchParams(location.search).has('bushlog')) console.log('LOTBUSH', Object.entries(by).map(([k, v]) => k + ' ' + v.length).join(', '), 'lilac colours', LCOL.map((_, i) => by.lilac.filter(b => b.col === i).length).join('/'), 'panicles', lotBloom.count); }
+}
+
 /* ---------- smoke from the chimneys: in 1984 the houses were still heated with wood, from October to the end of March; the stoves were
    lit mostly towards evening (some in the morning), so white smoke rose from this chimney and that one, never all of them at once;
    most in the depth of winter. Each chimney has its own household's habits; a fire is lit, smokes thick and white for a while, settles,
@@ -7895,9 +8152,10 @@ function updateSeasonal(sp){
   GLAD.update(S);
   PANSY.update(S);
   MARIGOLD.update(S);
-  if (Math.abs(sp.lilac - (lilacBloom.userData.k ?? -1)) > 0.002 || (sp.lilac === 0) !== (lilacBloom.userData.k === 0)){ lilacBloom.userData.k = sp.lilac;
-    lilacBloom.userData.L.forEach((l, i) => { SC.setScalar(l.s * smooth(sp.lilac * 1.15)); M4.compose(l.p, l.q, SC); lilacBloom.setMatrixAt(i, M4); }); lilacBloom.instanceMatrix.needsUpdate = true; }
-  lilacBloom.visible = sp.lilac > 0.001;
+  for (const LB of [lilacBloom, lotBloom]){ if (!LB) continue;
+    if (Math.abs(sp.lilac - (LB.userData.k ?? -1)) > 0.002 || (sp.lilac === 0) !== (LB.userData.k === 0)){ LB.userData.k = sp.lilac;
+      LB.userData.L.forEach((l, i) => { SC.setScalar(l.s * smooth(sp.lilac * 1.15)); M4.compose(l.p, l.q, SC); LB.setMatrixAt(i, M4); }); LB.instanceMatrix.needsUpdate = true; }
+    LB.visible = sp.lilac > 0.001; }
   if (sp.snow > 0.5) NUTs.forEach(n => { n.on = false; n.h = 0; });
 }
 
