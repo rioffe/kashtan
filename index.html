@@ -7020,8 +7020,19 @@ const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl:
   const tipM = { birch: endM('birch'), pine: endM('pine') }, butt = new THREE.MeshStandardMaterial({ map: endChar, roughness: 1, emissive: '#ff6a20', emissiveMap: glowTex, emissiveIntensity: 0 });
   fire.logM = logMs[0]; fire.logMs = logMs.concat(butt);   // (glowing together: see updateFire)
   const up = new V3(0, 1, 0);
-  for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + frn(-0.2, 0.2), rb = frn(0.3, 0.38), B = new V3(Math.cos(a) * rb, 0.04, Math.sin(a) * rb), T = new V3(Math.cos(a + 2) * 0.05, frn(0.5, 0.62), Math.sin(a + 2) * 0.05), k = i % 2 ? 'pine' : 'birch';
-    const L = B.distanceTo(T), l = new THREE.Mesh(new THREE.CylinderGeometry(frn(0.03, 0.045), frn(0.045, 0.06), L, 14), [logMs[i % 2], tipM[k], butt]);   // (side, its top end, its foot in the coals)
+  const TP = []; for (let i = 0; i < 6; i++){ const a = i / 6 * TAU + frn(-0.2, 0.2), rb = frn(0.3, 0.38), B = new V3(Math.cos(a) * rb, 0.04, Math.sin(a) * rb), T = new V3(Math.cos(a + 2) * 0.05, frn(0.5, 0.62), Math.sin(a + 2) * 0.05);
+    TP.push({ B, T, r1: frn(0.03, 0.045), r0: frn(0.045, 0.06), k: i % 2 ? 'pine' : 'birch', m: logMs[i % 2] }); }
+  { // leaning on each other, not through each other: their feet stay in the coals, their tops are eased apart until each only touches the next
+    const rad = (L, s) => L.r0 + (L.r1 - L.r0) * s, d1 = new V3(), d2 = new V3(), r = new V3(), P = new V3(), Q = new V3(), n = new V3();
+    const closest = (A, C) => { d1.subVectors(A.T, A.B); d2.subVectors(C.T, C.B); r.subVectors(A.B, C.B); const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r), c = d1.dot(r), b = d1.dot(d2), den = a * e - b * b;
+      let s = den > 1e-9 ? clamp((b * f - c * e) / den) : 0, t = (b * s + f) / e; if (t < 0){ t = 0; s = clamp(-c / a); } else if (t > 1){ t = 1; s = clamp((b - c) / a); } return [s, t]; };
+    for (let it = 0; it < 200; it++){ let moved = false;
+      for (let i = 0; i < TP.length; i++) for (let j = i + 1; j < TP.length; j++){ const A = TP[i], C = TP[j], [s, t] = closest(A, C);
+        P.copy(A.B).lerp(A.T, s); Q.copy(C.B).lerp(C.T, t); n.subVectors(P, Q); const d = n.length(), need = rad(A, s) + rad(C, t) + 0.003; if (d >= need) continue;
+        if (d > 1e-6) n.divideScalar(d); else n.crossVectors(d1, d2).normalize();
+        A.T.addScaledVector(n, (need - d) * 0.5 / Math.max(s, 0.25)); C.T.addScaledVector(n, -(need - d) * 0.5 / Math.max(t, 0.25)); moved = true; }
+      if (!moved) break; } }
+  for (const { B, T, r0, r1, k, m } of TP){ const L = B.distanceTo(T), l = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, L, 14), [m, tipM[k], butt]);   // (side, its top end, its foot in the coals)
     l.position.copy(B).add(T).multiplyScalar(0.5); l.quaternion.setFromUnitVectors(up, T.clone().sub(B).normalize()); l.rotateY(wn(0, TAU)); fire.g.add(l); }
   // a couple of spare logs by the ring, not burning: one birch, one pine
   { const ph = 0.34, u = new V3(Math.cos(ph), 0, Math.sin(ph)), tg = new V3(-Math.sin(ph), 0, Math.cos(ph));   // (side by side, along the ring, just outside its stones)
