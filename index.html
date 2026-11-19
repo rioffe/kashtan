@@ -113,7 +113,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ============================== utilities ============================== */
 let seed = 1984;
@@ -606,6 +606,25 @@ function drawStucco(g, w, h, ppm){
 
 /* ============================== world layout ============================== */
 const TREE = new V3(12, 0, -137);
+/* where fallen leaves lie, for the grass and dandelions under them to bend down beneath them (not show through): a map of the ground round
+   the tree, 4 cm a texel, 30.7 m across. r: the turn of the first litter leaf over it (see LITTER), g: that leaf's height there; b: till
+   when a leaf come down from the tree lies over it, a: its height. Filled in by LEAFLAY */
+const LEAFCOV = (() => { const N = 768, S = 30.72, data = new Float32Array(N * N * 4); for (let i = 0; i < N * N; i++){ data[i * 4] = 9; data[i * 4 + 2] = -1; }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.FloatType); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return { N, S, data, tex: t, o: new THREE.Vector2(TREE.x - S / 2, TREE.z - S / 2), lit: { value: -1 } }; })();
+// a plant material that goes under the fallen leaves, not through them: whatever of it would stand above a leaf lying over it isn't drawn
+// (a blade of grass running in under a leaf; a dandelion's leaf under a fallen one), to the millimetre, wherever the leaf lies
+function leafCover(mat){ return shaderChain(mat, 'leafCov', sh => { Object.assign(sh.uniforms, { uCov: { value: LEAFCOV.tex }, uCovO: { value: LEAFCOV.o }, uCovS: { value: LEAFCOV.S }, uCovLit: LEAFCOV.lit, uCovT: timeU });
+  const wp = `\n { vec4 cw = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+      cw = instanceMatrix * cw;
+      #endif
+      vCovW = (modelMatrix * cw).xyz; }`;
+  sh.vertexShader = 'varying vec3 vCovW;\n' + (sh.vertexShader.includes('#include <project_vertex>') ? sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>' + wp)
+    : sh.vertexShader.replace('gl_Position = projectionMatrix * mvPosition;', 'gl_Position = projectionMatrix * mvPosition;' + wp));
+  sh.fragmentShader = 'uniform sampler2D uCov; uniform vec2 uCovO; uniform float uCovS; uniform float uCovLit; uniform float uCovT; varying vec3 vCovW;\n' + sh.fragmentShader.replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
+    { vec2 cuv = (vCovW.xz - uCovO) / uCovS;
+      if (cuv.x > 0.0 && cuv.y > 0.0 && cuv.x < 1.0 && cuv.y < 1.0){ vec4 cv = texture2D(uCov, cuv); float h = 1e3; if (cv.r < uCovLit) h = cv.g; if (cv.b > uCovT) h = min(h, cv.a); if (vCovW.y > h) discard; } }`); }); }
 const BW = 36, BH = 10.5, BD = 12, BZ = -150;     // building front face at z = -150
 const DOWNPIPES = [-7.65, 7.65];   // (the downpipes: one by each stair, on its inner side)
 const HOME = new V3(5.4, 8.95, BZ);               // 3rd floor, centre-right window
@@ -1140,7 +1159,7 @@ const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' roun
   const bladeTex = tex(128, 128, (g, w, h) => { for (let i = 0; i < 70; i++){ const x0 = w * (0.15 + 0.7 * pr()), lean = rn(-0.5, 0.5), L = h * rn(0.45, 0.95), wd = rn(1.5, 3.5);
     g.fillStyle = `rgb(${200 + pr() * 40 | 0},${215 + pr() * 35 | 0},${170 + pr() * 40 | 0})`; g.beginPath(); g.moveTo(x0 - wd, h); g.quadraticCurveTo(x0 + lean * L * 0.3, h - L * 0.5, x0 + lean * L * 0.6, h - L); g.lineTo(x0 + wd, h); g.fill(); } });
   const cards = []; for (let k = 0; k < 3; k++) cards.push(new THREE.PlaneGeometry(0.42, 0.3).translate(0, 0.15, 0).rotateY(k * Math.PI / 3));
-  const tm = swayify(new THREE.MeshStandardMaterial({ map: bladeTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }), 0.12);
+  const tm = leafCover(swayify(new THREE.MeshStandardMaterial({ map: bladeTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }), 0.12));   // (bending down under the fallen leaves)
   TUFTS.geo = mergeGeometries(cards); TUFTS.mat = tm; TUFTS.mesh = new THREE.InstancedMesh(TUFTS.geo, tm, TUFTS.length); TUFTS.mesh.receiveShadow = true; TUFTS.mesh.frustumCulled = false; scene.add(TUFTS.mesh);
   TUFTS.mesh.setColorAt(0, new THREE.Color());
   /* dandelions: rosettes of toothed leaves everywhere the grass is; in spring bright yellow heads, then the white clocks */
@@ -1183,12 +1202,12 @@ const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' roun
   for (let i = 0; i < lp.count; i++){ const t = lp.getY(i); lp.setXYZ(i, lp.getX(i), 0.22 * t * t + 0.02, t); } leafG.computeVertexNormals();   // lying out flat, the tip lifting a little
   const nH = DANDS.reduce((a, p) => a + p.heads.length, 0), nL = DANDS.length * 6;
   const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; m.castShadow = true; scene.add(m); return m; };
-  DANDS.yellow = mk(yellowGeo, bendify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.6 }), 0.15, true), nH);
-  DANDS.clocks = mk(mergeGeometries(cards), bendify(new THREE.MeshStandardMaterial({ map: clockTex, transparent: true, depthWrite: false, alphaTest: 0.04, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.18 }), 0.15, false), nH); DANDS.clocks.castShadow = false;
-  DANDS.stems = mk(new THREE.CylinderGeometry(0.0017, 0.0021, 1, 5, 1, true).translate(0, 0.5, 0), bendify(new THREE.MeshStandardMaterial({ color: '#a3bd70', roughness: 0.7 }), 0.15, false), nH);
+  DANDS.yellow = mk(yellowGeo, leafCover(bendify(new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.6 }), 0.15, true)), nH);
+  DANDS.clocks = mk(mergeGeometries(cards), leafCover(bendify(new THREE.MeshStandardMaterial({ map: clockTex, transparent: true, depthWrite: false, alphaTest: 0.04, side: THREE.DoubleSide, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.18 }), 0.15, false)), nH); DANDS.clocks.castShadow = false;
+  DANDS.stems = mk(new THREE.CylinderGeometry(0.0017, 0.0021, 1, 5, 1, true).translate(0, 0.5, 0), leafCover(bendify(new THREE.MeshStandardMaterial({ color: '#a3bd70', roughness: 0.7 }), 0.15, false)), nH);
   { const B = []; for (const p of DANDS) for (const H of p.heads) B.push([p.x, 0, p.z, H.yaw * 3.1 + p.x * 0.9 + p.z * 0.4]);   // each stalk bends from its rosette, to its own rhythm
     for (const m of [DANDS.yellow, DANDS.clocks, DANDS.stems]) bendBases(m, B); }
-  DANDS.leaves = mk(leafG, new THREE.MeshStandardMaterial({ map: leafTexD, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 }), nL); DANDS.leaves.setColorAt(0, new THREE.Color());
+  DANDS.leaves = mk(leafG, leafCover(new THREE.MeshStandardMaterial({ map: leafTexD, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.8 })), nL); DANDS.leaves.setColorAt(0, new THREE.Color());
   const e = new THREE.Euler();
   for (const p of DANDS){ p.lq = []; for (let k = 0; k < 6; k++){ e.set(0, p.yaw + k / 6 * TAU + (k % 2) * 0.3, 0); p.lq.push(new THREE.Quaternion().setFromEuler(e)); } }
 }
@@ -6762,7 +6781,7 @@ const flCur = [0, 0, 0, 0];
 function spawnLeaf(p, col, src = -1){ const v = src >= 0 ? LEAF.variant(src) : Math.floor(rng() * 4), L = FLs[v * FL_V + flCur[v]]; flCur[v] = (flCur[v] + 1) % FL_V; L.on = true; L.p.copy(p); L.land = 0;
   L.s = src >= 0 ? LEAVES[src].s : 1.2;
   L.rot.set(rng() * TAU, rng() * TAU, rng() * TAU); if (src >= 0) L.rot.setFromQuaternion(LEAVES[src].q);   // it lets go as it hung
-  L.spin.set(rnd(-2, 2), rnd(-2, 2), rnd(-2, 2)); L.c.copy(col); }
+  L.spin.set(rnd(-2, 2), rnd(-2, 2), rnd(-2, 2)); L.c.copy(col); L.tq = null; L.lay = null; }
 /* chestnuts */
 const NUT_N = 160, NUTs = [];
 // a conker: glossy mahogany with wavy darker and lighter grain, a big matt beige-grey scar (the hilum) on top, one side pressed flat
@@ -6815,31 +6834,44 @@ function updateNuts(dt, canGather){
   for (let i = 0; i < NUT_N; i++){ const n = NUTs[i];
     if (n.on && !n.rest){ n.v.y -= 9.8 * dt; n.p.addScaledVector(n.v, dt);
       if (n.h === 1){ n.hq.premultiply(nutQ.setFromAxisAngle(n.spinAx, n.spin * dt));
-        if (n.p.y < HUSK_R * 1.1){ // the husk hits the ground and splits; the conker hops out
+        const hg = n.p.y < 0.6 ? nutGround(n.p.x, n.p.z, 0.08) : 0;   // (the ground, a stone or a log of the fire's, the leaves lying there)
+        if (n.p.y < hg + HUSK_R * 1.1){ // the husk hits the ground (or a stone of the fire's) and splits; the conker hops out
           const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.14 * clamp(1 - dd / 25));
-          n.h = 2; n.ht = 0; n.hp.set(n.p.x, 0, n.p.z); n.hy = rng() * TAU;
+          n.h = 2; n.ht = 0; n.hp.set(n.p.x, hg, n.p.z); n.hy = rng() * TAU; n.hT = timeU.value; n.covT = 0;
           for (let k = 0; k < 3; k++) n.ha[k] = rnd(0.7, 1.35);
           if (rng() < 0.4) n.ha[Math.floor(rng() * 3)] = rnd(0.08, 0.35);   // one valve still half shut
           const a = rng() * TAU, sp = rng() < 0.3 ? rnd(0, 0.08) : rnd(0.3, 1.1);
-          n.p.set(n.hp.x, 0.07, n.hp.z); n.v.set(Math.cos(a) * sp, rnd(0.4, 1.3), Math.sin(a) * sp); } }
+          n.p.set(n.hp.x, hg + 0.07, n.hp.z); n.v.set(Math.cos(a) * sp, rnd(0.4, 1.3), Math.sin(a) * sp); } }
       else {
-        if (n.p.y < 0.045){ n.p.y = 0.045;
+        const gy = n.p.y < 0.5 ? nutGround(n.p.x, n.p.z, 0.035) : 0;   // (the ground, a stone or a log of the fire's, a leaf lying there)
+        if (n.p.y < gy + 0.045){ n.p.y = gy + 0.045;
           if (n.v.y < -1.2){ if (n.h !== 2 || n.ht > 0.3){ const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.1 * clamp(1 - dd / 25)); } n.v.y *= -0.3; n.v.x *= 0.6; n.v.z *= 0.6; }
-          else { n.v.y = 0; const f = Math.max(0, 1 - dt * 2.6); n.v.x *= f; n.v.z *= f; if (Math.hypot(n.v.x, n.v.z) < 0.03) n.rest = true; } }
+          else { n.v.y = 0; const f = Math.max(0, 1 - dt * 2.6); n.v.x *= f; n.v.z *= f;
+            if (gy > 0.012){ const gx = (fire.top(n.p.x + 0.02, n.p.z) - fire.top(n.p.x - 0.02, n.p.z)) / 0.04, gz = (fire.top(n.p.x, n.p.z + 0.02) - fire.top(n.p.x, n.p.z - 0.02)) / 0.04;   // (on a stone's round top it rolls off)
+              n.v.x -= gx * 5 * dt; n.v.z -= gz * 5 * dt; if (Math.hypot(gx, gz) < 0.15 && Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } }
+            else if (Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } } }
         const hs = Math.hypot(n.v.x, n.v.z); // roll
-        if (n.p.y < 0.05 && hs > 0.01){ nutV.set(n.v.z, 0, -n.v.x).normalize(); n.q.premultiply(nutQ.setFromAxisAngle(nutV, hs * dt / 0.045)); } } }
+        if (n.p.y < gy + 0.05 && hs > 0.01){ nutV.set(n.v.z, 0, -n.v.x).normalize(); n.q.premultiply(nutQ.setFromAxisAngle(nutV, hs * dt / 0.045)); } } }
     if (n.h === 2) n.ht += dt;
+    if ((n.h === 2 && n.ht > 1.5) || (n.on && n.rest)){ const now = timeU.value; if (now > (n.covT ?? 0)){ n.covT = now + 2 + (i % 7) * 0.13;
+      if (n.h === 2 && n.ht > 1.5){ n.hp.y = nutGround(n.hp.x, n.hp.z, 0.08, n.hT); LEAFLAY.disc(n.hp.x, n.hp.z, HUSK_R * 2, n.hp.y + 0.008, now + 8); }   // (the grass under it, while it lies)
+      if (n.on && n.rest){ n.p.y = nutGround(n.p.x, n.p.z, 0.035, n.cT) + 0.045; LEAFLAY.disc(n.p.x, n.p.z, 0.045, n.p.y - 0.04, now + 8); } } }
     if (n.on && n.h !== 1 && canGather && n.p.y < 1.0 && Math.hypot(camera.position.x - n.p.x, camera.position.z - n.p.z) < 1.5){ n.on = false; nutsHeld++; sfx.pick(); updateNutHUD();
       if (nutsHeld === 1) caption('A chestnut — cool, glossy, the colour of a violin.', 4); if (nutsHeld === 12) caption('Pockets full. Time for a fire.', 4); }
     SC.setScalar(n.on && n.h !== 1 ? 1 : 0); M4.compose(n.p, n.q, SC); nutsMesh.setMatrixAt(i, M4);
     SC.setScalar(n.on && n.h === 1 ? 1 : 0); M4.compose(n.p, n.hq, SC); fallHusks.setMatrixAt(i, M4); if (n.h === 1) fallHusks.setColorAt(i, n.hc);
     // the valves fall open like petals, hinged where they met at the bottom, bounce a little and settle; then slowly brown
     const op = n.h === 2 ? 1 - Math.exp(-n.ht * 7) * Math.cos(n.ht * 12) : 0, age = clamp(n.ht / 150);
+    // (a valve laid open swings its lower half down past the hinge: the hinge rises, and the open valves all come to rest on the ground on
+    // their spines, opened as far as the least open of them; one still half shut stands up from the hinge)
+    let ref = 9; for (const a of n.ha) if (a > 0.6) ref = Math.min(ref, a); if (ref > 8) ref = Math.max(n.ha[0], n.ha[1], n.ha[2]); ref = Math.min(Math.PI / 2, ref * Math.max(0, op));
+    const lift = HUSK_R * Math.max(0.1, 1.3 - Math.cos(ref));   // (on the tips of its spines)
+    n.lift = lift; n.ref = ref; n.amin = Math.min(n.ha[0] * op, n.ha[1] * op, n.ha[2] * op, ref);
     for (let k = 0; k < 3; k++){ const j = i * 3 + k;
       if (n.h !== 2){ M4.makeScale(0, 0, 0); valvesOut.setMatrixAt(j, M4); valvesIn.setMatrixAt(j, M4); continue; }
       const yaw = n.hy + k * VALVE_W, c = Math.cos(yaw), s_ = Math.sin(yaw), dx = VALVE_MID.x * c + VALVE_MID.z * s_, dz = -VALVE_MID.x * s_ + VALVE_MID.z * c;
-      nutM.makeRotationY(yaw).premultiply(nutT.makeTranslation(0, HUSK_R, 0)).premultiply(nutT.makeRotationAxis(nutV.set(dz, 0, -dx).normalize(), Math.max(0, n.ha[k] * op)))
-        .premultiply(nutT.makeTranslation(n.hp.x, 0.005, n.hp.z));
+      nutM.makeRotationY(yaw).premultiply(nutT.makeTranslation(0, HUSK_R, 0)).premultiply(nutT.makeRotationAxis(nutV.set(dz, 0, -dx).normalize(), Math.max(0, Math.min(n.ha[k] * op, ref))))
+        .premultiply(nutT.makeTranslation(n.hp.x, n.hp.y + lift, n.hp.z));
       valvesOut.setMatrixAt(j, nutM); valvesIn.setMatrixAt(j, nutM);
       if (n.ht < 0.05 || (i + k + Math.floor(n.ht)) % 7 === 0){ valvesOut.setColorAt(j, nutC.copy(n.hc).lerp(huskOld, age * 0.8)); valvesIn.setColorAt(j, nutC.set('#efe6cf').lerp(liningOld, age)); } } }
   for (const m of [nutsMesh, fallHusks, valvesOut, valvesIn]){ m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
@@ -6860,13 +6892,50 @@ function birdTarget(b, flee = false){
 /* campfire: a ring of stones, an ash bed, a teepee of logs, glowing coals, shader flames, smoke and sparks */
 const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl: 1, g: new THREE.Group(), tongues: [], smoke: [] };
 {
-  const stone = snowify(new THREE.MeshStandardMaterial({ color: '#5e5a54', roughness: 1, flatShading: true }));
-  for (let i = 0; i < 9; i++){ const a = i / 9 * TAU, s = new THREE.Mesh(new THREE.DodecahedronGeometry(rnd(0.14, 0.2), 1), stone); s.position.set(Math.cos(a) * 0.55, 0.08, Math.sin(a) * 0.55); fire.g.add(s); }
-  for (let i = 0; i < 8; i++) rng(); // keep the world's random sequence as it was
+  // the ring of stones: cobbles, the round granite the yard's paths were mended with, worn smooth: grey, pink, dark, a brownish one; laid
+  // close round the fire on their long sides, sunk a little into the ground, sooted black on the inside. Own random numbers (and the
+  // world's, and the fire's own, drawn as they were, so nothing else moves)
+  for (let i = 0; i < 9; i++) rnd(0.14, 0.2);
+  for (let i = 0; i < 8; i++) rng();
   let fs = 3313; const fr = () => { fs = fs + 0x6D2B79F5 | 0; let t = Math.imul(fs ^ fs >>> 15, 1 | fs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }, frn = (a, b) => a + (b - a) * fr();
-  // the stones are scorched on the inside
-  fire.g.children.forEach(s => { s.rotation.set(frn(0, 3), frn(0, 3), 0); s.scale.set(frn(0.8, 1.3), frn(0.55, 0.85), frn(0.8, 1.2)); s.position.y = 0.05;
-    const pa = s.geometry.attributes.position; const sd = frn(0, 99); for (let k = 0; k < pa.count; k++){ const x = pa.getX(k), y = pa.getY(k), z = pa.getZ(k), j = 1 + 0.12 * Math.sin(x * 41 + y * 57 + z * 73 + sd) * Math.cos(x * 29 - z * 37 + sd); pa.setXYZ(k, x * j, y * j, z * j); } s.geometry.computeVertexNormals(); });
+  for (let i = 0; i < 54; i++) fr();
+  { const cr = mkRng(6871), crn = (a, b) => a + (b - a) * cr(), N = 11, parts = [], v = new V3(), tint = new THREE.Color();
+    const granite = tex(256, 256, (g, w, h) => { const r = mkRng(6873); g.fillStyle = '#c4c0b9'; g.fillRect(0, 0, w, h);   // (the grains: black mica, white quartz, pink and grey feldspar)
+      for (let i = 0; i < 3200; i++){ const x = r() * w, y = r() * h, s = 0.6 + r() * r() * 2.4, q = r(), e = 0.55 + r() * 0.5, a = r() * 3;
+        g.fillStyle = q < 0.26 ? `rgba(52,48,46,${0.25 + r() * 0.3})` : q < 0.56 ? `rgba(240,238,232,${0.3 + r() * 0.35})` : q < 0.8 ? `rgba(168,120,104,${0.25 + r() * 0.3})` : `rgba(120,116,110,${0.25 + r() * 0.25})`;
+        for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]){ g.beginPath(); g.ellipse(x + dx, y + dy, s, s * e, a, 0, TAU); g.fill(); } } });
+    const TINTS = ['#a29e98', '#a8877c', '#77746f', '#9c8e7c', '#b6b2aa', '#8c8882'];
+    for (let i = 0; i < N; i++){ const a0 = (i + crn(-0.12, 0.12)) / N * TAU, A = crn(0.15, 0.19), B = crn(0.12, 0.15), H = crn(0.085, 0.115), ph = crn(0, 99), R = 0.56 + crn(-0.015, 0.03);
+      tint.set(TINTS[cr() * TINTS.length | 0]).multiplyScalar(crn(0.9, 1.06));
+      let g = new THREE.IcosahedronGeometry(1, 4); g.deleteAttribute('uv'); g.deleteAttribute('normal'); g = mergeVertices(g); const p = g.attributes.position;
+      for (let k = 0; k < p.count; k++){ v.fromBufferAttribute(p, k); const sq = (c, e) => Math.sign(c) * Math.pow(Math.abs(c), e);
+        let x = sq(v.x, 0.7), y = sq(v.y, 0.55), z = sq(v.z, 0.7); const l = Math.hypot(x, y, z); x /= l; y /= l; z /= l;   // (a rounded block, not a ball: its top worn flat-ish)
+        const j = 1 + 0.045 * Math.sin(x * 3.1 + z * 2.3 + ph) + 0.03 * Math.sin(y * 4.3 - x * 2.7 + ph * 1.7);   // (a little lumpy, as field stone is)
+        p.setXYZ(k, x * A * j, y * H * j * (y < 0 ? 0.6 : 1), z * B * j); }
+      g.computeVertexNormals(); g.rotateX(crn(-0.07, 0.07)); g.rotateZ(crn(-0.07, 0.07)); g.rotateY(-a0 - Math.PI / 2); g.translate(Math.cos(a0) * R, H * 0.3, Math.sin(a0) * R);   // (its length along the ring)
+      const uv = [], col = []; for (let k = 0; k < p.count; k++){ const x = p.getX(k), y = p.getY(k), z = p.getZ(k), d = Math.hypot(x, z);
+        uv.push((x + 0.5 * y) * 4.2 + i * 0.37, (z + 0.4 * y) * 4.2 + i * 0.53);
+        const soot = smooth((0.61 - d) / 0.16) * (0.55 + 0.35 * smooth(y / 0.12)) * (0.8 + 0.2 * Math.sin(x * 37 + z * 29 + ph));   // (blackest on the inside, towards the top, in patches)
+        col.push(tint.r * (1 - soot), tint.g * (1 - soot * 1.02), tint.b * (1 - soot * 1.05)); }
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); parts.push(g); }
+    const ring = new THREE.Mesh(mergeGeometries(parts), snowify(new THREE.MeshStandardMaterial({ map: granite, vertexColors: true, roughness: 0.58 })));
+    ring.castShadow = ring.receiveShadow = true; fire.g.add(ring);
+    // where the tops of the fire's things are, for whatever comes down on them (leaves, conkers): the stones', the spare logs' (see fire.raster),
+    // 96 cells across 2.6 m; and the coals' bed, a low mound in the middle
+    const n = 96, ext = 1.3, cs = 2 * ext / n, HF = new Float32Array((n + 1) * (n + 1));
+    fire.raster = (geo) => { const P = geo.attributes.position, I = geo.index ? geo.index.array : Array.from({ length: P.count }, (_, k) => k);
+    for (let t = 0; t < I.length; t += 3){ const a = I[t], b = I[t + 1], c = I[t + 2], ax = P.getX(a), az = P.getZ(a), bx = P.getX(b), bz = P.getZ(b), cx = P.getX(c), cz = P.getZ(c);
+      const den = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz); if (Math.abs(den) < 1e-12) continue;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) + ext) / cs)), i1 = Math.min(n, Math.ceil((Math.max(ax, bx, cx) + ext) / cs));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) + ext) / cs)), j1 = Math.min(n, Math.ceil((Math.max(az, bz, cz) + ext) / cs));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++){ const x = -ext + i * cs, z = -ext + j * cs, l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / den, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / den, l3 = 1 - l1 - l2;
+        if (l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue; const y = l1 * P.getY(a) + l2 * P.getY(b) + l3 * P.getY(c), k = j * (n + 1) + i; if (y > HF[k]) HF[k] = y; } } };
+    fire.raster(ring.geometry);
+    fire.top = (x, z) => { x -= FIRE.x; z -= FIRE.z; const d2 = x * x + z * z; if (d2 >= ext * ext) return 0;
+      const fx = (x + ext) / cs, fz = (z + ext) / cs, i = Math.min(n - 1, Math.floor(fx)), j = Math.min(n - 1, Math.floor(fz)), u = fx - i, v = fz - j, k = j * (n + 1) + i;
+      const h = (HF[k] * (1 - u) + HF[k + 1] * u) * (1 - v) + (HF[k + n + 1] * (1 - u) + HF[k + n + 2] * u) * v;
+      return Math.max(h, d2 < 0.1156 ? 0.01 + 0.095 * Math.sqrt(1 - d2 / 0.1156) : 0); };
+    }
   // ash and burnt earth inside the ring
   const ashTex = tex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
     gr.addColorStop(0, '#2a2522'); gr.addColorStop(0.45, '#4a4440'); gr.addColorStop(0.7, '#2c2622'); gr.addColorStop(1, 'rgba(40,32,26,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -6903,7 +6972,11 @@ const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl:
     l.position.copy(B).add(T).multiplyScalar(0.5); l.quaternion.setFromUnitVectors(up, T.clone().sub(B).normalize()); fire.g.add(l); }
   // a couple of spare logs by the ring, not burning
   const spareM = new THREE.MeshStandardMaterial({ color: '#5c4632', roughness: 1 });
-  for (const [x, z, ry] of [[0.95, 0.25, 0.3], [0.9, 0.42, 0.5]]){ const l = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.7, 7), spareM); l.rotation.set(0, ry, Math.PI / 2); l.position.set(x, 0.06, z); fire.g.add(l); }
+  { const ph = 0.34, u = new V3(Math.cos(ph), 0, Math.sin(ph)), tg = new V3(-Math.sin(ph), 0, Math.cos(ph));   // (side by side, along the ring, just outside its stones)
+    for (const [rad, along, turn, roll] of [[0.97, 0, 0.03, 0.4], [1.115, 0.06, 0.0, 2.1]]){ const l = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.7, 10), spareM);
+      l.quaternion.setFromUnitVectors(new V3(0, 1, 0), tg.clone().applyAxisAngle(new V3(0, 1, 0), turn)).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), roll));
+      l.position.copy(u).multiplyScalar(rad).addScaledVector(tg, along).setY(0.06); l.castShadow = l.receiveShadow = true; fire.g.add(l);
+      l.updateMatrix(); fire.raster(l.geometry.clone().applyMatrix4(l.matrix)); } }   // (and what comes down on them lies on them)
 
   // flames: camera-facing tongues, each a noise field rising through a teardrop
   const flameVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }`;
@@ -6949,6 +7022,75 @@ const fire = { on: false, lit: false, t: 0, roastT: 0, flameK: 0, emberK: 0, fl:
   fire.light = new THREE.PointLight(0xff8a3a, 0, 18, 1.6); fire.light.position.y = 0.8; fire.g.add(fire.light);
   fire.g.position.copy(FIRE); scene.add(fire.g);
 }
+/* ---------- fallen leaves lie on whatever is under them: the ground, the fire's stones, or the leaves that came down before them. Each
+   kind of leaf's shape as a height map (its leaflets curl up as they dry); a leaf coming down is fitted to the tops under it, tilted to lie
+   across them and lifted just clear of them all. The litter round the tree is laid in the order it falls (none in the fire's pit); the
+   leaves coming off the tree land on what lies there at the time ---------- */
+const LEAFLAY = (() => { const NC = 40, UP = new V3(0, 1, 0);
+  const shapes = LEAF.flatGeos.map(g0 => { const g = g0.clone().rotateX(-Math.PI / 2), P = g.attributes.position, I = g.index ? g.index.array : null; let R = 0;
+    for (let k = 0; k < P.count; k++) R = Math.max(R, Math.hypot(P.getX(k), P.getZ(k)));
+    const cs = 2 * R / NC, H = new Float32Array((NC + 1) * (NC + 1)).fill(-1);   // (-1: no leaf there)
+    const tri = (a, b, c) => { const ax = P.getX(a), az = P.getZ(a), bx = P.getX(b), bz = P.getZ(b), cx = P.getX(c), cz = P.getZ(c), den = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz); if (Math.abs(den) < 1e-14) return;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) + R) / cs)), i1 = Math.min(NC, Math.ceil((Math.max(ax, bx, cx) + R) / cs)), j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) + R) / cs)), j1 = Math.min(NC, Math.ceil((Math.max(az, bz, cz) + R) / cs));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++){ const x = -R + i * cs, z = -R + j * cs, l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / den, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / den, l3 = 1 - l1 - l2;
+        if (l1 < -0.02 || l2 < -0.02 || l3 < -0.02) continue; const y = l1 * P.getY(a) + l2 * P.getY(b) + l3 * P.getY(c), k = j * (NC + 1) + i; if (y > H[k]) H[k] = y; } };
+    if (I) for (let t = 0; t < I.length; t += 3) tri(I[t], I[t + 1], I[t + 2]); else for (let t = 0; t + 2 < P.count; t += 3) tri(t, t + 1, t + 2);
+    const pts = []; for (let j = 0; j <= NC; j += 2) for (let i = 0; i <= NC; i += 2){ const h = H[j * (NC + 1) + i]; if (h > -0.5) pts.push([-R + i * cs, -R + j * cs, h]); }
+    return { R, cs, H, pts }; });
+  // the top of a lying leaf o ({ p, rot, s, shp, gx, gz }) at (x, z); -1 where it isn't
+  const topOf = (o, x, z) => { if (o.top) return o.top(x, z); const dx = x - o.p.x, dz = z - o.p.z, S = o.shp;   // (o.top: not a leaf, a conker or a husk: its own) if (dx * dx + dz * dz > S.R * S.R * o.s * o.s) return -1;
+    const c = Math.cos(o.rot), sn = Math.sin(o.rot), i = Math.round(((dx * c - dz * sn) / o.s + S.R) / S.cs), j = Math.round(((dx * sn + dz * c) / o.s + S.R) / S.cs);
+    if (i < 0 || j < 0 || i > NC || j > NC) return -1; const h = S.H[j * (NC + 1) + i]; return h < -0.5 ? -1 : o.p.y + o.s * h + o.gx * dx + o.gz * dz; };
+  // leaf o coming to rest among `others` (and on the fire's stones), lying at y0 where there is only the ground under it: sets o.p.y, its tilt
+  const rest = (o, others, y0) => { const S = o.shp, c = Math.cos(o.rot), sn = Math.sin(o.rot), F = []; let lifted = false;
+    for (const [lx, lz, h] of S.pts){ const dx = (lx * c + lz * sn) * o.s, dz = (-lx * sn + lz * c) * o.s, x = o.p.x + dx, z = o.p.z + dz; let top = fire.top(x, z);
+      for (const q of others){ const t = topOf(q, x, z); if (t > top) top = t; }
+      const m = Math.max(y0, top + 0.007) - o.s * h; if (top + 0.007 > y0) lifted = true; F.push([dx, dz, m]); }
+    o.gx = o.gz = 0; o.tilt = null; if (!lifted){ o.p.y = y0; return o; }
+    let mx = 0, mz = 0, mm = 0; for (const f of F){ mx += f[0]; mz += f[1]; mm += f[2]; } mx /= F.length; mz /= F.length; mm /= F.length;
+    let sxx = 0, szz = 0, sxz = 0, sxm = 0, szm = 0; for (const [dx, dz, m] of F){ const a = dx - mx, b = dz - mz; sxx += a * a; szz += b * b; sxz += a * b; sxm += a * (m - mm); szm += b * (m - mm); }
+    const det = sxx * szz - sxz * sxz; let gx = det > 1e-12 ? (sxm * szz - szm * sxz) / det : 0, gz = det > 1e-12 ? (szm * sxx - sxm * sxz) / det : 0; const gl = Math.hypot(gx, gz); if (gl > 0.45){ gx *= 0.45 / gl; gz *= 0.45 / gl; }
+    let y = -1; for (const [dx, dz, m] of F) y = Math.max(y, m - gx * dx - gz * dz);
+    o.p.y = y; o.gx = gx; o.gz = gz; o.tilt = new THREE.Quaternion().setFromUnitVectors(UP, new V3(-gx, 1, -gz).normalize()); return o; };
+  // the litter round the tree, in the order it comes down
+  const CELL_ = 1.4, grid = new Map(), key = (x, z) => Math.floor(x / CELL_) + ',' + Math.floor(z / CELL_);
+  const near = (x, z) => { const out = [], i = Math.floor(x / CELL_), j = Math.floor(z / CELL_); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ const l = grid.get((i + a) + ',' + (j + b)); if (l) out.push(...l); } return out; };
+  for (const L of [...LITTER].sort((a, b) => a.r - b.r)){ if (Math.hypot(L.p.x - FIRE.x, L.p.z - FIRE.z) < 0.5){ L.hide = true; continue; }
+    L.lay = { p: L.p, rot: L.rot, s: L.s * 1.75, shp: shapes[L.v], gx: 0, gz: 0 }; const R = L.lay.shp.R * L.lay.s;
+    rest(L.lay, near(L.p.x, L.p.z).filter(q => Math.hypot(q.lay.p.x - L.p.x, q.lay.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s).map(q => q.lay), L.p.y); L.tilt = L.lay.tilt;
+    const k = key(L.p.x, L.p.z); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(L); }
+  // into the ground's cover (LEAFCOV): under each covered bit of a leaf, its turn (litter) or till when it lies (fallen from the tree), and its
+  // height there, less a few millimetres. Returns the texels touched
+  const C = LEAFCOV, cell = C.S / C.N;
+  const stamp = (o, r, until) => { const S = o.shp, c = Math.cos(o.rot), sn = Math.sin(o.rot); let i0 = C.N, i1 = -1, j0 = C.N, j1 = -1;
+    for (let j = 0; j <= NC; j++) for (let i = 0; i <= NC; i++){ const h = S.H[j * (NC + 1) + i]; if (h < -0.5) continue; const lx = -S.R + i * S.cs, lz = -S.R + j * S.cs;
+      const dx = (lx * c + lz * sn) * o.s, dz = (-lx * sn + lz * c) * o.s, u = Math.floor((o.p.x + dx - C.o.x) / cell), v = Math.floor((o.p.z + dz - C.o.y) / cell); if (u < 0 || v < 0 || u >= C.N || v >= C.N) continue;
+      const y = o.p.y + o.s * h + o.gx * dx + o.gz * dz - 0.006, k = (v * C.N + u) * 4;
+      if (until === undefined){ if (r < C.data[k]){ C.data[k] = r; C.data[k + 1] = y; } }
+      else { C.data[k + 3] = C.data[k + 2] > until - 30 ? Math.min(C.data[k + 3], y) : y; C.data[k + 2] = Math.max(C.data[k + 2], until); }   // (a leaf landed on one still lying: the grass held under the lower)
+      i0 = Math.min(i0, u); i1 = Math.max(i1, u); j0 = Math.min(j0, v); j1 = Math.max(j1, v); }
+    return i1 < 0 ? null : [i0, j0, i1, j1]; };
+  for (const L of LITTER) if (L.lay) stamp(L.lay, L.r); C.tex.needsUpdate = true;
+  // the bit of the map changed, sent to the card (not the whole map)
+  const upload = ([i0, j0, i1, j1]) => { const w = i1 - i0 + 1, h = j1 - j0 + 1, d = new Float32Array(w * h * 4);
+    for (let j = 0; j < h; j++) d.set(C.data.subarray(((j0 + j) * C.N + i0) * 4, ((j0 + j) * C.N + i1 + 1) * 4), j * w * 4);
+    renderer.copyTextureToTexture(new THREE.Vector2(i0, j0), new THREE.DataTexture(d, w, h, THREE.RGBAFormat, THREE.FloatType), C.tex); };
+  // a leaf landed from the tree
+  const landed = (o, until) => { const b = stamp(o, 0, until); if (b) upload(b); };
+  // a round thing lying (a conker, an opened husk): the grass under it held beneath y, till then
+  const disc = (x, z, rad, y, until) => { const u0 = Math.max(0, Math.floor((x - rad - C.o.x) / cell)), u1 = Math.min(C.N - 1, Math.floor((x + rad - C.o.x) / cell)), v0 = Math.max(0, Math.floor((z - rad - C.o.y) / cell)), v1 = Math.min(C.N - 1, Math.floor((z + rad - C.o.y) / cell));
+    if (u1 < u0 || v1 < v0) return;
+    for (let v = v0; v <= v1; v++) for (let u = u0; u <= u1; u++){ if (Math.hypot(C.o.x + (u + 0.5) * cell - x, C.o.y + (v + 0.5) * cell - z) > rad + cell * 0.5) continue; const k = (v * C.N + u) * 4;
+      C.data[k + 3] = C.data[k + 2] > until - 30 ? Math.min(C.data[k + 3], y) : y; C.data[k + 2] = Math.max(C.data[k + 2], until); }
+    upload([u0, v0, u1, v1]); };
+  return { shapes, rest, near, topOf, landed, disc }; })();
+// what a conker or an opened husk comes to rest on: the ground, the fire's stones and logs, the litter lying now, and the leaves come down from
+// the tree before `before`; the highest of them under it, anywhere within r of (x, z)
+function nutGround(x, z, r, before = Infinity){ const lit = LEAFCOV.lit.value, Ls = lit > -1 ? LEAFLAY.near(x, z).filter(q => !q.hide && q.r < lit) : [];
+  const Fs = FLs.filter(L => L.on && L.land > 0 && L.lay && L.landT < before && Math.abs(L.p.x - x) < 0.8 && Math.abs(L.p.z - z) < 0.8);
+  let g = 0; for (let k = 0; k < 9; k++){ const a = k * TAU / 8, px = k ? x + Math.cos(a) * r : x, pz = k ? z + Math.sin(a) * r : z; g = Math.max(g, fire.top(px, pz));
+    for (const q of Ls){ const t = LEAFLAY.topOf(q.lay, px, pz); if (t > g) g = t; } for (const L of Fs){ const t = LEAFLAY.topOf(L.lay, px, pz); if (t > g) g = t; } }
+  return g; }
 const fireSmokeCol = new THREE.Color(), fireWarm = new THREE.Color('#ff8a40');
 function updateFire(dt, t, wind){
   if (!fire.on) return;
@@ -8206,9 +8348,9 @@ function updateSeasonal(sp){
     SC.setScalar(h.s * on); Q.identity(); M4.compose(h.p, Q, SC); husks.setMatrixAt(i, M4); }
   husks.instanceMatrix.needsUpdate = true; husks.visible = sp.husk > 0.001;
   updateIcicles();
-  for (let i = 0; i < LITTER.length; i++){ const L = LITTER[i]; const vis = clamp((sp.litter * 1.1 - L.r) / 0.1);
-    Q.setFromAxisAngle(P3.set(0, 1, 0), L.rot); SC.setScalar(L.s * 1.75 * vis); M4.compose(L.p, Q, SC); litter.setMatrixAt(i, M4); litter.setColorAt(i, L.c); }   // (s 0.4-0.75 was for the old card: x1.75 is the tree's size)
-  litter.touch(); litter.visible = sp.litter > 0.001;
+  for (let i = 0; i < LITTER.length; i++){ const L = LITTER[i]; const vis = L.hide ? 0 : clamp((sp.litter * 1.1 - L.r) / 0.1);
+    Q.setFromAxisAngle(P3.set(0, 1, 0), L.rot); if (L.tilt) Q.premultiply(L.tilt); SC.setScalar(L.s * 1.75 * vis); M4.compose(L.p, Q, SC); litter.setMatrixAt(i, M4); litter.setColorAt(i, L.c); }   // (s 0.4-0.75 was for the old card: x1.75 is the tree's size)
+  litter.touch(); litter.visible = sp.litter > 0.001; LEAFCOV.lit.value = sp.litter > 0.001 ? sp.litter * 1.1 - 0.05 : -1;   // (the grass under the litter that lies now bends down)
   // gardens
   updateOrchard();
   updateVines();
@@ -8913,10 +9055,19 @@ function frame(){
     if (window.__fallHold){ }   // (debug: held still in the air)
     else if (L.land <= 0){ L.p.y -= dt * 0.95; L.p.x += (Math.sin(t * 1.7 + L.ph) * 0.9 + wind) * dt; L.p.z += Math.cos(t * 1.3 + L.ph) * 0.6 * dt;
       L.rot.x += L.spin.x * dt; L.rot.y += L.spin.y * dt; L.rot.z += L.spin.z * dt;
-      if (L.p.y < 0.04){ L.p.y = 0.035 + rng() * 0.02; L.rot.set(0, 0, rng() * TAU); L.land = 25; } }
+      if (L.p.y < 0.04 + fire.top(L.p.x, L.p.z)){ const y0 = 0.035 + rng() * 0.02; L.rot.set(0, 0, rng() * TAU); L.land = 25;
+        if (Math.hypot(L.p.x - FIRE.x, L.p.z - FIRE.z) < 0.5) L.on = false;   // (into the fire's pit: gone)
+        else { L.lay = { p: L.p, rot: L.rot.z, s: L.s, shp: LEAFLAY.shapes[1], gx: 0, gz: 0 }; const R = LEAFLAY.shapes[1].R * L.s, lit = sp.litter * 1.1 - 0.05, others = [];   // (it comes to rest on the stones, the litter, the leaves landed before it)
+          for (const q of LEAFLAY.near(L.p.x, L.p.z)) if (!q.hide && q.r < lit && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s) others.push(q.lay);
+          for (const q of FLs) if (q !== L && q.on && q.land > 0 && q.lay && Math.hypot(q.p.x - L.p.x, q.p.z - L.p.z) < R + q.lay.shp.R * q.lay.s) others.push(q.lay);
+          for (const n of NUTs){   // (and on the conkers and opened husks lying there: a husk a low dome over its valves, a conker its round top)
+            if (n.h === 2 && n.lift !== undefined && Math.hypot(n.hp.x - L.p.x, n.hp.z - L.p.z) < R + 0.2){ const rr = HUSK_R * (1 + Math.sin(n.ref)) * 1.15 + 0.02, P = n.lift + HUSK_R * (2 * Math.cos(Math.max(0, n.amin)) + 0.3);
+              others.push({ top: (x, z) => { const d = Math.hypot(x - n.hp.x, z - n.hp.z); return d < rr ? n.hp.y + P * Math.sqrt(1 - d * d / (rr * rr)) : -1; } }); }
+            if (n.on && n.h !== 1 && n.p.y < 0.4 && Math.hypot(n.p.x - L.p.x, n.p.z - L.p.z) < R + 0.06) others.push({ top: (x, z) => { const d = Math.hypot(x - n.p.x, z - n.p.z); return d < 0.05 ? n.p.y + Math.sqrt(0.0025 - d * d) : -1; } }); }
+          LEAFLAY.rest(L.lay, others, y0); L.tq = L.lay.tilt; L.landT = t; LEAFLAY.landed(L.lay, t + 25); } } }   // (the grass under it bends down beneath it while it lies there)
     else { L.land -= dt; if (L.land <= 0 || sp.snow > 0.5) L.on = false; }
     Q.setFromEuler(L.rot); M4.compose(L.p, Q, SC.setScalar(L.on && L.land <= 0 ? L.s : 0)); fallAir[L.v].setMatrixAt(L.j, M4); fallAir[L.v].setColorAt(L.j, L.c);
-    Q.setFromAxisAngle(P3.set(0, 1, 0), L.rot.z); M4.compose(L.p, Q, SC.setScalar(L.on && L.land > 0 ? L.s : 0)); fallDown.setMatrixAt(i, M4); fallDown.setColorAt(i, L.c); }
+    Q.setFromAxisAngle(P3.set(0, 1, 0), L.rot.z); if (L.tq) Q.premultiply(L.tq); M4.compose(L.p, Q, SC.setScalar(L.on && L.land > 0 ? L.s : 0)); fallDown.setMatrixAt(i, M4); fallDown.setColorAt(i, L.c); }
   for (const m of fallAir.concat(fallDown)){ m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
 
   // chestnuts
