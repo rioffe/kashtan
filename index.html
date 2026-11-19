@@ -40,6 +40,12 @@
   #hudtop{position:fixed;left:16px;top:14px;z-index:10;pointer-events:auto;user-select:none;-webkit-user-select:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
   #hudtop .t{font-family:var(--serif);font-size:24px;letter-spacing:.04em}
   #hudtop .s{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);margin-top:2px}
+  #lampdbg{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:12;display:none;width:220px;padding:10px 12px 9px;border-radius:12px;background:var(--glass);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);font-size:12px;user-select:none;-webkit-user-select:none}
+  @media (max-width:1560px){ #lampdbg{bottom:calc(140px + env(safe-area-inset-bottom))} }   /* (over the buttons, where they reach the corner) */
+  #lampdbg.on{display:block} #lampdbg .r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+  #lampdbg b{font-size:22px;font-weight:600;letter-spacing:0;text-transform:none;color:inherit;font-variant-numeric:tabular-nums;cursor:pointer}
+  #lampdbg input{width:100%;margin:6px 0 4px;accent-color:#e8b864} #lampdbg .n{color:var(--ink-dim);font-variant-numeric:tabular-nums}
   #nuts{position:fixed;right:16px;top:14px;z-index:10;font-size:15px;background:var(--glass);backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:999px;padding:6px 14px;display:none}
   #caption{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);width:min(760px,calc(100% - 32px));text-align:center;
@@ -90,6 +96,7 @@
 <div id="hudtop"><div class="t" id="seasonT">Весна</div><div class="s" id="seasonS">May · Rīga 1984</div></div>
 <div id="nuts">🌰 <span id="nutc">0</span><span id="roastc"></span></div>
 <div id="caption"></div>
+<div id="lampdbg" title="[ and ] to dim and brighten; click the number to reset"><div class="r"><span>Street lamps</span><b id="lampv">1.00×</b></div><input id="lampr" type="range" min="0" max="4" step="0.05" value="1"><div class="n" id="lampn"></div></div>
 <div id="ui" class="hidden">
   <div id="ctx"></div>
   <div id="bar">
@@ -631,7 +638,8 @@ const kerbY = (x, z) => { if (inHome(x, z)) return 0; if (inRound(x, z, -76, 86,
 // the street lamps: one over every crossing and one halfway along every block (three lattices, CELL apart each way), hung over the middle of
 // the street on wires from the house fronts at the height of the tops of the third-floor windows; their light a melancholy yellow. There are
 // too many for lights of their own: lampLit works out, for each point of a surface, the few lamps near enough to light it, from the grid
-const LAMP = { y: 10.1, hy: 10.6, wy: 10.9, I: 105, k: { value: 0 }, fog: { value: 0.004 }, col: { value: new THREE.Color(1, 0.74, 0.38) },
+// (LAMP.b: how bright, 1 as made: see the lamps' debug control)
+const LAMP = { y: 10.1, hy: 10.6, wy: 10.9, I: 105, k: { value: 0 }, b: { value: 1 }, fog: { value: 0.004 }, col: { value: new THREE.Color(1, 0.74, 0.38) },
   O: [[TX0 + BLOCK + STREET / 2, TZ0 + BLOCK + STREET / 2], [TX0 + BLOCK / 2, TZ0 + BLOCK + STREET / 2], [TX0 + BLOCK + STREET / 2, TZ0 + BLOCK / 2]] };
 // (one in twenty-nine dead; one in thirty-one that won't stay lit: the same sums here and in the shaders)
 LAMP.dead = (i, j, L) => (((i * 73 + j * 151 + L * 37) % 29) + 29) % 29 === 0;
@@ -641,12 +649,12 @@ const LAMP_GLSL = `float lampOn(vec2 id, float L, float t){
   return 1.0; }
 `;
 function lampLit(mat){ return shaderChain(mat, 'lampLit', (sh) => {
-  Object.assign(sh.uniforms, { uLampK: LAMP.k, uLampC: LAMP.col, uLampT: timeU });
+  Object.assign(sh.uniforms, { uLampK: LAMP.k, uLampB: LAMP.b, uLampC: LAMP.col, uLampT: timeU });
   const f = v => v.toFixed(2), O = LAMP.O, m = 60;
   sh.vertexShader = 'varying vec3 vLampWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vLampWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-  sh.fragmentShader = 'uniform float uLampK; uniform float uLampT; uniform vec3 uLampC; varying vec3 vLampWP;\n' + LAMP_GLSL + sh.fragmentShader.replace('#include <lights_fragment_maps>', `
+  sh.fragmentShader = 'uniform float uLampK; uniform float uLampB; uniform float uLampT; uniform vec3 uLampC; varying vec3 vLampWP;\n' + LAMP_GLSL + sh.fragmentShader.replace('#include <lights_fragment_maps>', `
   #if defined( RE_Direct )
-  if (uLampK > 0.001){ IncidentLight lampL; lampL.visible = true;
+  if (uLampK * uLampB > 0.001){ IncidentLight lampL; lampL.visible = true;
     for (int L = 0; L < 3; L++){ vec2 o = L == 0 ? vec2(${f(O[0][0])}, ${f(O[0][1])}) : L == 1 ? vec2(${f(O[1][0])}, ${f(O[1][1])}) : vec2(${f(O[2][0])}, ${f(O[2][1])});
       vec2 c0 = floor((vLampWP.xz - o) / ${f(CELL)});
       for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++){ vec2 id = c0 + vec2(float(i), float(j)), w = o + id * ${f(CELL)};
@@ -656,7 +664,7 @@ function lampLit(mat){ return shaderChain(mat, 'lampLit', (sh) => {
         float on = lampOn(id, float(L), uLampT); if (on <= 0.0) continue;
         float d = sqrt(d2); vec3 lw = dw / d;
         lampL.direction = normalize((viewMatrix * vec4(lw, 0.0)).xyz);   // (down and out from under its shade, not up)
-        lampL.color = uLampC * (uLampK * on * smoothstep(-0.05, 0.35, lw.y) * (0.35 + 0.65 * lw.y) * ${f(LAMP.I)} / max(d2, 2.0) * (1.0 - smoothstep(22.0, 32.0, d)));   // (brightest straight down)
+        lampL.color = uLampC * (uLampK * uLampB * on * smoothstep(-0.05, 0.35, lw.y) * (0.35 + 0.65 * lw.y) * ${f(LAMP.I)} / max(d2, 2.0) * (1.0 - smoothstep(22.0, 32.0, d)));   // (brightest straight down)
         RE_Direct(lampL, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight); } } }
   #endif
   #include <lights_fragment_maps>`); }); }
@@ -824,25 +832,33 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
       list.forEach((S, k) => m.setMatrixAt(k, M.compose(new V3(S.x, LAMP.y, S.z), q.setFromAxisAngle(new V3(0, 1, 0), S.yaw), one))); m.count = list.length; m.receiveShadow = true; scene.add(m); return m; };
     for (const S of LS) S.yaw = lr() * TAU;
     const lit = LS.filter(S => !S.dead), dead = LS.filter(S => S.dead);
+    LAMP.nDead = dead.length; LAMP.nFlicker = lit.filter(S => (((S.i * 41 + S.j * 97 + S.L * 13) % 31) + 31) % 31 === 0).length;   // (the same sums as lampOn's)
+    const ids = g => { g = g.clone(); g.setAttribute('aId', new THREE.InstancedBufferAttribute(new Float32Array(lit.flatMap(S => [S.i, S.j, S.L])), 3)); return g; };
+    const flick = (m, frag) => shaderChain(m, 'lampFlick', sh => { sh.uniforms.uLampT = timeU; sh.uniforms.uInOff = { value: new THREE.Color('#3a3834') };   // (each lamp on, dead, or flickering, as its light)
+      sh.vertexShader = 'attribute vec3 aId; uniform float uLampT; varying float vLampOn;\n' + LAMP_GLSL + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLampOn = lampOn(aId.xy, aId.z, uLampT);');
+      sh.fragmentShader = 'uniform vec3 uInOff; varying float vLampOn;\n' + frag(sh.fragmentShader); });
     inst(shadeG, snowify(new THREE.MeshStandardMaterial({ color: '#2b2c2a', roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }), 1), LS).castShadow = true;   // (the shade and the globe under it shadowed on the street)
     const inner = new THREE.MeshBasicMaterial({ color: '#3a3834', side: THREE.BackSide }), innerOn = new THREE.Color('#c8964a'), innerOff = new THREE.Color('#3a3834');
-    inst(innerG, inner, lit); inst(innerG, new THREE.MeshBasicMaterial({ color: '#3a3834', side: THREE.BackSide }), dead);
+    flick(inner, f => f.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = mix(uInOff, diffuseColor.rgb, vLampOn);'));
+    inst(ids(innerG), inner, lit); inst(innerG, new THREE.MeshBasicMaterial({ color: '#3a3834', side: THREE.BackSide }), dead);
     const globe = new THREE.MeshStandardMaterial({ color: '#d2cdc2', roughness: 0.3, emissive: '#ffcf78', emissiveIntensity: 0 });
-    inst(globeG, globe, lit).castShadow = true; inst(globeG, new THREE.MeshStandardMaterial({ color: '#bcb8ae', roughness: 0.3 }), dead).castShadow = true;
+    flick(globe, f => f.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= vLampOn;'));
+    inst(ids(globeG), globe, lit).castShadow = true; inst(globeG, new THREE.MeshStandardMaterial({ color: '#bcb8ae', roughness: 0.3 }), dead).castShadow = true;
     // the glow round each lit globe, drawn toward us a little so the glass doesn't cut it, fading into the haze with the rest
-    const glowMat = new THREE.ShaderMaterial({ uniforms: { uK: LAMP.k, uC: { value: new THREE.Color(1, 0.78, 0.42) }, uT: timeU, uFog: LAMP.fog }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    const glowMat = new THREE.ShaderMaterial({ uniforms: { uK: LAMP.k, uB: LAMP.b, uC: { value: new THREE.Color(1, 0.78, 0.42) }, uT: timeU, uFog: LAMP.fog }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       vertexShader: `attribute vec3 aId; uniform float uT, uFog; varying vec2 vUv; varying float vA;
 ${LAMP_GLSL}
 void main(){ vUv = position.xy; vec4 c = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0); float d = -c.z;
   c.xyz += normalize(-c.xyz) * 0.5; c.xy += position.xy * (1.3 + d * 0.01);
   vA = lampOn(aId.xy, aId.z, uT) * exp(-uFog * uFog * d * d * 0.6); gl_Position = projectionMatrix * c; }`,
-      fragmentShader: `uniform float uK; uniform vec3 uC; varying vec2 vUv; varying float vA;
-void main(){ float r2 = dot(vUv, vUv), e = max(0.0, 1.0 - r2); gl_FragColor = vec4(uC * (exp(-r2 * 4.5) * 0.55 + exp(-r2 * 38.0) * 1.6) * e * e * uK * vA, 1.0);   // (to nothing at the quad's edge)
+      fragmentShader: `uniform float uK; uniform float uB; uniform vec3 uC; varying vec2 vUv; varying float vA;
+void main(){ float r2 = dot(vUv, vUv), e = max(0.0, 1.0 - r2); gl_FragColor = vec4(uC * (exp(-r2 * 4.5) * 0.55 + exp(-r2 * 38.0) * 1.6) * e * e * uK * uB * vA, 1.0);   // (to nothing at the quad's edge)
   #include <colorspace_fragment>
 }` });
     const glowG = new THREE.PlaneGeometry(2, 2); glowG.setAttribute('aId', new THREE.InstancedBufferAttribute(new Float32Array(lit.flatMap(S => [S.i, S.j, S.L])), 3));
     const glow = inst(glowG, glowMat, lit); glow.frustumCulled = false; glow.renderOrder = 2; glow.receiveShadow = false;
-    LAMP.upd = k => { globe.emissiveIntensity = 3.2 * k; inner.color.copy(innerOff).lerp(innerOn, k); glow.visible = k > 0.002; };
+    const innerB = new THREE.Color();
+    LAMP.upd = k => { const b = LAMP.b.value; globe.emissiveIntensity = 3.2 * k * b; inner.color.copy(innerOff).lerp(innerB.copy(innerOn).multiplyScalar(b), k); glow.visible = k * b > 0.002; };
     LAMP.n = LS.length; }
   // (no bare yard: in front of the house it is grass, with narrow asphalt paths — see 'paths and overgrowth' below)
   const ct = dirtTex.clone(); ct.repeat.set(3, 3); ct.needsUpdate = true;
@@ -8264,6 +8280,16 @@ addEventListener('keydown', e => {
   if (k === 'KeyY'){ const ks = Object.keys(WEATHERS); setWeather(ks[(ks.indexOf(weather) + 1) % ks.length]); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
+/* debug: the street lamps' brightness. [ and ] (or ?lamps, or ?lampb=1.5) bring up the panel in the lower right corner: the brightness
+   as a multiple of the lamps' own, a slider, and how many lamps there are, dead and flickering. Click the number to put it back to 1 */
+const lampDbg = (() => { const $_ = id => document.getElementById(id), el = $_('lampdbg'), v = $_('lampv'), r = $_('lampr'), n = $_('lampn');
+  const set = b => { LAMP.b.value = b = Math.round(clamp(b, 0, 4) * 100) / 100; v.textContent = b.toFixed(2) + '×'; r.value = b; if (LAMP.upd) LAMP.upd(LAMP.k.value); };
+  const show = () => { el.classList.add('on'); n.textContent = `${LAMP.n} lamps · ${LAMP.nDead} dead · ${LAMP.nFlicker} flickering`; };
+  r.addEventListener('input', () => set(+r.value)); r.addEventListener('change', () => r.blur()); v.addEventListener('click', () => set(1));
+  addEventListener('keydown', e => { if (e.code !== 'BracketLeft' && e.code !== 'BracketRight') return; show(); set(LAMP.b.value + (e.code === 'BracketRight' ? 0.1 : -0.1)); });
+  const q = new URLSearchParams(location.search); if (q.has('lamps') || q.has('lampb')){ show(); if (q.has('lampb')) set(+q.get('lampb')); }
+  if (q.has('lamps')) console.log('LAMPS', LAMP.n, 'dead', LAMP.nDead, 'flickering', LAMP.nFlicker);
+  return { set, show }; })();
 addEventListener('blur', () => keys.clear());
 const distTree = () => Math.hypot(camera.position.x - TREE.x, camera.position.z - TREE.z);
 function goTo(p, yaw, pitch, dur = 2.2){ tween = { p0: camera.position.clone(), y0: cam.yaw, pi0: cam.pitch, p1: p.clone(), y1: yaw, pi1: pitch, t: 0, dur }; }
