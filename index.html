@@ -643,9 +643,15 @@ const COBX = {}, COBZ = {};   // which streets are cobbled (along x, north of ro
 { const r = mkRng(19840902); for (let i = -12; i <= 12; i++){ COBX[i] = r() < 0.5; COBZ[i] = r() < 0.5; } COBX[-1] = false; COBX[-4] = true; }
 const inHome = (x, z, m = 0) => x > -76 - m && x < 86 + m && z > -207 - m && z < -45 + m;
 const homeCell = (gx, gz) => gx >= -1 && gx <= 1 && gz >= -3 && gz <= -1;
-const blockOn = (gx, gz) => gx >= -7 && gx <= 7 && gz >= -9 && gz <= 8 && !homeCell(gx, gz) && (gx * gx + gz * gz <= 57 || gz <= 5);   // (out to 440 m on the old grid; the same blocks)
+// St. Gertrude's: two blocks along the cobbled street behind ours, the blocks either side of the street there given over to its square, the
+// street running into the ring of Baznīcas iela round the church and on out of it (see 'St. Gertrude's'); cx, cz: the church's middle
+const CHURCH_SQ = { gx: -3, x0: bx0(-3), x1: bx0(-3) + BLOCK, z0: bz0(-4), z1: bz0(-3) + BLOCK, cx: bx0(-3) + BLOCK / 2, cz: bz0(-4) + BLOCK + STREET / 2 };
+const churchCell = (gx, gz) => gx === -3 && (gz === -4 || gz === -3);
+const inChurch = (x, z, m = 0) => { const u = x - CHURCH_SQ.cx, v = Math.abs(z - CHURCH_SQ.cz);   // (its footprint, roughly, for walking round it)
+  return (u > -17.7 - m && u < 18.2 + m && v < 12.6 + m) || (u > -9.4 - m && u < 5.4 + m && v < 19.2 + m) || (u > -28.6 - m && u < -17 && v < 8.4 + m) || (u > 17.5 && u < 28.4 + m && v < 7.8 + m); };
+const blockOn = (gx, gz) => gx >= -7 && gx <= 7 && gz >= -9 && gz <= 8 && !homeCell(gx, gz) && !churchCell(gx, gz) && (gx * gx + gz * gz <= 57 || gz <= 5);   // (out to 440 m on the old grid; the same blocks)
 const TOWN = { x0: bx0(-6) - STREET, x1: bx0(6) + BLOCK + STREET, z0: bz0(-8) - STREET, z1: bz0(4) + BLOCK + STREET };
-const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TOWN.z0 + m || z > TOWN.z1 - m || inHome(x, z, m)) return false;
+const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TOWN.z0 + m || z > TOWN.z1 - m || inHome(x, z, m) || inChurch(x, z, m)) return false;
   const ax = Math.floor((x - TX0) / CELL), u = x - TX0 - ax * CELL, az = Math.floor((z - TZ0) / CELL), v = z - TZ0 - az * CELL;   // (not into a block, nor within m of its fronts)
   for (const a of [u <= BLOCK + m ? ax : null, u >= CELL - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= BLOCK + m ? az : null, v >= CELL - m ? az + 1 : null]) if (b !== null && blockOn(a, b)) return false;
   return true; };
@@ -678,6 +684,7 @@ function lampLit(mat){ return shaderChain(mat, 'lampLit', (sh) => {
       vec2 c0 = floor((vLampWP.xz - o) / ${f(CELL)});
       for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++){ vec2 id = c0 + vec2(float(i), float(j)), w = o + id * ${f(CELL)};
         if (w.x > -76.0 && w.x < 86.0 && w.y > -207.0 && w.y < -45.0) continue;   // (none in our yard)
+        if (w.x > ${f(CHURCH_SQ.x0)} && w.x < ${f(CHURCH_SQ.x1)} && w.y > ${f(CHURCH_SQ.z0)} && w.y < ${f(CHURCH_SQ.z1)}) continue;   // (nor in the church's square)
         if (w.x < ${f(TOWN.x0 - m)} || w.x > ${f(TOWN.x1 + m)} || w.y < ${f(TOWN.z0 - m)} || w.y > ${f(TOWN.z1 + m)}) continue;
         vec3 dw = vec3(w.x, ${f(LAMP.y)}, w.y) - vLampWP; float d2 = dot(dw, dw); if (d2 > 1024.0) continue;
         float on = lampOn(id, float(L), uLampT); if (on <= 0.0) continue;
@@ -788,7 +795,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     const clipX = (a, b, f) => { a = Math.max(-450, a); b = Math.min(450, b); if (b > a) f(a, b); };
     for (let gz = -10; gz <= 7; gz++){ const s0 = bz0(gz) + BLOCK, cob = COBX[gz];   // along x, north of row gz (-1: Stabu), not through ours
       for (let gx = -9; gx <= 8; gx++){ const x0 = bx0(gx), x1 = x0 + BLOCK;
-        if (!(homeCell(gx, gz) && homeCell(gx, gz + 1))) clipX(x0, x1, (a, b) => stretch(cob, true, a, b, s0, true));
+        if (!(homeCell(gx, gz) && homeCell(gx, gz + 1)) && !(churchCell(gx, gz) && churchCell(gx, gz + 1))) clipX(x0, x1, (a, b) => stretch(cob, true, a, b, s0, true));   // (none through ours, nor through the church's square)
         if (!(homeCell(gx, gz) && homeCell(gx + 1, gz) && homeCell(gx, gz + 1) && homeCell(gx + 1, gz + 1))) clipX(x1, x1 + STREET, (a, b) => stretch(cob, true, a, b, s0, false)); } }
     for (let gx = -8; gx <= 7; gx++){ const s0 = bx0(gx) + BLOCK, cob = COBZ[gx];   // along z, east of column gx, between the crossings
       for (let gz = -9; gz <= 7; gz++) if (!(homeCell(gx, gz) && homeCell(gx + 1, gz))) stretch(cob, false, bz0(gz), bz0(gz) + BLOCK, s0, true); }
@@ -6162,7 +6169,11 @@ var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
   };
   { const sv = seed;   // (the near blocks from the world's numbers; then the world's numbers carried on as if the blocks were still 46 m, as they were
     // when everything drawn after them was set, so that the yard, our side of Stabu, the clouds, are what they were)
-    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && gx * gx + gz * gz <= 57) townBlock(gx, gz);
+    // (the two blocks given over to the church's square still built, so the world's numbers are drawn as they always were and every other
+    // house is as it was: and then all of them taken away again)
+    const ghostBlock = (gx, gz) => { const keep = [bodies, roofs, EAVES, CHIMNEYS, BIC, ...[FA, FB, RA, SA, CK, BA, RB].flatMap(o => Object.values(o))].map(a => [a, a.length]);
+      townBlock(gx, gz); for (const [a, n] of keep) a.length = n; };
+    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if ((blockOn(gx, gz) || churchCell(gx, gz)) && gx * gx + gz * gz <= 57) (churchCell(gx, gz) ? ghostBlock : townBlock)(gx, gz);
     seed = sv + Math.imul(11561, 0x6D2B79F5) | 0; }
   { const sv = seed; seed = 19841117; for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && gx * gx + gz * gz > 57) townBlock(gx, gz); seed = sv; }
   { const sv = seed; seed = 19840777;   // the gaps at the corners of the blocks near us closed (so no courtyard shows through, and nothing leans on air): a facade just behind the houses' own, drawn apart
@@ -6562,6 +6573,301 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
           for (let j = 0; j < 2; j++){ const o = mid.clone().lerp(end, un(0.1, 0.8)), a2 = az + un(-1.3, 1.3); seg(o, o.clone().add(new V3(Math.cos(a2) * R * un(0.25, 0.45), R * un(0.2, 0.5), Math.sin(a2) * R * un(0.25, 0.45))), 0.012, 0.004); } } }
       const twigs = new THREE.Mesh(mergeGeometries(tw), snowify(new THREE.MeshStandardMaterial({ map: barkTex, color: '#6a5a4c', roughness: 0.95 }), 1.6)); twigs.receiveShadow = true; scene.add(twigs); }
     if (new URLSearchParams(location.search).has('bushlog')) console.log('LOTBUSH', Object.entries(by).map(([k, v]) => k + ' ' + v.length).join(', '), 'lilac colours', LCOL.map((_, i) => by.lilac.filter(b => b.col === i).length).join('/'), 'panicles', lotBloom.count); }
+}
+
+/* ---------- St. Gertrude's: the Old Church (Vecā Svētās Ģertrūdes baznīca), J. D. Felsko's Gothic of 1864-69, red brick and grey stone,
+   on its island in the cobbled street behind ours with Baznīcas iela round it. Its tower to us (65 m to the cross: the square shaft with
+   the portal, the great window, the clocks, the belfry under four gables, the green copper spire with its little lantern), the nave
+   and aisles under one steep grey roof, the transept's ends gabled and pinnacled, the polygonal choir away from us; buttresses all round
+   with stone set-offs, a pinnacle on every one. Local u along it (the tower at +u, to the east, to us), v across it ---------- */
+{ const SQ = CHURCH_SQ, CX = SQ.cx, CZ = SQ.cz, UPV_ = new V3(0, 1, 0);
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), BR = acc(), ST = acc(), RF = acc(), CU = acc(), WN = acc();
+  const P = (u, y, v) => [CX + u, y, CZ + v];
+  // a flat polygon, its corners in order; its normal from them (or turned up, for what must face the sky); uv per corner
+  const poly = (B, pts, uvs, up = false) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
+    let nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (up && ny < 0){ pts = pts.slice().reverse(); uvs = uvs.slice().reverse(); nx = -nx; ny = -ny; nz = -nz; }
+    const l = Math.hypot(nx, ny, nz) || 1, o = B.p.length / 3;
+    pts.forEach((q, k) => { B.p.push(q[0], q[1], q[2]); B.n.push(nx / l, ny / l, nz / l); B.uv.push(uvs[k][0], uvs[k][1]); });
+    for (let k = 1; k + 1 < pts.length; k++) B.i.push(o, o + k, o + k + 1); };
+  // a vertical wall from (u1, v1) to (u2, v2), y0 to y1 (its outside on the left going along it, seen from above with v down); uv in metres
+  const wall = (B, u1, v1, u2, v2, y0, y1, s0 = 0) => { const L = Math.hypot(u2 - u1, v2 - v1);
+    poly(B, [P(u1, y0, v1), P(u1, y1, v1), P(u2, y1, v2), P(u2, y0, v2)], [[s0, y0], [s0, y1], [s0 + L, y1], [s0 + L, y0]]); };
+  // a prism up from a footprint (corners in order round it), y0 to y1, with its top
+  const prism = (B, pts, y0, y1, top = true) => { let ar = 0; for (let k = 0; k < pts.length; k++){ const [a, b] = [pts[k], pts[(k + 1) % pts.length]]; ar += a[0] * b[1] - b[0] * a[1]; }
+    const Q = ar > 0 ? pts.slice().reverse() : pts; let s = 0;
+    for (let k = 0; k < Q.length; k++){ const a = Q[k], b = Q[(k + 1) % Q.length]; wall(B, a[0], a[1], b[0], b[1], y0, y1, s); s += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+    if (top) poly(B, Q.map(([u, v]) => P(u, y1, v)), Q.map(([u, v]) => [u, v]), true); };
+  const flat = (B, outline, to3, uvf) => { for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(outline.map(([a, b]) => new THREE.Vector2(a, b)), []))   // (an outline with notches in it)
+    poly(B, [to3(outline[i]), to3(outline[j]), to3(outline[k])], [uvf(outline[i]), uvf(outline[j]), uvf(outline[k])]); };
+  const rect = (u0, u1, v0, v1) => [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+  // a pyramid (or frustum) over a footprint, to an apex (or a smaller copy of it at y1)
+  const pyramid = (B, pts, y0, apex, y1, k = 0) => { const cu = pts.reduce((a, q) => a + q[0], 0) / pts.length, cv = pts.reduce((a, q) => a + q[1], 0) / pts.length;
+    for (let i = 0; i < pts.length; i++){ const a = pts[i], b = pts[(i + 1) % pts.length], A2 = [cu + (a[0] - cu) * k, cv + (a[1] - cv) * k], B2 = [cu + (b[0] - cu) * k, cv + (b[1] - cv) * k], L = Math.hypot(b[0] - a[0], b[1] - a[1]), sl = Math.hypot(apex - y0, (1 - k) * Math.hypot(a[0] - cu, a[1] - cv));
+      if (k > 0) poly(B, [P(a[0], y0, a[1]), P(b[0], y0, b[1]), P(B2[0], y1, B2[1]), P(A2[0], y1, A2[1])], [[0, 0], [L, 0], [L * k, sl], [0, sl]], true);
+      else poly(B, [P(a[0], y0, a[1]), P(b[0], y0, b[1]), P(cu, apex, cv)], [[0, 0], [L, 0], [L / 2, sl]], true); } };
+  const oct = (cu, cv, r, rot = Math.PI / 8) => Array.from({ length: 8 }, (_, k) => [cu + Math.cos(rot + k * TAU / 8) * r, cv + Math.sin(rot + k * TAU / 8) * r]);
+
+  // ---- its pictures: brick, stone, the roof's tin, the spire's copper, and the windows, door, clock and blind tracery in one sheet
+  const tr = mkRng(18640601), tn = (a, b) => a + (b - a) * tr();
+  const brickT = tex(512, 512, (g, w, h) => { g.fillStyle = '#a89480'; g.fillRect(0, 0, w, h); const bw = w / 4, bh = h / 16;   // 4 bricks across 1.04 m, 16 courses up 1.2 m
+    for (let j = 0; j < 16; j++) for (let i = -1; i < 5; i++){ const x = i * bw + (j % 2) * bw / 2, y = j * bh, k = tr(), t = tn(0.86, 1.1), c = k < 0.12 ? [132, 60, 40] : k < 0.24 ? [204, 116, 76] : k < 0.3 ? [176, 108, 80] : [186, 92, 58];   // (orange-red, the odd one burnt dark or pale)
+      g.fillStyle = `rgb(${c[0] * t | 0},${c[1] * t | 0},${c[2] * t | 0})`; g.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+      for (let q = 0; q < 7; q++){ g.fillStyle = tr() < 0.5 ? `rgba(60,24,14,${tn(0.1, 0.3)})` : `rgba(210,150,110,${tn(0.08, 0.2)})`; g.fillRect(x + 2 + tr() * (bw - 8), y + 2 + tr() * (bh - 6), tn(2, 9), tn(1, 3)); } }
+    for (let i = 0; i < 26; i++){ const x = tr() * w, gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(40,30,25,0)'); gr.addColorStop(tn(0.3, 0.9), 'rgba(40,30,25,.10)'); gr.addColorStop(1, 'rgba(40,30,25,0)'); g.fillStyle = gr; g.fillRect(x, 0, tn(6, 30), h); } }, { repeat: [1 / 1.04, 1 / 1.2] });
+  const stoneT = tex(256, 256, (g, w, h) => { g.fillStyle = '#7e786c'; g.fillRect(0, 0, w, h);   // grey sandstone: blocks 0.6 by 0.3 m (tile 1.2 m)
+    for (let j = 0; j < 4; j++) for (let i = -1; i < 3; i++){ const x = i * 128 + (j % 2) * 64, y = j * 64, t = tn(0.88, 1.08); g.fillStyle = `rgb(${172 * t | 0},${164 * t | 0},${148 * t | 0})`; g.fillRect(x + 2, y + 2, 124, 60);
+      for (let q = 0; q < 40; q++){ g.fillStyle = tr() < 0.6 ? `rgba(70,66,58,${tn(0.05, 0.18)})` : `rgba(230,224,206,${tn(0.05, 0.15)})`; g.fillRect(x + 2 + tr() * 118, y + 2 + tr() * 56, tn(2, 12), tn(1, 4)); } }
+    for (let i = 0; i < 14; i++){ const x = tr() * w, gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(50,48,44,.25)'); gr.addColorStop(1, 'rgba(50,48,44,0)'); g.fillStyle = gr; g.fillRect(x, 0, tn(4, 18), h); } }, { repeat: [1 / 1.2, 1 / 1.2] });
+  const roofT = tex(256, 256, (g, w, h) => { g.fillStyle = '#8c9396'; g.fillRect(0, 0, w, h);   // standing seams every half metre (tile 2 m)
+    for (let i = 0; i < 4; i++){ const x = i * 64, t = tn(0.92, 1.06); g.fillStyle = `rgb(${140 * t | 0},${147 * t | 0},${150 * t | 0})`; g.fillRect(x + 3, 0, 58, h); g.fillStyle = 'rgba(220,228,232,.55)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(40,46,50,.4)'; g.fillRect(x + 2, 0, 1.5, h); }
+    for (let i = 0; i < 30; i++){ g.fillStyle = `rgba(${tr() < 0.5 ? '60,64,66' : '170,176,178'},${tn(0.05, 0.14)})`; g.fillRect(tr() * w, tr() * h, tn(2, 10), tn(10, 80)); } }, { repeat: [0.5, 0.5] });
+  const copperT = tex(128, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#4f8f7c'); gr.addColorStop(0.5, '#68aa94'); gr.addColorStop(1, '#4f8f7c'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2; i++){ g.fillStyle = 'rgba(30,70,58,.6)'; g.fillRect(i * 64, 0, 2, h); }
+    for (let i = 0; i < 60; i++){ g.fillStyle = tr() < 0.5 ? `rgba(40,80,66,${tn(0.08, 0.2)})` : `rgba(160,210,190,${tn(0.06, 0.16)})`; g.fillRect(tr() * w, tr() * h, tn(1, 5), tn(10, 70)); } }, { repeat: [1, 0.5] });
+  // the sheet: A a nave window (two lights), B a great window (four), D the belfry's louvred pair, E blind tracery, F a door, G the clock, H a narrow lancet
+  const AW = 2048, AH = 1024, R_ = { A: [0, 0, 256, 1024], B: [256, 0, 384, 1024], D: [640, 0, 256, 768], E: [896, 0, 128, 512], F: [1024, 0, 256, 512], G: [1280, 0, 256, 256], H: [1536, 0, 128, 512] };
+  const arch = (g, x0, x1, ys, yb, k = 1) => { const span = x1 - x0, r = span * k, th = Math.acos((r - span / 2) / r);   // a pointed arch from x0 to x1, springing at ys, its feet at yb
+    g.beginPath(); g.moveTo(x0, yb); g.lineTo(x0, ys); g.arc(x0 + r, ys, r, Math.PI, Math.PI + th, false); g.arc(x1 - r, ys, r, -th, 0, false); g.lineTo(x1, yb); g.closePath(); };
+  const archTop = (span, k = 1) => { const r = span * k; return r * Math.sin(Math.acos((r - span / 2) / r)); };
+  const atlas = tex(AW, AH, (g) => { g.clearRect(0, 0, AW, AH);
+    const glass = (x0, y0, w, h) => { g.save(); g.clip(); g.fillStyle = '#26303a'; g.fillRect(x0, y0, w, h);
+      for (let i = 0; i < 300; i++){ const c = [[60, 80, 110], [70, 96, 90], [110, 90, 60], [90, 70, 90], [50, 60, 72]][tr() * 5 | 0]; g.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${tn(0.15, 0.4)})`; g.fillRect(x0 + tr() * w, y0 + tr() * h, tn(6, 20), tn(8, 26)); }
+      g.strokeStyle = 'rgba(120,128,134,.55)'; g.lineWidth = 1.2; for (let d = -h; d < w + h; d += 12){ g.beginPath(); g.moveTo(x0 + d, y0); g.lineTo(x0 + d + h * 0.6, y0 + h); g.stroke(); g.beginPath(); g.moveTo(x0 + d, y0); g.lineTo(x0 + d - h * 0.6, y0 + h); g.stroke(); }   // the leading, in diamonds
+      const sh = g.createLinearGradient(x0, y0, x0 + w, y0 + h); sh.addColorStop(0, 'rgba(200,215,225,.16)'); sh.addColorStop(0.5, 'rgba(200,215,225,0)'); g.fillStyle = sh; g.fillRect(x0, y0, w, h); g.restore(); };
+    const stoneC = '#bdb4a0', window_ = ([x, y, w, h], lights, rose) => { const s = w * 0.07, ys = y + archTop(w) + 4;
+      g.fillStyle = stoneC; arch(g, x + 2, x + w - 2, ys, y + h - 2); g.fill(); g.strokeStyle = 'rgba(80,72,60,.5)'; g.lineWidth = 2; g.stroke();
+      arch(g, x + s, x + w - s, ys + s * 0.3, y + h - s * 0.6); glass(x, y, w, h);
+      g.strokeStyle = stoneC; g.lineWidth = w * 0.035; const iw = w - 2 * s, lw = iw / lights, yh = ys + archTop(w - 2 * s) * 0.15 + iw * 0.45;   // mullions; the lights' own pointed heads; the tracery over them
+      for (let k = 1; k < lights; k++){ g.beginPath(); g.moveTo(x + s + k * lw, y + h); g.lineTo(x + s + k * lw, yh); g.stroke(); }
+      for (let k = 0; k < lights; k++){ arch(g, x + s + k * lw, x + s + (k + 1) * lw, yh, y + h, 1); g.stroke(); }
+      const cxr = x + w / 2, cyr = yh - iw * (rose ? 0.36 : 0.3), rr = iw * (rose ? 0.3 : 0.22); g.beginPath(); g.arc(cxr, cyr, rr, 0, TAU); g.stroke();
+      for (let k = 0; k < (rose ? 6 : 4); k++){ const a = k * TAU / (rose ? 6 : 4) + Math.PI / 4; g.beginPath(); g.arc(cxr + Math.cos(a) * rr * 0.45, cyr + Math.sin(a) * rr * 0.45, rr * 0.42, 0, TAU); g.stroke(); }   // the foils
+      if (lights >= 4){ for (const k of [0, 2]){ const xa = x + s + k * lw, xb = xa + 2 * lw; arch(g, xa, xb, yh + iw * 0.12, y + h, 1); g.stroke(); } }
+      g.lineWidth = w * 0.02; g.beginPath(); g.moveTo(x + s, y + h * 0.62); g.lineTo(x + w - s, y + h * 0.62); g.stroke(); };   // (a transom, as theirs have)
+    window_(R_.A, 2, false); window_(R_.B, 4, true);
+    { const [x, y, w, h] = R_.D, s = 12;   // the belfry: two louvred lancets under one arch, a quatrefoil over them
+      g.fillStyle = stoneC; arch(g, x + 2, x + w - 2, y + archTop(w) + 4, y + h - 2); g.fill(); g.fillStyle = '#1a1714'; arch(g, x + s, x + w - s, y + archTop(w) + 8, y + h - s); g.fill();
+      const half = (w - 2 * s) / 2; for (const k of [0, 1]){ const xa = x + s + k * half + 6, xb = xa + half - 12; g.save(); arch(g, xa, xb, y + archTop(w) * 0.6 + 120, y + h - s); g.clip();
+        for (let yy = y + 120; yy < y + h; yy += 22){ g.fillStyle = '#6f6a62'; g.fillRect(xa, yy, xb - xa, 9); g.fillStyle = '#3a3632'; g.fillRect(xa, yy + 9, xb - xa, 3); } g.restore(); }
+      g.strokeStyle = stoneC; g.lineWidth = 10; g.beginPath(); g.arc(x + w / 2, y + archTop(w) * 0.55 + 70, 34, 0, TAU); g.stroke(); }
+    { const [x, y, w, h] = R_.E;   // blind tracery: a plastered panel, a pointed arch in stone, a trefoil in its head
+      g.fillStyle = '#cfc6b2'; g.fillRect(x + 4, y + 4, w - 8, h - 8); g.strokeStyle = '#9a917e'; g.lineWidth = 5; arch(g, x + 18, x + w - 18, y + 70, y + h - 16); g.stroke();
+      g.beginPath(); g.moveTo(x + w / 2, y + h - 16); g.lineTo(x + w / 2, y + 150); g.stroke(); g.beginPath(); g.arc(x + w / 2, y + 96, 22, 0, TAU); g.stroke(); }
+    { const [x, y, w, h] = R_.F, ys = y + archTop(w) + 4;   // a door: dark boards, iron, a traceried tympanum
+      g.fillStyle = stoneC; arch(g, x, x + w, ys, y + h); g.fill(); arch(g, x + 10, x + w - 10, ys + 8, y + h); g.save(); g.clip();
+      g.fillStyle = '#2c2420'; g.fillRect(x, y, w, h); for (let xx = x + 10; xx < x + w; xx += 22){ g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(xx, y, 2, h); }
+      g.fillStyle = '#26303a'; g.fillRect(x, y, w, ys + 40 - y); g.strokeStyle = stoneC; g.lineWidth = 7; for (const [cx, cy, r] of [[x + w / 2, ys - 10, 30], [x + w / 2 - 44, ys + 24, 22], [x + w / 2 + 44, ys + 24, 22]]){ g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke(); }
+      g.fillRect(x, ys + 40, w, 8); g.fillStyle = '#4a4440'; for (const yy of [ys + 120, ys + 260]) g.fillRect(x + 14, yy, w - 28, 6); g.restore(); }
+    { const [x, y, w, h] = R_.G, c = x + w / 2, cy = y + h / 2;   // the clock: black, its numerals and hands gilt, in a stone ring
+      g.fillStyle = stoneC; g.beginPath(); g.arc(c, cy, w / 2 - 2, 0, TAU); g.fill(); g.fillStyle = '#141414'; g.beginPath(); g.arc(c, cy, w / 2 - 16, 0, TAU); g.fill();
+      g.strokeStyle = '#c9a24a'; g.lineWidth = 3; g.beginPath(); g.arc(c, cy, w / 2 - 22, 0, TAU); g.stroke(); g.fillStyle = '#d8b25a'; g.font = 'bold 22px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'].forEach((t, k) => { const a = k * TAU / 12 - Math.PI / 2; g.fillText(t, c + Math.cos(a) * (w / 2 - 44), cy + Math.sin(a) * (w / 2 - 44)); });
+      g.strokeStyle = '#d8b25a'; g.lineCap = 'round'; g.lineWidth = 7; g.beginPath(); g.moveTo(c, cy); g.lineTo(c + 40, cy - 30); g.stroke(); g.lineWidth = 5; g.beginPath(); g.moveTo(c, cy); g.lineTo(c - 20, cy - 74); g.stroke(); }
+    { const [x, y, w, h] = R_.H; g.fillStyle = stoneC; arch(g, x + 2, x + w - 2, y + archTop(w) + 4, y + h - 2); g.fill(); arch(g, x + 12, x + w - 12, y + archTop(w) + 8, y + h - 10); glass(x, y, w, h); } }, { srgb: true });
+  atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping;
+  const reg = (k, u0 = 0, u1 = 1, v0 = 0, v1 = 1) => { const [x, y, w, h] = R_[k]; return [[(x + u0 * w) / AW, 1 - (y + (1 - v0) * h) / AH], [(x + u1 * w) / AW, 1 - (y + (1 - v1) * h) / AH]]; };
+  // a picture on a wall: centred at (u, v) facing (nu, nv), w wide, from y0 to y1, from the sheet's region k
+  const pic = (k, u, v, nu, nv, w, y0, y1, off = 0.04) => { const [[a0, b0], [a1, b1]] = reg(k), tu = nv, tv = -nu, cu = u + nu * off, cv = v + nv * off;   // (t: to the right, seen from outside)
+    poly(WN, [P(cu - tu * w / 2, y0, cv - tv * w / 2), P(cu + tu * w / 2, y0, cv + tv * w / 2), P(cu + tu * w / 2, y1, cv + tv * w / 2), P(cu - tu * w / 2, y1, cv - tv * w / 2)], [[a0, b0], [a1, b0], [a1, b1], [a0, b1]]); };
+
+  // ---- the plan (u, v in metres from its middle): nave and aisles, the transept across them, the choir's polygon, the tower
+  const NV = { u0: -17.5, u1: 18, hw: 11.1, eave: 15.5, ridge: 26 }, TR = { u0: -8, u1: 4, hw: 17.9, eave: 15.5, ridge: 22.6 }, CH = { c: -20, r: 7.2, eave: 14, ridge: 23 }, TW = { u0: 18, u1: 27, hw: 4.1, top: 38.6 };
+  const apse = [[NV.u0, -CH.r], ...[90, 135, 180, 225, 270].map(d => [CH.c + Math.cos(d * Math.PI / 180) * CH.r * (d === 90 || d === 270 ? 1 : 1), Math.sin(d * Math.PI / 180) * -CH.r]), [NV.u0, CH.r]];   // (the choir: straight, then five sides of an octagon)
+  const grow = (pts, d) => { const cu = pts.reduce((a, q) => a + q[0], 0) / pts.length, cv = pts.reduce((a, q) => a + q[1], 0) / pts.length; return pts.map(([u, v]) => { const l = Math.hypot(u - cu, v - cv) || 1; return [u + (u - cu) / l * d, v + (v - cv) / l * d]; }); };
+  // the plinth, of stone; the walls, of brick, up to the eaves (the tower's to its belfry's top)
+  for (const [B, d, y1] of [[ST, 0.18, 1.2], [BR, 0, null]]){
+    prism(B, grow(rect(NV.u0, NV.u1, -NV.hw, NV.hw), d), 0, y1 ?? NV.eave, !!y1); prism(B, grow(rect(TR.u0, TR.u1, -TR.hw, TR.hw), d), 0, y1 ?? TR.eave, !!y1);
+    prism(B, grow(apse, d), 0, y1 ?? CH.eave, !!y1); prism(B, grow(rect(TW.u0, TW.u1, -TW.hw, TW.hw), d), 0, y1 ?? TW.top, !!y1); }
+  // string courses and cornices, stone: under the windows, at the eaves
+  for (const [y, h, d] of [[4.2, 0.22, 0.1], [NV.eave - 0.35, 0.4, 0.22]]){ prism(ST, grow(rect(NV.u0, NV.u1, -NV.hw, NV.hw), d), y, y + h); prism(ST, grow(rect(TR.u0, TR.u1, -TR.hw, TR.hw), d), y, y + h); }
+  prism(ST, grow(apse, 0.1), 4.2, 4.42); prism(ST, grow(apse, 0.22), CH.eave - 0.35, CH.eave + 0.05);
+  for (const [y, h, d] of [[4.2, 0.22, 0.1], [8.8, 0.25, 0.12], [21, 0.5, 0.18], [29, 0.3, 0.15], [TW.top - 0.4, 0.6, 0.3]]) prism(ST, grow(rect(TW.u0, TW.u1, -TW.hw, TW.hw), d), y, y + h);
+
+  // ---- roofs: the nave's (with its gable walls), the transept's, the choir's over its polygon
+  const slope = (B, a, b, c, d) => { const L = Math.hypot(b[0] - a[0], b[2] - a[2]), H = Math.hypot(d[0] - a[0], d[1] - a[1], d[2] - a[2]); poly(B, [a, b, c, d], [[0, 0], [L, 0], [L, H], [0, H]], true); };
+  { const o = 0.35, e = NV.eave, r = NV.ridge, hw = NV.hw + o;
+    for (const s of [1, -1]) slope(RF, P(NV.u0 - 0.2, e - 0.3, s * hw), P(NV.u1, e - 0.3, s * hw), P(NV.u1, r, 0), P(NV.u0 - 0.2, r, 0));
+    for (const u of [NV.u0, NV.u1]) poly(BR, [P(u, e, -NV.hw), P(u, e, NV.hw), P(u, r - 0.2, 0)], [[0, e], [2 * NV.hw, e], [NV.hw, r]]); }   // (the gable walls at its ends)
+  { const o = 0.35, e = TR.eave, r = TR.ridge, mu = (TR.u0 + TR.u1) / 2;
+    for (const s of [1, -1]) slope(RF, P(s > 0 ? TR.u1 + o : TR.u0 - o, e - 0.3, -TR.hw), P(s > 0 ? TR.u1 + o : TR.u0 - o, e - 0.3, TR.hw), P(mu, r, TR.hw), P(mu, r, -TR.hw)); }
+  { const o = 0.35, e = CH.eave - 0.3, r = CH.ridge, ring_ = grow(apse.slice(1, -1), o);   // the choir: two slopes back to the nave, then a cone of facets over the polygon
+    for (const s of [1, -1]) slope(RF, P(NV.u0, e, s * (CH.r + o)), P(CH.c, e, s * (CH.r + o)), P(CH.c, r, 0), P(NV.u0, r, 0));
+    for (let k = 0; k < ring_.length - 1; k++){ const a = ring_[k], b = ring_[k + 1]; poly(RF, [P(a[0], e, a[1]), P(b[0], e, b[1]), P(CH.c, r, 0)], [[0, 0], [Math.hypot(b[0] - a[0], b[1] - a[1]), 0], [1, 7]], true); } }
+
+  // ---- buttresses: brick, stepping back twice under stone set-offs; a pinnacle on each, above the eaves
+  const PINS = [];   // [u, y, v, size]
+  const setoff = (u, v, nu, nv, w, d, y) => { const tu = -nv, tv = nu, A = [u + tu * w / 2, v + tv * w / 2], B_ = [u - tu * w / 2, v - tv * w / 2], A2 = [A[0] + nu * d, A[1] + nv * d], B2 = [B_[0] + nu * d, B_[1] + nv * d], rise = d * 0.7;
+    poly(ST, [P(A2[0], y, A2[1]), P(B2[0], y, B2[1]), P(B_[0], y + rise, B_[1]), P(A[0], y + rise, A[1])], [[0, 0], [w, 0], [w, d], [0, d]], true);
+    for (const [Q, Q2] of [[A, A2], [B_, B2]]) poly(ST, [P(Q[0], y, Q[1]), P(Q2[0], y, Q2[1]), P(Q[0], y + rise, Q[1])], [[0, 0], [d, 0], [0, rise]]);
+    poly(ST, [P(A[0], y, A[1]), P(B_[0], y, B_[1]), P(B2[0], y, B2[1]), P(A2[0], y, A2[1])], [[0, 0], [w, 0], [w, d], [0, d]]); };   // (and closed underneath)
+  const buttress = (u, v, nu, nv, w, eave, pin = 0.85) => { const l = Math.hypot(nu, nv); nu /= l; nv /= l; const tu = -nv, tv = nu;
+    const foot = (d, ww = w) => [[u + tu * ww / 2, v + tv * ww / 2], [u + tu * ww / 2 + nu * d, v + tv * ww / 2 + nv * d], [u - tu * ww / 2 + nu * d, v - tv * ww / 2 + nv * d], [u - tu * ww / 2, v - tv * ww / 2]];
+    const st = [[1.2, eave * 0.42, 1.3], [eave * 0.42, eave * 0.78, 0.95], [eave * 0.78, eave + 1.0, 0.65]];   // (the brick from the plinth's top up)
+    prism(ST, foot(1.45, w + 0.24), 0, 1.2);   // (its plinth wider than it all round: no face of the one in the plane of the other's) st.forEach(([y0, y1, d], k) => { prism(BR, foot(d), y0, y1, false); const nd = k < 2 ? st[k + 1][2] : 0; setoff(u + nu * nd, v + nv * nd, nu, nv, w, d - nd, y1); });
+    if (pin) PINS.push([u + nu * 0.35, eave + 0.55, v + nv * 0.35, pin]); };
+  { const e = NV.eave;
+    for (const s of [1, -1]){ for (const u of [-12.75, 8.67, 13.33]) buttress(u, s * NV.hw, 0, s, 1.0, e);   // along the nave
+      buttress(NV.u0, s * NV.hw, -1, s, 1.0, e); buttress(NV.u1, s * NV.hw, 1, s, 1.0, e);   // its corners, diagonally
+      buttress(TR.u0, s * TR.hw, -1, s, 1.0, e); buttress(TR.u1, s * TR.hw, 1, s, 1.0, e); }   // the transept's
+    for (let k = 1; k < apse.length - 1; k++){ const [u, v] = apse[k], du = u - CH.c, dv = v; buttress(u, v, du || 0.001, dv, 0.9, CH.eave); }   // the choir's, at its corners, straight out
+    for (const s of [1, -1]){ buttress(TW.u1, s * TW.hw, 1, 0, 1.1, 30, 0); buttress(TW.u1, s * TW.hw, 0, s, 1.1, 30, 0); } }   // the tower's front corners (their pinnacles are the tower's own)
+
+  // ---- gables: the transept's ends (shoulders, a pointed gable between them, blind tracery, pinnacles); the nave's ends raked, pinnacled
+  { const mu = (TR.u0 + TR.u1) / 2, e = TR.eave, sh = 18.8, ap = 26.2, gw = 3.4;
+    for (const s of [1, -1]){ const v = s * TR.hw, outline = [[TR.u0, e], [TR.u1, e], [TR.u1, sh], [mu + gw, sh], [mu, ap], [mu - gw, sh], [TR.u0, sh]];
+      for (const dv of [0, -s * 0.6]) flat(BR, outline, ([u, y]) => P(u, y, v + dv), ([u, y]) => [u, y]);
+      poly(BR, [P(TR.u0, sh, v), P(TR.u0, sh, v - s * 0.6), P(mu - gw, sh, v - s * 0.6), P(mu - gw, sh, v)], [[0, 0], [0.6, 0], [0.6, 3], [0, 3]], true);
+      poly(BR, [P(mu + gw, sh, v), P(mu + gw, sh, v - s * 0.6), P(TR.u1, sh, v - s * 0.6), P(TR.u1, sh, v)], [[0, 0], [0.6, 0], [0.6, 3], [0, 3]], true);
+      for (const [a, b] of [[[mu - gw, sh], [mu, ap]], [[mu, ap], [mu + gw, sh]]]){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]);   // the coping, along the rakes
+        poly(ST, [P(a[0], a[1] + 0.25, v + s * 0.12), P(b[0], b[1] + 0.25, v + s * 0.12), P(b[0], b[1] + 0.25, v - s * 0.72), P(a[0], a[1] + 0.25, v - s * 0.72)], [[0, 0], [L, 0], [L, 0.84], [0, 0.84]], true);
+        for (const dv of [0.12, -0.72]) poly(ST, [P(a[0], a[1], v + s * dv), P(b[0], b[1], v + s * dv), P(b[0], b[1] + 0.25, v + s * dv), P(a[0], a[1] + 0.25, v + s * dv)], [[0, 0], [L, 0], [L, 0.25], [0, 0.25]]);
+        poly(ST, [P(a[0], a[1], v + s * 0.12), P(a[0], a[1], v - s * 0.72), P(b[0], b[1], v - s * 0.72), P(b[0], b[1], v + s * 0.12)], [[0, 0], [0.84, 0], [0.84, L], [0, L]]); }   // (closed underneath)
+      for (const du of [-1.2, 0, 1.2]) pic('E', mu + du, v, 0, s, 0.95, sh - 0.6 + (du ? 0 : 0.2), sh + (du ? 2.8 : 4.4));   // blind tracery in the gable
+      for (const du of [-4.8, 4.8]) pic('E', mu + du * 0.95, v, 0, s, 0.8, e + 0.5, sh - 0.4);   // and in the shoulders
+      PINS.push([mu - gw, sh, v + s * 0.1, 0.7], [mu + gw, sh, v + s * 0.1, 0.7], [mu, ap - 0.2, v + s * 0.1, 0.45]); } }
+  { const e = NV.eave;   // the nave's ends: a pinnacle on each step up the rake (the west one over the choir; the east one either side of the tower)
+    for (const u of [NV.u0, NV.u1]) for (const s of [1, -1]) for (const f of u === NV.u0 ? [0.33, 0.66] : [0.33]){ const v = s * NV.hw * (1 - f); PINS.push([u, e + (NV.ridge - e) * f - 0.3, v, 0.6]); }   // (on the gable wall, its shaft down into it)
+    PINS.push([NV.u0, NV.ridge - 0.3, 0, 0.55]);
+    for (const s of [1, -1]) for (const du of [-5.6, -10]) pic('E', NV.u0 - 0.02, s * (du === -5.6 ? 2.2 : 5.4), -1, 0, 1.0, e + 0.6, e + (du === -5.6 ? 6.2 : 3.6), 0.02); }
+
+  // ---- windows: the nave's bays, the transept's great windows and its sides', the choir's, and the tower's
+  for (const s of [1, -1]){ for (const u of [-15.1, -10.4, 6.33, 11, 15.67]){ pic('A', u, s * NV.hw, 0, s, 2.3, 4.7, 13.6); setoff(u, s * NV.hw, 0, s, 2.6, 0.25, 4.45); }
+    pic('B', (TR.u0 + TR.u1) / 2, s * TR.hw, 0, s, 4.6, 6.4, 15.6);
+    for (const [u, nu] of [[TR.u0, -1], [TR.u1, 1]]) pic('A', u, s * 14.6, nu, 0, 2.2, 4.7, 13.4); }
+  for (let k = 1; k < apse.length - 2; k++){ const a = apse[k], b = apse[k + 1], mu = (a[0] + b[0]) / 2, mv = (a[1] + b[1]) / 2, nu = (mu - CH.c), nv = mv, l = Math.hypot(nu, nv); pic('A', mu, mv, nu / l, nv / l, 1.9, 4.7, 12.4); }
+  pic('B', TW.u1, 0, 1, 0, 3.2, 9.6, 20.4);   // the tower's great window, over the portal
+  for (const [u, v, nu, nv] of [[TW.u1, 0, 1, 0], [(TW.u0 + TW.u1) / 2, TW.hw, 0, 1], [(TW.u0 + TW.u1) / 2, -TW.hw, 0, -1], [TW.u0, 0, -1, 0]]){
+    pic('H', u, v, nu, nv, 0.8, 22.2, 25.6); if (nu >= 0) pic('G', u, v, nu, nv, 2.3, 26.2, 28.5, 0.12);   // a lancet and (but at the back) a clock
+    if (nu >= 0) setoff(u + nu * 0.1, v + nv * 0.1, nu, nv, 2.8, 0.6, 28.55);   // a little roof over the clock
+    pic('D', u, v, nu, nv, 2.7, 30.2, 37.8); }   // the belfry's louvred pair
+
+  // ---- portals: a stone arch on jambs standing out from the wall, a gable over it, pinnacles beside; the door within; steps up to it
+  const portal = (u, v, nu, nv, w = 2.6, h = 4.4) => { const tu = -nv, tv = nu, ys = h * 0.7, ap = ys + archTop(w + 1.2) * 0.98, gb0 = ap - 0.9;
+    for (const sd of [-1, 1]){ const cu = u + tu * sd * (w / 2 + 0.3), cv = v + tv * sd * (w / 2 + 0.3); prism(ST, [[cu - tu * 0.3, cv - tv * 0.3], [cu - tu * 0.3 + nu * 0.62, cv - tv * 0.3 + nv * 0.62], [cu + tu * 0.3 + nu * 0.62, cv + tv * 0.3 + nv * 0.62], [cu + tu * 0.3, cv + tv * 0.3]], 0, gb0); }   // (the jambs, up to the gable's foot)
+    const sh = new THREE.Shape(); { const r = w + 1.2, span = w + 1.2, th = Math.acos((r - span / 2) / r); sh.moveTo(-span / 2, 0); sh.absarc(-span / 2 + r, 0, r, Math.PI, Math.PI - th, true); sh.absarc(span / 2 - r, 0, r, th, 0, true); sh.lineTo(span / 2 - 0.6, 0);
+      const ri = w, si = w, thi = Math.acos((ri - si / 2) / ri); sh.absarc(si / 2 - ri, 0, ri, 0, thi, false); sh.absarc(-si / 2 + ri, 0, ri, Math.PI - thi, Math.PI, false); sh.lineTo(-span / 2, 0); }
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.6, bevelEnabled: false, curveSegments: 10 }); g.applyMatrix4(new THREE.Matrix4().makeBasis(new V3(nv, 0, -nu), UPV_, new V3(nu, 0, nv)).setPosition(CX + u, ys, CZ + v));
+    const gp = g.attributes.position, gn = g.attributes.normal, gi = g.index ? g.index.array : null, o = ST.p.length / 3;
+    for (let k = 0; k < gp.count; k++){ ST.p.push(gp.getX(k), gp.getY(k), gp.getZ(k)); ST.n.push(gn.getX(k), gn.getY(k), gn.getZ(k)); ST.uv.push(gp.getX(k) * 0.7 + gp.getZ(k) * 0.7, gp.getY(k)); }
+    if (gi) for (const q of gi) ST.i.push(o + q); else for (let k = 0; k < gp.count; k++) ST.i.push(o + k);
+    const gw = w / 2 + 0.6, gb = gb0, gt = ap + 2.6, fu = u + nu * 0.62, fv = v + nv * 0.62, bu = u + nu * 0.05, bv = v + nv * 0.05;   // the gable over it (a stone prism, as wide as the jambs)
+    poly(ST, [P(fu - tu * gw, gb, fv - tv * gw), P(fu + tu * gw, gb, fv + tv * gw), P(fu, gt, fv)], [[0, 0], [2 * gw, 0], [gw, gt - gb]]);
+    poly(ST, [P(fu - tu * gw, gb, fv - tv * gw), P(bu - tu * gw, gb, bv - tv * gw), P(bu + tu * gw, gb, bv + tv * gw), P(fu + tu * gw, gb, fv + tv * gw)], [[0, 0], [0.6, 0], [0.6, 2 * gw], [0, 2 * gw]]);   // (closed underneath)
+    for (const sd of [-1, 1]) poly(ST, [P(fu + tu * sd * gw, gb, fv + tv * sd * gw), P(bu + tu * sd * gw, gb, bv + tv * sd * gw), P(bu, gt, bv), P(fu, gt, fv)], [[0, 0], [0.6, 0], [0.6, 3], [0, 3]], true);
+    pic('E', u + nu * 0.62, v + nv * 0.62, nu, nv, 1.2, gb + 0.3, gt - 0.5, 0.02);
+    pic('F', u, v, nu, nv, w, 0.3, ys + archTop(w) * 0.98, 0.03);
+    for (const sd of [-1, 1]) PINS.push([u + tu * sd * (w / 2 + 0.3) + nu * 0.31, gb, v + tv * sd * (w / 2 + 0.3) + nv * 0.31, 0.55]); PINS.push([fu - nu * 0.25, gt - 0.15, fv - nv * 0.25, 0.3]);   // (pinnacles on the jambs)
+    for (let k = 0; k < 3; k++){ const d0 = 0.6 + (2 - k) * 0.45, d1 = 0.6 + (3 - k) * 0.45; prism(ST, [[u + tu * (w / 2 + 1.1) + nu * d0, v + tv * (w / 2 + 1.1) + nv * d0], [u + tu * (w / 2 + 1.1) + nu * d1, v + tv * (w / 2 + 1.1) + nv * d1], [u - tu * (w / 2 + 1.1) + nu * d1, v - tv * (w / 2 + 1.1) + nv * d1], [u - tu * (w / 2 + 1.1) + nu * d0, v - tv * (w / 2 + 1.1) + nv * d0]], 0, 0.16 * (k + 1)); } };   // three steps
+  portal(TW.u1, 0, 1, 0, 2.6, 4.6); for (const s of [1, -1]) portal((TR.u0 + TR.u1) / 2, s * TR.hw, 0, s, 2.3, 4.0);
+
+  // ---- the stair turrets either side of the tower: octagons of brick, a stone cornice, a stone spirelet
+  for (const s of [1, -1]){ const c = [20.2, s * 6.0]; prism(ST, oct(c[0], c[1], 1.95), 0, 1.2); prism(BR, oct(c[0], c[1], 1.75), 0, 18, false); prism(ST, oct(c[0], c[1], 1.95), 18, 18.45);
+    pyramid(ST, oct(c[0], c[1], 1.85), 18.45, 23.2); PINS.push([c[0], 23.0, c[1], 0.35]); }
+
+  // ---- the tower's crown: a gable on each face over the belfry (brick, stone coping, blind tracery), pinnacles at its corners
+  { const y0 = TW.top + 0.2, ap = y0 + 5.6, mu = (TW.u0 + TW.u1) / 2, hw = TW.hw;
+    for (const [u, v, nu, nv] of [[TW.u1, 0, 1, 0], [TW.u0, 0, -1, 0], [mu, hw, 0, 1], [mu, -hw, 0, -1]]){ const tu = -nv, tv = nu, w = 3.4;
+      for (const d of [0, -0.5]){ const cu = u + nu * d, cv = v + nv * d; poly(BR, [P(cu - tu * w, y0, cv - tv * w), P(cu + tu * w, y0, cv + tv * w), P(cu, ap, cv)], [[0, y0], [2 * w, y0], [w, ap]]); }
+      for (const sd of [-1, 1]) poly(ST, [P(u + tu * sd * w + nu * 0.12, y0, v + tv * sd * w + nv * 0.12), P(u + tu * sd * w - nu * 0.62, y0, v + tv * sd * w - nv * 0.62), P(u - nu * 0.62, ap + 0.2, v - nv * 0.62), P(u + nu * 0.12, ap + 0.2, v + nv * 0.12)], [[0, 0], [0.74, 0], [0.74, 6], [0, 6]], true);
+      pic('E', u, v, nu, nv, 1.3, y0 + 0.4, ap - 1.2, 0.03); PINS.push([u + nu * 0.05, ap - 0.1, v + nv * 0.05, 0.42]); }
+    for (const su of [TW.u0, TW.u1]) for (const s of [1, -1]) PINS.push([su + (su > 20 ? 0.2 : -0.2), y0 - 0.2, s * (hw + 0.2), 1.25]); }
+
+  // ---- the spire: copper, octagonal, from inside the gables up to a little lantern of eight windows, then on up to the cross
+  { const cu = (TW.u0 + TW.u1) / 2, y0 = TW.top + 0.2, y1 = 47.4, y2 = 50.6, y3 = 63.6, rot = Math.PI / 8;
+    pyramid(CU, oct(cu, 0, 3.75, rot), y0, 0, y1, 0.62); prism(CU, oct(cu, 0, 2.3, rot), y1, y2, false);
+    for (let k = 0; k < 8; k++){ const a = rot + (k + 0.5) * TAU / 8, ap_ = 2.3 * Math.cos(Math.PI / 8); pic('H', cu + Math.cos(a) * ap_, Math.sin(a) * ap_, Math.cos(a), Math.sin(a), 0.6, y1 + 0.5, y2 - 0.6, 0.02); }
+    prism(CU, oct(cu, 0, 2.55, rot), y2, y2 + 0.3); pyramid(CU, oct(cu, 0, 2.1, rot), y2 + 0.3, y3);
+    for (let k = 0; k < 4; k++){ const a = k * Math.PI / 2, nu = Math.cos(a), nv = Math.sin(a), tu = -nv, tv = nu, d = 2.75, bu = cu + nu * d, bv = nv * d, w = 0.55, yb = y0 + 2.2, yt = yb + 1.6;   // lucarnes at the spire's foot
+      prism(CU, [[bu - tu * w, bv - tv * w], [bu - tu * w + nu * 0.9, bv - tv * w + nv * 0.9], [bu + tu * w + nu * 0.9, bv + tv * w + nv * 0.9], [bu + tu * w, bv + tv * w]], yb, yt, false);
+      pic('H', bu + nu * 0.9, bv + nv * 0.9, nu, nv, 0.6, yb + 0.15, yt - 0.1, 0.02);
+      for (const sd of [-1, 1]) poly(CU, [P(bu + tu * sd * (w + 0.1) + nu * 1.0, yt, bv + tv * sd * (w + 0.1) + nv * 1.0), P(bu + tu * sd * (w + 0.1) - nu * 0.4, yt, bv + tv * sd * (w + 0.1) - nv * 0.4), P(bu - nu * 0.4, yt + 1.1, bv - nv * 0.4), P(bu + nu * 1.0, yt + 1.1, bv + nv * 1.0)], [[0, 0], [1.4, 0], [1.4, 1.2], [0, 1.2]], true); }
+    for (const [x0, x1, y0_, y1_, z0, z1] of [[-0.06, 0.06, y3 - 0.2, y3 + 2.6, -0.06, 0.06], [-0.55, 0.55, y3 + 1.6, y3 + 1.75, -0.06, 0.06], [-0.06, 0.06, y3 + 1.6, y3 + 1.75, -0.55, 0.55]])   // the cross on the top
+      prism(CU, rect(cu + x0, cu + x1, z0, z1), y0_, y1_); }
+
+  // ---- the pinnacles: a square shaft, a little gable on each face, a slender spire, a cross; stone, all of them one mesh
+  const pinGeo = (() => { const B = acc();   // (built round the origin, then placed)
+    const q = (pts, uvs) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1], nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]), l = Math.hypot(nx, ny, nz) || 1, o = B.p.length / 3;
+      pts.forEach((p, k) => { B.p.push(...p); B.n.push(nx / l, ny / l, nz / l); B.uv.push(...uvs[k]); }); for (let k = 1; k + 1 < pts.length; k++) B.i.push(o, o + k, o + k + 1); };
+    const h = 0.5, H1 = 2.3, G = 0.9, S = 5.9;
+    for (let k = 0; k < 4; k++){ const a = k * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a), tu = -sn, tv = c;
+      q([[c * h - tu * h, -1.6, sn * h - tv * h], [c * h - tu * h, H1, sn * h - tv * h], [c * h + tu * h, H1, sn * h + tv * h], [c * h + tu * h, -1.6, sn * h + tv * h]], [[0, -1.6], [0, H1], [1, H1], [1, -1.6]]);   // the shaft (carried on down into whatever it stands on)
+      q([[c * (h + 0.02) - tu * h, H1, sn * (h + 0.02) - tv * h], [c * (h + 0.02), H1 + G, sn * (h + 0.02)], [c * (h + 0.02) + tu * h, H1, sn * (h + 0.02) + tv * h]], [[0, H1], [0.5, H1 + G], [1, H1]]);   // its little gable
+      q([[c * h * 0.72 - tu * h * 0.72, H1, sn * h * 0.72 - tv * h * 0.72], [0, S, 0], [c * h * 0.72 + tu * h * 0.72, H1, sn * h * 0.72 + tv * h * 0.72]], [[0, 0], [0.5, 3], [1, 0]]);   // the spire
+      for (const f of [0.4, 0.62, 0.82]){ const y = H1 + (S - H1) * f, r = h * 0.72 * (1 - f) + 0.09; q([[c * r - tu * 0.06, y, sn * r - tv * 0.06], [c * (r + 0.13), y + 0.1, sn * (r + 0.13)], [c * r + tu * 0.06, y, sn * r + tv * 0.06]], [[0, 0], [0.5, 0.2], [1, 0]]); } }   // crockets up its edges
+    q([[-h, -1.6, -h], [h, -1.6, -h], [h, -1.6, h], [-h, -1.6, h]], [[0, 0], [1, 0], [1, 1], [0, 1]]);   // (closed at its foot)
+    for (const [x0, x1, y0, y1, z0, z1] of [[-0.035, 0.035, S - 0.1, S + 0.75, -0.035, 0.035], [-0.2, 0.2, S + 0.42, S + 0.5, -0.035, 0.035], [-0.035, 0.035, S + 0.42, S + 0.5, -0.2, 0.2]])
+      for (const [a, b, c, d] of [[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]]]) q([a, b, c, d], [[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1]]);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setIndex(B.i); return g; })();
+
+  // ---- into the scene
+  const mk = (B, mat, cast = true) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setIndex(B.i);
+    const m = new THREE.Mesh(g, mat); m.castShadow = cast; m.receiveShadow = true; scene.add(m); return m; };
+  const brickM = lampLit(snowify(new THREE.MeshStandardMaterial({ map: brickT, roughness: 0.92, side: THREE.DoubleSide }), 0.4)), stoneM = lampLit(snowify(new THREE.MeshStandardMaterial({ map: stoneT, roughness: 0.85, side: THREE.DoubleSide }), 1));
+  mk(BR, brickM); mk(ST, stoneM); mk(RF, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: roofT, roughness: 0.5, metalness: 0.35, side: THREE.DoubleSide }), 1.3)));
+  mk(CU, snowify(new THREE.MeshStandardMaterial({ map: copperT, roughness: 0.55, metalness: 0.2, side: THREE.DoubleSide }), 1.1));
+  mk(WN, lampLit(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide })), false);
+  { const im = new THREE.InstancedMesh(pinGeo, stoneM, PINS.length), M = new THREE.Matrix4(), Q = new THREE.Quaternion();
+    PINS.forEach(([u, y, v, s], k) => im.setMatrixAt(k, M.compose(new V3(CX + u, y, CZ + v), Q, new V3(s, s, s)))); im.castShadow = im.receiveShadow = true; scene.add(im); }
+
+  // ---- its square: Baznīcas iela round it, cobbled; the church's own paving inside the ring; the pavement outside it, up to the streets
+  { const T = STREETTEX, N = 120, A0 = 37.5, B0 = 27, A1 = 30.5, B1 = 20, G = { p: [], n: [], uv: [], i: [] }, PV_ = { p: [], n: [], uv: [], i: [] };
+    const ell = (a, b, t) => [CX + Math.cos(t) * a, CZ + Math.sin(t) * b];
+    for (let k = 0; k <= N; k++){ const t = k / N * TAU, [xo, zo] = ell(A0, B0, t), [xi, zi] = ell(A1, B1, t); G.p.push(xo, 0.016, zo, xi, 0.016, zi); G.n.push(0, 1, 0, 0, 1, 0); G.uv.push(xo / 3.2, zo / 3.2, xi / 3.2, zi / 3.2);
+      if (k < N){ const o = k * 2; G.i.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); } }
+    { const o = 0; PV_.p.push(CX, 0.02, CZ); PV_.n.push(0, 1, 0); PV_.uv.push(CX / 6, CZ / 6);   // inside the ring: paving, up to the church
+      for (let k = 0; k <= N; k++){ const t = k / N * TAU, [x, z] = ell(A1, B1, t); PV_.p.push(x, 0.02, z); PV_.n.push(0, 1, 0); PV_.uv.push(x / 6, z / 6); if (k < N) PV_.i.push(o, o + 1 + k + 1, o + 1 + k); } }
+    { const o = PV_.p.length / 3, cl = x => Math.min(SQ.x1, Math.max(SQ.x0, x));   // outside it: a pavement 3.5 m wide, out to the house fronts' line
+      for (let k = 0; k <= N; k++){ const t = k / N * TAU, [xa, za] = ell(A0, B0, t), [xb, zb] = ell(A0 + 3.5, B0 + 3.5, t); PV_.p.push(cl(xa), 0.02, za, cl(xb), 0.02, zb); PV_.n.push(0, 1, 0, 0, 1, 0); PV_.uv.push(xa / 6, za / 6, xb / 6, zb / 6);
+        if (k < N && Math.abs(Math.cos(t + TAU / N / 2)) * (A0 + 1.75) < (SQ.x1 - SQ.x0) / 2 - 0.5){ const q = o + k * 2; PV_.i.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } } }
+    const gm = new THREE.Mesh(new THREE.BufferGeometry(), lampLit(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: T.setts, bumpMap: T.settBump, bumpScale: 1.2, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 0.8), 0.9, false)));
+    for (const [B, m] of [[G, gm], [PV_, new THREE.Mesh(new THREE.BufferGeometry(), lampLit(snowify(new THREE.MeshStandardMaterial({ map: T.walk, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1)))]]){
+      m.geometry.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); m.geometry.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); m.geometry.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); m.geometry.setIndex(B.i); m.receiveShadow = true; scene.add(m); } }
+  // ---- lindens on the square's lawns either side of it, as the rowan is made: a trunk, a leader, scaffold branches climbing and then
+  // arching out, branching twice, to an egg of a crown; leafy shoots in flat sprays round every twig's end and along the bigger branches.
+  // Their leaves heart-shaped, finely toothed, out in May, going yellow in October; bare in winter
+  { const lr = mkRng(18640602), ln = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0), segs = [], spots = [];
+    const places = []; for (const [z0, z1] of [[SQ.z1 - 19, SQ.z1 - 6], [SQ.z0 + 6, SQ.z0 + 19]]) for (let x = SQ.x0 + 5; x <= SQ.x1 - 5; x += ln(9.5, 12)){ const z = ln(z0, z1); if (Math.hypot((x - CX) / 43, (z - CZ) / 32.5) > 1) places.push([x + ln(-1, 1), z]); }   // (clear of the pavement round the ring)
+    for (const [x, z] of places){ const H = ln(11.5, 14), R = ln(3.6, 4.4), hc = H * 0.6, hh = H * 0.42, env = h => R * Math.sqrt(Math.max(0, 1 - ((h - hc) / hh) ** 2)), tips = [];
+      const seg = (a, b, r0, r1) => segs.push({ a: a.clone(), b: b.clone(), r0, r1 });
+      let p = new V3(x, 0, z), d = new V3(ln(-0.04, 0.04), 1, ln(-0.04, 0.04)).normalize(); const nodes = [];   // the trunk and its leader, wandering a little as it rises
+      for (let i = 0, n = 10; i < n; i++){ const t0 = i / n, t1 = (i + 1) / n, nx = p.clone().addScaledVector(d, H * 0.88 / n);
+        seg(p, nx, lerp(0.32, 0.05, t0 ** 0.75), lerp(0.32, 0.05, t1 ** 0.75)); nodes.push({ p: p.clone(), d: d.clone() }); p = nx; d.x += ln(-0.05, 0.05); d.z += ln(-0.05, 0.05); d.normalize(); }
+      tips.push({ p: p.clone(), d: d.clone() });
+      const branch = (a, dir, len, rad, depth) => { let cur = a.clone(), dd = dir.clone(); const n = depth === 0 ? 5 : 3, mids = [];
+        for (let i = 0; i < n; i++){ const step = len / n; dd.y -= 0.05 + depth * 0.05 + i / n * 0.06; dd.x += ln(-0.12, 0.12); dd.z += ln(-0.12, 0.12); dd.normalize();   // (arching over towards their ends)
+          let nx = cur.clone().addScaledVector(dd, step); if (Math.hypot(nx.x - x, nx.z - z) > env(nx.y) * 1.02){ dd.addScaledVector(new V3(x - nx.x, 0, z - nx.z).normalize(), 0.55).addScaledVector(up, 0.2).normalize(); nx = cur.clone().addScaledVector(dd, step * 0.7); }   // (kept inside the crown)
+          seg(cur, nx, lerp(rad, rad * 0.5, i / n), lerp(rad, rad * 0.5, (i + 1) / n)); cur = nx; mids.push({ p: cur.clone(), d: dd.clone() }); if (depth >= 1 ? i > 0 : i >= 2) tips.push({ p: cur.clone(), d: dd.clone() }); }   // (leaves along the bigger branches too, not only at their ends)
+        tips.push({ p: cur.clone(), d: dd.clone() }); if (depth >= 2) return;
+        for (let k = 0; k < (depth === 0 ? 3 : 2); k++){ const m = mids[Math.min(mids.length - 1, 1 + k)], [u, v] = perpBasis(m.d), az = lr() * TAU, sp = ln(0.4, 0.8);
+          const cd = m.d.clone().multiplyScalar(Math.cos(sp)).addScaledVector(u, Math.sin(sp) * Math.cos(az)).addScaledVector(v, Math.sin(sp) * Math.sin(az)); cd.y = Math.abs(cd.y) * 0.7 + 0.15; cd.normalize();
+          branch(m.p, cd, len * ln(0.45, 0.6), rad * 0.55, depth + 1); } };
+      for (let i = 0, n = 11, az = lr() * TAU; i < n; i++){ const h = lerp(2.9, H * 0.78, i / (n - 1)) + ln(-0.2, 0.2), nd = nodes.reduce((b, q) => Math.abs(q.p.y - h) < Math.abs(b.p.y - h) ? q : b), a = nd.p.clone().addScaledVector(nd.d, h - nd.p.y);
+        az += 2.4 + ln(-0.25, 0.25); const ang = lerp(1.05, 0.45, i / (n - 1)) + ln(-0.1, 0.1), dir = new V3(Math.sin(ang) * Math.cos(az), Math.cos(ang), Math.sin(ang) * Math.sin(az));
+        branch(a, dir, Math.min(5.5, Math.max(0.8, env(h + 1) * 0.95) / Math.sin(ang)) * ln(0.85, 1.05), lerp(0.13, 0.05, i / (n - 1)), 0); }
+      for (const t of tips){ const out = new V3(t.p.x - x, (t.p.y - hc) * 0.4, t.p.z - z); if (out.lengthSq() < 1e-4) out.set(ln(-1, 1), 0.3, ln(-1, 1)); out.normalize();   // the leafy shoots: sprays held out flat
+        for (let k = 0; k < 9; k++){ const off = new V3(ln(-1, 1), ln(-0.5, 0.7), ln(-1, 1)).normalize().multiplyScalar(ln(0.1, 0.7));
+          const dir = out.clone().multiplyScalar(0.7).addScaledVector(t.d, 0.35).addScaledVector(off.clone().normalize(), 0.6).addScaledVector(up, 0.05).normalize();
+          spots.push({ p: t.p.clone().add(off).addScaledVector(dir, -0.12), dir, k: ln(1.25, 1.5) }); } }   // (the crown thick with them)
+    }   // (no core, as the rowan and the fruit trees have none: from under it, the sky through the leaves)
+    // the wood: grey-brown bark, ridged and fissured along it
+    const bark = tex(256, 512, (g, w, h) => { const r = mkRng(18640603); g.fillStyle = '#6a6258'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++){ let x = r() * w, y = r() * h; const L = 60 + r() * 200; g.strokeStyle = `rgba(36,32,28,${0.4 + r() * 0.4})`; g.lineWidth = 2 + r() * 4; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 6; k++){ x += (r() - 0.5) * 8; y += L / 6; g.lineTo(x, y); } g.stroke(); }
+      for (let i = 0; i < 300; i++){ g.fillStyle = `rgba(${r() < 0.5 ? '150,144,134' : '80,74,66'},${0.08 + r() * 0.15})`; g.fillRect(r() * w, r() * h, 2 + r() * 8, 10 + r() * 40); } });
+    const geos = segs.map(sg => { const len = sg.a.distanceTo(sg.b), rs = sg.r0 > 0.15 ? 12 : sg.r0 > 0.05 ? 8 : 5, g = new THREE.CylinderGeometry(sg.r1, sg.r0, len * 1.04, rs, 1, true), uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.max(1, Math.round(TAU * sg.r0 / 0.3)), uv.getY(i) * len / 0.6);
+      g.translate(0, len / 2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, sg.b.clone().sub(sg.a).normalize())); g.translate(sg.a.x, sg.a.y, sg.a.z); return g; });
+    const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: bark, roughness: 0.9 }), 1.3)); wood.castShadow = wood.receiveShadow = true; scene.add(wood);
+    // the leaf: heart-shaped, notched at the stalk, broadest low down, drawn out to a short point, finely toothed; three veins from its base
+    const lindenProf = t => t < 0.3 ? 0.62 + 0.38 * Math.sin(t / 0.3 * Math.PI / 2) : Math.pow(Math.cos((t - 0.3) / 0.7 * Math.PI / 2), 0.85) * (1 - 0.25 * smooth((t - 0.8) / 0.2));
+    LEAFY.push(leafyBushes({ name: 'linden', seed: 6911, tex: { w: 260, h: 300, len: 0.17 }, stemTex: '#a8a070',
+      draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 60, 7, 5, '#b0a878');
+        g.save(); g.translate(0, -56); paintBlade(g, { L: 232, H: 108, prof: lindenProf, notch: 0.07, teeth: (t, s) => t < 0.05 || t > 0.95 ? 0 : 0.035 * saw(t * 26 + (s > 0 ? 0 : 0.5)) ** 1.5,
+          veins: [[0.06, 0.55, 0.12, 0.9, 0.3], ...pinnate(lindenProf, [0.2, 0.34, 0.48, 0.62, 0.76], 0.16, 0.88)], col: ['#d2dcbc', '#e0e8ca'], vc: 'rgba(246,248,222,0.42)', vh: 120 }, mode); g.restore(); },
+      shoot: { alt: true, nodes: [[0.14, 0.82], [0.3, 0.94], [0.46, 1], [0.62, 1], [0.78, 0.95], [0.95, 0.84, true]], len: [0.38, 0.48], bend: 0.12, fwd: 0.3, face: [0.85, 0.6], droop: [0.06, 0.2], fold: [0.02, 0.1], stemW: 0.004, stemC: [0.6, 0.5, 0.4] },
+      spots,
+      amt: [1.5, 1.82, 3.42, 3.86], keys: [[0.5, C('#5e6046')], [1.5, C('#a8c862')], [1.8, C('#7aaa4a')], [2.2, C('#4e7e38')], [2.9, C('#4c7a36')], [3.15, C('#6e8636')]],
+      turn: { at: 3.12, span: 0.45, k: 0.85, yel: '#dcbc3c', brn: '#9a7238' }, rough: 0.6, nScale: 0.6, sway: [0.12, 0.3] })); }
 }
 
 /* ---------- smoke from the chimneys: in 1984 the houses were still heated with wood, from October to the end of March; the stoves were
