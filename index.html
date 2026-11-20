@@ -1272,7 +1272,7 @@ function deskClick(b){ const k = b && b.userData.desk;
   if (b && b.userData.lamp){ toggleLamp(); return; } if (b && b.userData.win){ toggleWindow(); return; }
   if (desk.f && desk.f !== desk.home) deskView(desk.home); }
 function toggleCalc(){ calc.on = !calc.on; sfx.click(); calc.update && calc.update(); }
-var roomLight, CHESS;
+var roomLight, CHESS, CACTUS;   // (CACTUS: the Easter cactus on the sill, living its year: see CACTUS.update)
 {
   const wallpaper = tex(128, 128, (g, w, h) => {
     g.fillStyle = '#a7c4d9'; g.fillRect(0, 0, w, h);
@@ -1394,7 +1394,7 @@ var roomLight, CHESS;
       for (const dx of [0.05, -0.045]){ const h = new THREE.Mesh(new THREE.TorusGeometry(pipeR + 0.002, 0.005, 6, 14).rotateY(Math.PI / 2), hemp); h.position.set(vx + dx, y, 0); h.scale.set(1, 1 + r() * 0.3, 1 + r() * 0.3); rad.add(h); } }
   }
   for (let i = 0; i < 27; i++) rng();   // (the old plant's draws, so the rest of the world stays where it was)
-  /* a small Easter cactus (Rhipsalidopsis) in bloom, in a plain unglazed clay pot */
+  /* a small Easter cactus (Rhipsalidopsis) in a plain unglazed clay pot, living its year (see CACTUS below) */
   {
     const r = mkRng(4242), rn = (a, b) => a + r() * (b - a), SILL = wy0 + 0.015;
     const plant = new THREE.Group(); plant.position.set(wx1 - 0.27, SILL, BZ - 0.43); plant.rotation.y = 0.4; room.add(plant);
@@ -1415,7 +1415,7 @@ var roomLight, CHESS;
     sh.lineTo(-HW * 0.55, L + 0.0012); sh.lineTo(0, L - 0.0018); sh.lineTo(HW * 0.55, L + 0.0012);
     for (let i = N; i >= 0; i--){ const t = i / N; sh.lineTo(hw(t), t * L); }
     const segGeo = new THREE.ExtrudeGeometry(sh, { depth: 0.0025, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0006, bevelSegments: 1 }); segGeo.translate(0, 0, -0.00125);
-    const segs = [], flowers = [], buds = [], col = new THREE.Color(), dark = new THREE.Color('#3c7a2a'), light = new THREE.Color('#8fc25a'), rim = new THREE.Color('#6a3a3a');
+    const segs = [], tips = [], col = new THREE.Color(), dark = new THREE.Color('#3c7a2a'), light = new THREE.Color('#8fc25a'), rim = new THREE.Color('#6a3a3a');
     const UP = new V3(0, 1, 0), ZMAX = 0.13;   // keep clear of the window glass (local +z, roughly)
     const addSeg = (p, d, n, depth) => {
       const y = d.clone(), x = new V3().crossVectors(y, n).normalize(), z = new V3().crossVectors(x, y);
@@ -1432,7 +1432,7 @@ var roomLight, CHESS;
       const kids = depth >= 4 || (depth >= 2 && r() < 0.3) ? 0 : depth === 0 ? 2 : r() < 0.45 ? 2 : 1;
       if (!kids){                                                                    // a tip: flower, bud, or just a fresh segment end
         const a = d.clone().lerp(UP, 0.55).add(out.clone().multiplyScalar(0.3)).normalize(), k = r();
-        if (k < 0.42) flowers.push([end, a]); else if (k < 0.72) buds.push([end, d.clone().lerp(UP, 0.3).normalize()]);
+        tips.push({ end, d: d.clone(), n: n.clone(), depth, a, first: k < 0.72 });   // (a tip: where it flowers, and grows on from)
         return; }
       for (let i = 0; i < kids; i++){
         const side = kids === 2 ? (i ? 1 : -1) * rn(0.35, 0.6) : rn(-0.25, 0.25);
@@ -1474,11 +1474,56 @@ var roomLight, CHESS;
       for (let i = 0; i < pa.count; i++){ const t = pa.getY(i) / 0.026, a = Math.atan2(pa.getZ(i), pa.getX(i)); pa.setX(i, pa.getX(i) * (1 + 0.12 * Math.sin(a * 5) * t)); pa.setZ(i, pa.getZ(i) * (1 + 0.12 * Math.sin(a * 5) * t));
         col.set('#7a9a40').lerp(new THREE.Color('#e04aa8'), Math.min(1, t * 3)).lerp(new THREE.Color('#c0207e'), t * 0.5); col.toArray(c, i * 3); }
       g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g; })();
-    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide }), place = (geo, list, s0, s1) => {
-      const gs = list.map(([p, a]) => { const q = new THREE.Quaternion().setFromUnitVectors(UP, a), q2 = new THREE.Quaternion().setFromAxisAngle(UP, r() * TAU); q.multiply(q2);
-        return geo.clone().applyMatrix4(new THREE.Matrix4().compose(p.clone().addScaledVector(a, -0.002), q, new V3().setScalar(rn(s0, s1)))); });
-      if (gs.length){ const me = new THREE.Mesh(mergeGeometries(gs), fm); me.castShadow = true; plant.add(me); } };
-    place(flowerGeo, flowers, 1.2, 1.45); place(budGeo, buds, 0.8, 1.2);
+    const fm = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide });
+    /* its year. Through the winter it rests, cool on the sill, a flush of red-purple at the segments' edges; from February buds come at the
+       tips and swell, going magenta, through March; in April and May the flowers open a few at a time, each a week or two, wide by day and
+       half shut at night, then wilt, go dull and drop; from June new segments come from the tips, pale lime, grow to full size by August
+       and darken into the autumn. The next spring it flowers from the new tips. Two years' growth, then it just flowers, year after year.
+       A: its age in seasons, counted on whenever the year moves on (drifting, or the season buttons: time only goes forward) */
+    const gr = mkRng(4251), grn = (a, b) => a + (b - a) * gr(), GEN = [tips], NEW = [];
+    for (let y = 1; y <= 2; y++){ const next = [];
+      for (const t of GEN[y - 1]){ if (gr() < (y === 1 ? 0.15 : 0.35)){ next.push(t); continue; }   // (a tip that rests a year)
+        const out = new V3(t.end.x, 0, t.end.z); if (out.lengthSq() < 1e-6) out.set(1, 0, 0); out.normalize(); const kids = gr() < 0.4 ? 2 : 1;
+        for (let i = 0; i < kids; i++){ const side = kids === 2 ? (i ? 1 : -1) * grn(0.35, 0.6) : grn(-0.25, 0.25);
+          const nd = t.d.clone().applyAxisAngle(t.n, side).addScaledVector(out, 0.2).add(new V3(0, -0.12 - (t.depth + 1) * 0.1, 0)).normalize();
+          if (t.end.z > ZMAX * 0.6 && nd.z > 0) nd.z *= -0.5; if (nd.y < -0.55) nd.y = -0.55; nd.normalize();   // (turned from the glass; arching down as they lengthen)
+          const nn = t.n.clone().applyAxisAngle(nd, grn(-0.7, 0.7)); nn.addScaledVector(nd, -nn.dot(nd)).normalize();
+          const x = new V3().crossVectors(nd, nn).normalize(), z = new V3().crossVectors(x, nd), k = grn(0.85, 1.12);
+          NEW.push({ m: new THREE.Matrix4().makeBasis(x.multiplyScalar(k), nd.clone().multiplyScalar(k), z).setPosition(t.end), y, t0: grn(1.8, 2.3), dur: grn(0.35, 0.6), v: grn(0.9, 1.08) });
+          const end = t.end.clone().addScaledVector(nd, L * k * 0.96), o2 = new V3(end.x, 0, end.z).normalize();
+          next.push({ end, d: nd, n: nn, depth: t.depth + 1, a: nd.clone().lerp(UP, 0.55).add(o2.multiplyScalar(0.3)).normalize(), first: true }); } }
+      GEN.push(next); }
+    // the new segments: one shape, shaded along its length (the colour each its own: pale lime when young, darkening)
+    const sg = segGeo.clone(), sp_ = sg.attributes.position, sc = new Float32Array(sp_.count * 3);
+    for (let i = 0; i < sp_.count; i++){ const v = 0.72 + 0.28 * Math.min(1, Math.max(0, sp_.getY(i) / L)); sc[i * 3] = sc[i * 3 + 1] = sc[i * 3 + 2] = v; } sg.setAttribute('color', new THREE.BufferAttribute(sc, 3));
+    const segM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 }), newSegs = new THREE.InstancedMesh(sg, segM, Math.max(1, NEW.length)); newSegs.castShadow = newSegs.receiveShadow = true; newSegs.setColorAt(0, col); plant.add(newSegs);
+    // the flowers and buds: a place at each tip of each year's plant, each its own times (if it flowers that year)
+    const FL = []; GEN.forEach((G, y) => { for (const t of G){ if (y === 0 ? !t.first : gr() > 0.72) continue;
+      FL.push({ y, p: t.end.clone().addScaledVector(t.a, -0.002), a: t.a, bd: t.d.clone().lerp(UP, 0.3).normalize(), spin: gr() * TAU, s: grn(1.2, 1.45), bs: grn(0.8, 1.2),
+        tb: grn(0.78, 1.08), to: grn(1.3, 1.62), life: grn(0.09, 0.15) }); } });
+    const flowersIM = new THREE.InstancedMesh(flowerGeo, fm, FL.length), budsIM = new THREE.InstancedMesh(budGeo, fm, FL.length); flowersIM.castShadow = budsIM.castShadow = true; plant.add(flowersIM, budsIM);
+    const M = new THREE.Matrix4(), SM = new THREE.Matrix4(), Q = new THREE.Quaternion(), Q2 = new THREE.Quaternion(), Sc = new V3(), P = new V3(), down = new V3(), ax = new V3(), Z = new THREE.Matrix4().makeScale(0, 0, 0);
+    const young = new THREE.Color('#c4e48a'), mature = new THREE.Color('#5e9a40'), fresh = new THREE.Color(1, 1, 1), wilt = new THREE.Color('#8a5a6a'), rest = new THREE.Color('#e8bcb2'), last = { A: -9, d: -9 };
+    CACTUS = { update(A, day){ if (Math.abs(A - last.A) < 0.0006 && Math.abs(day - last.d) < 0.02) return; last.A = A; last.d = day;
+      const yr = Math.floor(A / 4), s = A - yr * 4;
+      // the stems: resting red-purple at their edges in the cold months, fresh green in summer
+      const rk = s < 1.5 ? 1 - smooth((s - 0.9) / 0.6) : smooth((s - 3.3) / 0.6); stems.material.color.copy(fresh).lerp(rest, rk * 0.85); segM.color.copy(stems.material.color);
+      // the new segments, growing in the summer of the year before the one they flower in
+      NEW.forEach((n, i) => { const age = A - (4 * (n.y - 1) + n.t0), g = smooth(age / n.dur);
+        if (g <= 0){ newSegs.setMatrixAt(i, Z); return; } newSegs.setMatrixAt(i, M.copy(n.m).multiply(SM.makeScale(g, g, g)));
+        newSegs.setColorAt(i, col.copy(young).lerp(mature, smooth((age - n.dur * 0.6) / 1.4)).multiplyScalar(n.v)); });
+      newSegs.instanceMatrix.needsUpdate = true; if (newSegs.instanceColor) newSegs.instanceColor.needsUpdate = true;
+      // this year's buds and flowers: on the tips as they are this year
+      const fy = Math.min(yr, 2), open = 0.7 + 0.3 * day;
+      FL.forEach((f, i) => { if (f.y !== fy){ flowersIM.setMatrixAt(i, Z); budsIM.setMatrixAt(i, Z); return; }
+        const bud = s < f.tb ? 0 : s < f.to ? 0.3 + 0.7 * smooth((s - f.tb) / (f.to - f.tb - 0.02)) : 1 - smooth((s - f.to) / 0.03);   // (a nub, swelling, then opening)
+        Q.setFromUnitVectors(UP, f.bd).multiply(Q2.setFromAxisAngle(UP, f.spin)); budsIM.setMatrixAt(i, bud > 0.005 ? M.compose(P.copy(f.p).addScaledVector(f.bd, -0.002), Q, Sc.setScalar(f.bs * bud)) : Z);
+        const t = s - f.to, gone = f.life + 0.06; if (t < 0 || t > gone){ flowersIM.setMatrixAt(i, Z); return; }
+        const op = smooth(t / 0.04), w = smooth((t - f.life) / 0.04), drop = smooth((t - f.life - 0.04) / 0.02);   // (opening; wilting; dropping)
+        const k = f.s * (0.4 + 0.6 * op) * (1 - 0.35 * w) * (1 - drop), o = (0.55 + 0.45 * open) * (1 - 0.5 * w);   // (by night, and wilting, the petals close up)
+        ax.copy(f.a).lerp(down.set(f.a.x, -0.6, f.a.z).normalize(), w * 0.7).normalize(); Q.setFromUnitVectors(UP, ax).multiply(Q2.setFromAxisAngle(UP, f.spin));   // (a wilted flower hangs its head)
+        flowersIM.setMatrixAt(i, k > 0.005 ? M.compose(f.p, Q, Sc.set(k * o, k * (1 + 0.3 * (1 - o)), k * o)) : Z); flowersIM.setColorAt(i, col.copy(fresh).lerp(wilt, w)); });
+      flowersIM.instanceMatrix.needsUpdate = budsIM.instanceMatrix.needsUpdate = true; if (flowersIM.instanceColor) flowersIM.instanceColor.needsUpdate = true; } };
   }
   // (the three conkers on the sill are added with the other conkers, further down)
 
@@ -8309,7 +8354,7 @@ const SEASON_RU = ['Зима', 'Весна', 'Лето', 'Осень'], SEASON_E
 const MONTH = ['December', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November'];
 const SEASON_MID = [0.42, 1.65, 2.3, 3.38];
 const TIMES = { Dawn: 0.29, Day: 0.5, Dusk: 0.735, Night: 0.93 };   // (by the date: see rigaTimes)
-let S = 1.65, sTarget = null, TOD = 0.62, todTarget = null, drift = false, timeSel = null;   // (timeSel: the time last asked for, kept to as the season changes)
+let S = 1.65, sTarget = null, TOD = 0.62, todTarget = null, drift = false, timeSel = null, PLANT_A = null;   // (PLANT_A: the cactus's age in seasons; ?cactus=A to set it)   // (timeSel: the time last asked for, kept to as the season changes)
 /* ---------- the sun over Riga, 56.95° N, 24.1° E, by the clocks of 1984: Moscow time, three hours ahead of Greenwich, and four in summer
    time (1 April to 30 September). So in midwinter the sun is up only from ten to a quarter to five, ten degrees high at most, and in June
    from half past five to twenty past eleven, never far below the horizon all night. S: the season (0 the middle of December, a month a
@@ -9052,6 +9097,7 @@ function frame(){
   const S0 = S;
   if (drift) S = (S + dt / 150) % 4;
   else if (sTarget !== null){ const diff = ((sTarget - S) % 4 + 4) % 4, step = dt * (diff > 1 ? 0.7 : 0.35); if (diff < 0.003 || diff > 3.997 || step >= diff){ S = sTarget; sTarget = null; } else S = (S + step) % 4; }
+  PLANT_A = PLANT_A === null ? S : PLANT_A + ((S - S0) % 4 + 4) % 4; if (CACTUS) CACTUS.update(PLANT_A, env.day);   // (the cactus on the sill: its age, on as the year goes forward)
   rigaTimes(S, TIMES); if (drift) timeSel = null; else if (S !== S0 && timeSel && todTarget === null) TOD = TIMES[timeSel];   // (dusk stays dusk as the season changes under it)
   if (todTarget !== null){ const diff = ((todTarget - TOD) % 1 + 1) % 1, step = dt * 0.09; if (diff < 0.002 || diff > 0.998 || step >= diff){ TOD = todTarget; todTarget = null; } else TOD = (TOD + step) % 1; }
   else if (drift) TOD = (TOD + dt / 240) % 1;
@@ -9196,7 +9242,7 @@ function frame(){
 
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
-    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
+    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); if (q.has('cactus')) PLANT_A = +q.get('cactus');   // (debug: the cactus's age, in seasons) place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
     if (q.get('bushat')){ const [k, i] = q.get('bushat').split(','), b = ({ lilac: lilacData, ...WILD, ...BERRYB, ...Object.fromEntries(['apple', 'pear', 'plum'].map(t => [t, fruitSpots.filter(f => f.type === t).map(f => ({ p: new V3(f.x, 2.2, f.z) }))])) })[k][+i || 0], d = +(q.get('bushd') || 4), az = +(q.get('bushaz') || 0);   // debug: look at a bush
       const e = new V3(b.p.x + Math.cos(az) * d, 1.6, b.p.z + Math.sin(az) * d); place(e, yawTo(e, b.p), -0.08); }
     if (q.get('vegat')){ const [k, i] = q.get('vegat').split(','), it = VEG.items[k][+i || 0], d = +(q.get('vegd') || 1.4), e = new V3(it.p.x + d, 1.6, it.p.z + d * 0.45); place(e, yawTo(e, it.p), -+(q.get('vegp') || 0.75)); }   // debug: look at a crop
