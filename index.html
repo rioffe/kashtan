@@ -639,13 +639,16 @@ const WOOD = { x0: GATE_X1, x1: 20.6, zb: -55.5, zf: -46.5 };   // the old woode
 // every way, and no further
 const CELL = 59, BLOCK = 44, STREET = CELL - BLOCK, WALK = 3.5, KERB_R = 5, KERB_H = 0.14, TX0 = -17, TZ0 = -30;
 const bx0 = gx => gx * CELL + TX0, bz0 = gz => gz * CELL + TZ0;   // (a block's west and south fronts)
+// the cobbled street behind ours, where St. Gertrude's stands, 5 m wider than the others, as Ģertrūdes iela is: the blocks on its far side
+// (row -4) 5 m shallower towards it, ours as they were. A block runs from bz0 to bz1 along z; streetW: the street on from row gz to the next
+const WIDE = { gz: -4, by: 5 }, blockD = gz => BLOCK - (gz === WIDE.gz ? WIDE.by : 0), bz1 = gz => bz0(gz) + blockD(gz), streetW = gz => bz0(gz + 1) - bz1(gz);
 const COBX = {}, COBZ = {};   // which streets are cobbled (along x, north of row gz; along z, east of column gx): Stabu asphalt, the one behind our house cobbles
 { const r = mkRng(19840902); for (let i = -12; i <= 12; i++){ COBX[i] = r() < 0.5; COBZ[i] = r() < 0.5; } COBX[-1] = false; COBX[-4] = true; }
 const inHome = (x, z, m = 0) => x > -76 - m && x < 86 + m && z > -207 - m && z < -45 + m;
 const homeCell = (gx, gz) => gx >= -1 && gx <= 1 && gz >= -3 && gz <= -1;
 // St. Gertrude's: two blocks along the cobbled street behind ours, the blocks either side of the street there given over to its square, the
 // street running into the ring of Baznīcas iela round the church and on out of it (see 'St. Gertrude's'); cx, cz: the church's middle
-const CHURCH_SQ = { gx: -3, x0: bx0(-3), x1: bx0(-3) + BLOCK, z0: bz0(-4), z1: bz0(-3) + BLOCK, cx: bx0(-3) + BLOCK / 2, cz: bz0(-4) + BLOCK + STREET / 2 };
+const CHURCH_SQ = { gx: -3, x0: bx0(-3), x1: bx0(-3) + BLOCK, z0: bz0(-4), z1: bz0(-3) + BLOCK, cx: bx0(-3) + BLOCK / 2, cz: (bz1(-4) + bz0(-3)) / 2 };
 const churchCell = (gx, gz) => gx === -3 && (gz === -4 || gz === -3);
 const inChurch = (x, z, m = 0) => { const u = x - CHURCH_SQ.cx, v = Math.abs(z - CHURCH_SQ.cz);   // (its footprint, roughly, for walking round it)
   return (u > -17.7 - m && u < 18.2 + m && v < 12.6 + m) || (u > -9.4 - m && u < 5.4 + m && v < 19.2 + m) || (u > -28.6 - m && u < -17 && v < 8.4 + m) || (u > 17.5 && u < 28.4 + m && v < 7.8 + m); };
@@ -653,13 +656,13 @@ const blockOn = (gx, gz) => gx >= -7 && gx <= 7 && gz >= -9 && gz <= 8 && !homeC
 const TOWN = { x0: bx0(-6) - STREET, x1: bx0(6) + BLOCK + STREET, z0: bz0(-8) - STREET, z1: bz0(4) + BLOCK + STREET };
 const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TOWN.z0 + m || z > TOWN.z1 - m || inHome(x, z, m) || inChurch(x, z, m)) return false;
   const ax = Math.floor((x - TX0) / CELL), u = x - TX0 - ax * CELL, az = Math.floor((z - TZ0) / CELL), v = z - TZ0 - az * CELL;   // (not into a block, nor within m of its fronts)
-  for (const a of [u <= BLOCK + m ? ax : null, u >= CELL - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= BLOCK + m ? az : null, v >= CELL - m ? az + 1 : null]) if (b !== null && blockOn(a, b)) return false;
+  for (const a of [u <= BLOCK + m ? ax : null, u >= CELL - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= blockD(az) + m ? az : null, v >= CELL - m ? az + 1 : null]) if (b !== null && blockOn(a, b)) return false;
   return true; };
 // within o of the rectangle, its corners rounded to r (the kerb's line round a block)
 const inRound = (x, z, x0, x1, z0, z1, o, r) => { const dx = Math.abs(x - (x0 + x1) / 2), dz = Math.abs(z - (z0 + z1) / 2), hx = (x1 - x0) / 2 + o, hz = (z1 - z0) / 2 + o;
   if (dx > hx || dz > hz) return false; const qx = Math.max(0, dx - hx + r), qz = Math.max(0, dz - hz + r); return qx * qx + qz * qz <= r * r; };
 const kerbY = (x, z) => { if (inHome(x, z)) return 0; if (inRound(x, z, -76, 86, -207, -45, WALK, KERB_R)) return KERB_H;   // (our yard and lane on the ground; the pavement round our blocks; elsewhere the ring round the nearest block)
-  const gx = Math.floor((x - TX0 + STREET / 2) / CELL), gz = Math.floor((z - TZ0 + STREET / 2) / CELL), x0 = bx0(gx), z0 = bz0(gz); return blockOn(gx, gz) && inRound(x, z, x0, x0 + BLOCK, z0, z0 + BLOCK, WALK, KERB_R) ? KERB_H : 0; };
+  const gx = Math.floor((x - TX0 + STREET / 2) / CELL), gz = Math.floor((z - TZ0 + STREET / 2) / CELL), x0 = bx0(gx), z0 = bz0(gz); return blockOn(gx, gz) && inRound(x, z, x0, x0 + BLOCK, z0, bz1(gz), WALK, KERB_R) ? KERB_H : 0; };
 // the street lamps: one over every crossing and one halfway along every block (three lattices, CELL apart each way), hung over the middle of
 // the street on wires from the house fronts at the height of the tops of the third-floor windows; their light a melancholy yellow. There are
 // too many for lights of their own: lampLit works out, for each point of a surface, the few lamps near enough to light it, from the grid
@@ -683,6 +686,7 @@ function lampLit(mat){ return shaderChain(mat, 'lampLit', (sh) => {
     for (int L = 0; L < 3; L++){ vec2 o = L == 0 ? vec2(${f(O[0][0])}, ${f(O[0][1])}) : L == 1 ? vec2(${f(O[1][0])}, ${f(O[1][1])}) : vec2(${f(O[2][0])}, ${f(O[2][1])});
       vec2 c0 = floor((vLampWP.xz - o) / ${f(CELL)});
       for (int i = 0; i < 2; i++) for (int j = 0; j < 2; j++){ vec2 id = c0 + vec2(float(i), float(j)), w = o + id * ${f(CELL)};
+        if (L < 2 && abs(w.y - ${f(bz0(WIDE.gz) + BLOCK + STREET / 2)}) < 0.5) w.y = ${f((bz1(WIDE.gz) + bz0(WIDE.gz + 1)) / 2)};   // (the wide street's, over its middle)
         if (w.x > -76.0 && w.x < 86.0 && w.y > -207.0 && w.y < -45.0) continue;   // (none in our yard)
         if (w.x > ${f(CHURCH_SQ.x0)} && w.x < ${f(CHURCH_SQ.x1)} && w.y > ${f(CHURCH_SQ.z0)} && w.y < ${f(CHURCH_SQ.z1)}) continue;   // (nor in the church's square)
         if (w.x < ${f(TOWN.x0 - m)} || w.x > ${f(TOWN.x1 + m)} || w.y < ${f(TOWN.z0 - m)} || w.y > ${f(TOWN.z1 + m)}) continue;
@@ -788,17 +792,17 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
       g.setAttribute('normal', new THREE.Float32BufferAttribute(G.n || G.p.map((_, i) => i % 3 === 1 ? 1 : 0), 3)); if (G.c) g.setAttribute('color', new THREE.Float32BufferAttribute(G.c, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(G.uv, 2)); g.setIndex(G.i); const m = new THREE.Mesh(g, mat); m.position.y = y; m.receiveShadow = true; scene.add(m); return m; };
     // the roads: in stretches between the crossings, banded across (u from the kerb, in tiles of 8 m for the asphalt, 3.2 m for the setts), and the crossings themselves
-    const SG = [{ p: [], c: [], uv: [], i: [] }, { p: [], c: [], uv: [], i: [] }], AC = [0, WALK, WALK + 0.8, STREET - WALK - 0.8, STREET - WALK, STREET], ACC = [1, 0.78, 1, 1, 0.78, 1];
-    const stretch = (cob, alongX, a, b, s0, gut) => { const G = SG[cob ? 1 : 0], o = G.p.length / 3, S = cob ? 3.2 : 8;
+    const SG = [{ p: [], c: [], uv: [], i: [] }, { p: [], c: [], uv: [], i: [] }], ACw = W => [0, WALK, WALK + 0.8, W - WALK - 0.8, W - WALK, W], ACC = [1, 0.78, 1, 1, 0.78, 1];
+    const stretch = (cob, alongX, a, b, s0, gut, W = STREET) => { const G = SG[cob ? 1 : 0], o = G.p.length / 3, S = cob ? 3.2 : 8, AC = ACw(W);
       AC.forEach((t, j) => { for (const L of [a, b]){ G.p.push(alongX ? L : s0 + t, 0, alongX ? s0 + t : L); const k = gut ? ACC[j] : 1; G.c.push(k, k, k); G.uv.push((t - WALK) / S, L / S); } });
       for (let j = 0; j < AC.length - 1; j++){ const q = o + j * 2; up(G.p, q, q + 2, q + 1, G.i); up(G.p, q + 1, q + 2, q + 3, G.i); } };
     const clipX = (a, b, f) => { a = Math.max(-450, a); b = Math.min(450, b); if (b > a) f(a, b); };
-    for (let gz = -10; gz <= 7; gz++){ const s0 = bz0(gz) + BLOCK, cob = COBX[gz];   // along x, north of row gz (-1: Stabu), not through ours
+    for (let gz = -10; gz <= 7; gz++){ const s0 = bz1(gz), sw = streetW(gz), cob = COBX[gz];   // along x, north of row gz (-1: Stabu), not through ours
       for (let gx = -9; gx <= 8; gx++){ const x0 = bx0(gx), x1 = x0 + BLOCK;
-        if (!(homeCell(gx, gz) && homeCell(gx, gz + 1)) && !(churchCell(gx, gz) && churchCell(gx, gz + 1))) clipX(x0, x1, (a, b) => stretch(cob, true, a, b, s0, true));   // (none through ours, nor through the church's square)
-        if (!(homeCell(gx, gz) && homeCell(gx + 1, gz) && homeCell(gx, gz + 1) && homeCell(gx + 1, gz + 1))) clipX(x1, x1 + STREET, (a, b) => stretch(cob, true, a, b, s0, false)); } }
+        if (!(homeCell(gx, gz) && homeCell(gx, gz + 1)) && !(churchCell(gx, gz) && churchCell(gx, gz + 1))) clipX(x0, x1, (a, b) => stretch(cob, true, a, b, s0, true, sw));   // (none through ours, nor through the church's square)
+        if (!(homeCell(gx, gz) && homeCell(gx + 1, gz) && homeCell(gx, gz + 1) && homeCell(gx + 1, gz + 1))) clipX(x1, x1 + STREET, (a, b) => stretch(cob, true, a, b, s0, false, sw)); } }
     for (let gx = -8; gx <= 7; gx++){ const s0 = bx0(gx) + BLOCK, cob = COBZ[gx];   // along z, east of column gx, between the crossings
-      for (let gz = -9; gz <= 7; gz++) if (!(homeCell(gx, gz) && homeCell(gx + 1, gz))) stretch(cob, false, bz0(gz), bz0(gz) + BLOCK, s0, true); }
+      for (let gz = -9; gz <= 7; gz++) if (!(homeCell(gx, gz) && homeCell(gx + 1, gz))) stretch(cob, false, bz0(gz), bz1(gz), s0, true); }
     mesh(SG[0], sMat({ map: T.road }, 0.8), 0.012);
     mesh(SG[1], sMat({ map: T.setts, bumpMap: T.settBump, bumpScale: 1.2, roughness: 0.85 }, 0.8), 0.012);
     // the pavements: from the house fronts out to the kerb, round each block and round ours, the corners curved (eight stones to a corner)
@@ -817,7 +821,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
         up(PV.p, o, o + 1, o + 2, PV.i); up(PV.p, o, o + 2, o + 3, PV.i);
         kerbQuad(A, B, arc ? A.j : 0, arc ? A.j + 1 : Math.hypot(B.x - A.x, B.z - A.z), tint); } };
     ring(-76, 86, -207, -45);
-    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz)) ring(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz0(gz) + BLOCK);
+    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz)) ring(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz1(gz));
     { const A = { x: GATE_X0, z: STABU_FRONT, nx: 0, nz: -1 }, B = { x: WOOD.x1, z: STABU_FRONT, nx: 0, nz: -1 }, q = KB.p.length / 3;   // (the pavement's edge, seen from the gateway and in front of the wooden house)
       for (const P of [A, B]){ KB.p.push(P.x, KERB_H, P.z, P.x, 0, P.z); KB.n.push(0, 0, -1, 0, 0, -1); KB.uv.push(P.x / 4, 0.5, P.x / 4, 1); KB.c.push(0.8, 0.8, 0.8, 0.8, 0.8, 0.8); }
       orient(KB.p, q, q + 1, q + 2, 0, 0, -1, KB.i); orient(KB.p, q + 1, q + 3, q + 2, 0, 0, -1, KB.i); }
@@ -825,13 +829,14 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     mesh(KB, sMat({ map: T.kerb, roughness: 0.9 }, 1), 0).castShadow = true;
     // a zebra across each arm of every crossing (of three streets or four), 2 m out from the house fronts, where the kerb runs straight again
     const ZB = { p: [], uv: [], i: [] }, zr = mkRng(19840904), cellK = (gx, gz) => homeCell(gx, gz) ? 2 : blockOn(gx, gz) ? 1 : 0, armOn = (a, b) => !(a === 2 && b === 2) && a + b > 0;
-    const zebra = (alongX, s0, la, lb, cob) => { for (let k = 0; k < 7; k++){ const t0 = s0 + WALK + 0.45 + k * 1.1, t1 = t0 + 0.5, v = (cob ? 4 : 0) + (zr() * 4 | 0), fl = zr() < 0.5, o = ZB.p.length / 3;
+    const zx = mkRng(19840914), zebra = (alongX, s0, la, lb, cob, sw = STREET) => { const n = Math.floor((sw - 2 * WALK - 1.4) / 1.1 + 1e-6) + 1, m0 = (sw - 2 * WALK - (n - 1) * 1.1 - 0.5) / 2;
+      for (let k = 0; k < n; k++){ const r = k < 7 ? zr : zx, t0 = s0 + WALK + m0 + k * 1.1, t1 = t0 + 0.5, v = (cob ? 4 : 0) + (r() * 4 | 0), fl = r() < 0.5, o = ZB.p.length / 3;
       for (const [t, L, uu, vv] of [[t0, la, 0, 0], [t1, la, 1, 0], [t1, lb, 1, 1], [t0, lb, 0, 1]]){ ZB.p.push(alongX ? L : t, 0, alongX ? t : L); ZB.uv.push((v + uu) / 8, fl ? 1 - vv : vv); }
       up(ZB.p, o, o + 1, o + 2, ZB.i); up(ZB.p, o, o + 2, o + 3, ZB.i); } };
-    for (let gx = -8; gx <= 7; gx++) for (let gz = -10; gz <= 7; gz++){ const X0 = bx0(gx) + BLOCK, X1 = X0 + STREET, Z0 = bz0(gz) + BLOCK, Z1 = Z0 + STREET, d = KERB_R - WALK + 0.5;
+    for (let gx = -8; gx <= 7; gx++) for (let gz = -10; gz <= 7; gz++){ const X0 = bx0(gx) + BLOCK, X1 = X0 + STREET, Z0 = bz1(gz), Z1 = bz0(gz + 1), d = KERB_R - WALK + 0.5;
       const c00 = cellK(gx, gz), c10 = cellK(gx + 1, gz), c01 = cellK(gx, gz + 1), c11 = cellK(gx + 1, gz + 1), W = armOn(c00, c01), E = armOn(c10, c11), S = armOn(c00, c10), N = armOn(c01, c11);
       if (W + E + S + N < 3) continue;
-      if (W) zebra(true, Z0, X0 - d - 3, X0 - d, COBX[gz]); if (E) zebra(true, Z0, X1 + d, X1 + d + 3, COBX[gz]); if (S) zebra(false, X0, Z0 - d - 3, Z0 - d, COBZ[gx]); if (N) zebra(false, X0, Z1 + d, Z1 + d + 3, COBZ[gx]); }
+      if (W) zebra(true, Z0, X0 - d - 3, X0 - d, COBX[gz], Z1 - Z0); if (E) zebra(true, Z0, X1 + d, X1 + d + 3, COBX[gz], Z1 - Z0); if (S) zebra(false, X0, Z0 - d - 3, Z0 - d, COBZ[gx]); if (N) zebra(false, X0, Z1 + d, Z1 + d + 3, COBZ[gx]); }
     mesh(ZB, lampLit(wetRoof(snowify(new THREE.MeshStandardMaterial({ color: '#dcd9d0', alphaMap: T.zebra, transparent: true, opacity: 0.78, depthWrite: false, roughness: 0.75 }), 1), 0.9, false)), 0.02); }
   { // the street lamps (see LAMP): a dark dished shade over an opal glass globe, its neck up to where the wires meet; the wires out to the house
     // fronts across the street (at a crossing, to its corners), and the feeder along the street from lamp to lamp; and a glow round each lit one
@@ -839,11 +844,11 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     const homeFront = x => x < GATE_X0 || x > WOOD.x1 + 0.4;   // (our side of Stabu has no wall to take a wire at the gateway, nor at the wooden house, set back)
     const add = (L, x, z, A) => { const i = Math.round((x - LAMP.O[L][0]) / CELL), j = Math.round((z - LAMP.O[L][1]) / CELL); LS.push({ L, x, z, A, i, j, dead: LAMP.dead(i, j, L) }); };
     for (let gx = -8; gx <= 7; gx++) for (let gz = -10; gz <= 7; gz++){
-      const X0 = bx0(gx) + BLOCK, X1 = X0 + STREET, Z0 = bz0(gz) + BLOCK, Z1 = Z0 + STREET, c00 = cellK(gx, gz), c10 = cellK(gx + 1, gz), c01 = cellK(gx, gz + 1), c11 = cellK(gx + 1, gz + 1);
+      const X0 = bx0(gx) + BLOCK, X1 = X0 + STREET, Z0 = bz1(gz), Z1 = bz0(gz + 1), c00 = cellK(gx, gz), c10 = cellK(gx + 1, gz), c01 = cellK(gx, gz + 1), c11 = cellK(gx + 1, gz + 1);
       const arm = (a, b) => !(a === 2 && b === 2) && a + b > 0;
-      if (arm(c00, c01) + arm(c10, c11) + arm(c00, c10) + arm(c01, c11) >= 3) add(0, X0 + STREET / 2, Z0 + STREET / 2, [[X0, Z0, c00], [X1, Z0, c10], [X0, Z1, c01], [X1, Z1, c11]].filter(q => q[2]).map(q => [q[0], q[1]]));   // over the crossing
+      if (arm(c00, c01) + arm(c10, c11) + arm(c00, c10) + arm(c01, c11) >= 3) add(0, X0 + STREET / 2, (Z0 + Z1) / 2, [[X0, Z0, c00], [X1, Z0, c10], [X0, Z1, c01], [X1, Z1, c11]].filter(q => q[2]).map(q => [q[0], q[1]]));   // over the crossing
       { const x = bx0(gx) + BLOCK / 2; if (c00 && c01 && !(c00 === 2 && c01 === 2)){ const A = [[x, Z1]];   // halfway along the street north of the block
-          if (c00 === 2 && !homeFront(x)) A.push([GATE_X0 - 0.4, Z0], [WOOD.x1 + 0.8, Z0]); else A.push([x, Z0]); add(1, x, Z0 + STREET / 2, A); } }
+          if (c00 === 2 && !homeFront(x)) A.push([GATE_X0 - 0.4, Z0], [WOOD.x1 + 0.8, Z0]); else A.push([x, Z0]); add(1, x, (Z0 + Z1) / 2, A); } }
       { const z = bz0(gz) + BLOCK / 2; if (c00 && c10 && !(c00 === 2 && c10 === 2)) add(2, X0 + STREET / 2, z, [[X0, z], [X1, z]]); } }   // and east of it
     const W = [], wire = (a, b, ya, yb, sag, n = 6) => { let p = [a[0], ya, a[1]]; for (let k = 1; k <= n; k++){ const t = k / n, q = [a[0] + (b[0] - a[0]) * t, ya + (yb - ya) * t - sag * 4 * t * (1 - t), a[1] + (b[1] - a[1]) * t]; W.push(...p, ...q); p = q; } };
     for (const S of LS) for (const a of S.A){ const dx = S.x - a[0], dz = S.z - a[1], l = Math.hypot(dx, dz); wire([a[0] + dx / l * 0.15, a[1] + dz / l * 0.15], [S.x, S.z], LAMP.wy, LAMP.hy, 0.22); }   // (from a hook just off the wall)
@@ -6155,8 +6160,8 @@ var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
     const dk = ['helmet', 'onion', 'spire', 'lantern', 'helmet'][tr() * 5 | 0], dc = DOMECOL[tr() * DOMECOL.length | 0].clone().multiplyScalar(0.85 + 0.2 * tr());
     dome(D.fam === 'castle' ? 'cap' : dk, R + 0.12, 8, Math.PI / 8, 0, yT, 0, cd ? cd.rc : dc); };
   const D = 13;   // (the houses' depth; the blocks and the streets: CELL, BLOCK, above)
-  const townBlock = (gx, gz) => {
-    const x0 = bx0(gx), z0 = bz0(gz), x1 = x0 + BLOCK, z1 = z0 + BLOCK;
+  const townBlock = (gx, gz, dz = blockD(gz)) => {
+    const x0 = bx0(gx), z0 = bz0(gz), x1 = x0 + BLOCK, z1 = z0 + dz;
     for (const [zz, ry] of [[z0 + D / 2, Math.PI], [z1 - D / 2, 0]]){ let x = x0;
       while (x1 - x >= 3.6){ const bays = Math.min(Math.floor((x1 - x) / 3.6), 3 + Math.floor(rng() * 4)), w0 = bays * 3.6, w = x1 - x - w0 < 3.6 ? x1 - x : w0; building(x + w / 2, zz, w, D, ry, pick(PAL), pick(ROOF), { lo: x === x0, hi: x1 - x - w < 0.01 }); x += w; } }
     for (const [xx, ry] of [[x0 + D / 2, -Math.PI / 2], [x1 - D / 2, Math.PI / 2]]){ let z = z0 + D;
@@ -6167,15 +6172,18 @@ var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
       // and most red houses of the castle kind on a corner have their round tower there, as the ones in Riga mostly did
       corners.forEach(([kx_, kz_, ix, iz], k) => { const cd = CORNER_D.get(ckey(kx_, kz_)); if (k !== first && k !== second && cd && cd.D.fam === 'castle' && tr() < 0.75) cornerTower(kx_, kz_, ix, iz, PAL[0], tr); }); }
   };
+  // (the two blocks given over to the church's square still built, so the world's numbers are drawn as they always were and every other
+  // house is as it was: and then all of them taken away again. And the blocks by the wide street built shallower, then built again as they
+  // were and taken away, for the same reason)
+  const ghostBlock = (gx, gz) => { const keep = [bodies, roofs, EAVES, CHIMNEYS, BIC, ...[FA, FB, RA, SA, CK, BA, RB].flatMap(o => Object.values(o))].map(a => [a, a.length]);
+    townBlock(gx, gz, BLOCK); for (const [a, n] of keep) a.length = n; };
+  const buildBlock = (gx, gz) => { if (churchCell(gx, gz)) return ghostBlock(gx, gz); if (blockD(gz) === BLOCK) return townBlock(gx, gz);
+    const s0 = seed; townBlock(gx, gz); seed = s0; ghostBlock(gx, gz); };
   { const sv = seed;   // (the near blocks from the world's numbers; then the world's numbers carried on as if the blocks were still 46 m, as they were
     // when everything drawn after them was set, so that the yard, our side of Stabu, the clouds, are what they were)
-    // (the two blocks given over to the church's square still built, so the world's numbers are drawn as they always were and every other
-    // house is as it was: and then all of them taken away again)
-    const ghostBlock = (gx, gz) => { const keep = [bodies, roofs, EAVES, CHIMNEYS, BIC, ...[FA, FB, RA, SA, CK, BA, RB].flatMap(o => Object.values(o))].map(a => [a, a.length]);
-      townBlock(gx, gz); for (const [a, n] of keep) a.length = n; };
-    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if ((blockOn(gx, gz) || churchCell(gx, gz)) && gx * gx + gz * gz <= 57) (churchCell(gx, gz) ? ghostBlock : townBlock)(gx, gz);
+    for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if ((blockOn(gx, gz) || churchCell(gx, gz)) && gx * gx + gz * gz <= 57) buildBlock(gx, gz);
     seed = sv + Math.imul(11561, 0x6D2B79F5) | 0; }
-  { const sv = seed; seed = 19841117; for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && gx * gx + gz * gz > 57) townBlock(gx, gz); seed = sv; }
+  { const sv = seed; seed = 19841117; for (let gx = -7; gx <= 7; gx++) for (let gz = -9; gz <= 8; gz++) if (blockOn(gx, gz) && gx * gx + gz * gz > 57) buildBlock(gx, gz); seed = sv; }
   { const sv = seed; seed = 19840777;   // the gaps at the corners of the blocks near us closed (so no courtyard shows through, and nothing leans on air): a facade just behind the houses' own, drawn apart
     for (let gx = -3; gx <= 3; gx++) for (let gz = 0; gz <= 2; gz++){ const x0 = bx0(gx), z0 = bz0(gz), x1 = x0 + BLOCK, z1 = z0 + BLOCK, t = 0.3, i_ = 0.35, sd = BLOCK - 2 * (i_ + t), gp = 0.3;   // (well behind the fronts, and the four never overlapping: no two faces in one plane to flicker)
       for (const [cx, cz, w, d] of [[(x0 + x1) / 2, z0 + i_ + t / 2, BLOCK - 2 * i_, t], [(x0 + x1) / 2, z1 - i_ - t / 2, BLOCK - 2 * i_, t], [x0 + i_ + t / 2, (z0 + z1) / 2, t, sd], [x1 - i_ - t / 2, (z0 + z1) / 2, t, sd]]){
@@ -7007,7 +7015,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   // arching out, branching twice, to an egg of a crown; leafy shoots in flat sprays round every twig's end and along the bigger branches.
   // Their leaves heart-shaped, finely toothed, out in May, going yellow in October; bare in winter
   { const lr = mkRng(18640602), ln = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0), segs = [], spots = [];
-    const places = []; for (const [z0, z1] of [[SQ.z1 - 19, SQ.z1 - 6], [SQ.z0 + 6, SQ.z0 + 19]]) for (let x = SQ.x0 + 5; x <= SQ.x1 - 5; x += ln(9.5, 12)){ const z = ln(z0, z1); if (Math.hypot((x - CX) / 43, (z - CZ) / 32.5) > 1) places.push([x + ln(-1, 1), z]); }   // (clear of the pavement round the ring)
+    const places = []; for (const [z0, z1] of [[SQ.z1 - 19, SQ.z1 - 6], [SQ.z0 + 6, SQ.z0 + 19]]) for (let x = SQ.x0 + 5; x <= SQ.x1 - 5; x += ln(9.5, 12)){ let z = ln(z0, z1); const j = ln(-1, 1), e = 32.5 * Math.sqrt(Math.max(0, 1 - ((x - CX) / 43) ** 2)) + 0.1; if (Math.abs(z - CZ) < e) z = z < CZ ? CZ - e : CZ + e; places.push([x + j, z]); }   // (clear of the pavement round the ring)
     for (const [x, z] of places){ const H = ln(11.5, 14), R = ln(3.6, 4.4), hc = H * 0.6, hh = H * 0.42, env = h => R * Math.sqrt(Math.max(0, 1 - ((h - hc) / hh) ** 2)), tips = [];
       const seg = (a, b, r0, r1) => segs.push({ a: a.clone(), b: b.clone(), r0, r1 });
       let p = new V3(x, 0, z), d = new V3(ln(-0.04, 0.04), 1, ln(-0.04, 0.04)).normalize(); const nodes = [];   // the trunk and its leader, wandering a little as it rises
@@ -7230,16 +7238,16 @@ const TOWNPUD = [];
     for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++){ const u = i / N * 2 - 1, v = j / N * 2 - 1, lx = u * sx * 1.3, lz = v * sz * 1.3; T.P.push(x + lx * cs - lz * sn, y, z + lx * sn + lz * cs); T.A.push(u * 1.3, v * 1.3, seed); }
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++){ const a = o + j * (N + 1) + i; T.I.push(a, a + N + 1, a + 1, a + 1, a + N + 1, a + N + 2); } };
   // one stretch of street in front of a block: L from a to b along it, t across it from the house fronts at s0; lo, hi: a pavement on that side
-  const stretch = (alongX, s0, a, b, lo, hi, cob) => { const put = (L, t, along, across, y, yaw) => alongX ? add(L, y, s0 + t, along, across, yaw) : add(s0 + t, y, L, across, along, yaw);
-    for (const [on, kerb, sg, w0] of [[lo, WALK, 1, 0], [hi, STREET - WALK, -1, STREET - WALK]]){ if (!on) continue;
+  const stretch = (alongX, s0, a, b, lo, hi, cob, W = STREET, cut = Infinity) => { const put = (L, t, along, across, y, yaw) => L > cut ? pr() : alongX ? add(L, y, s0 + t, along, across, yaw) : add(s0 + t, y, L, across, along, yaw);
+    for (const [on, kerb, sg, w0] of [[lo, WALK, 1, 0], [hi, W - WALK, -1, W - WALK]]){ if (!on) continue;
       for (let L = a + 2 + rn(0, 6); L < b - 2; L += rn(4, 14)) if (pr() < 0.7) put(L, kerb + sg * rn(0.15, 0.45), rn(1.0, 3.0), rn(0.35, 0.7), 0.022, rn(-0.06, 0.06));   // in the gutter, against the kerb
       for (let L = a + 1.5 + rn(0, 8); L < b - 1.5; L += rn(6, 20)) if (pr() < 0.55) put(L, w0 + WALK / 2 - 0.15 + rn(-0.45, 0.45), rn(0.5, 1.3), rn(0.35, 0.65), KERB_H + 0.008, rn(-0.15, 0.15)); }   // on the pavement (clear of its edges)
-    for (let L = a + rn(0, 8); L < b; L += cob ? rn(4, 12) : rn(8, 25)) if (pr() < 0.6){ const k = cob ? 0.6 : 1; put(L, rn(WALK + 1, STREET - WALK - 1), rn(0.6, 2.0) * k, rn(0.5, 1.3) * k, 0.022, rn(-0.6, 0.6)); } };   // in the dips
+    for (let L = a + rn(0, 8); L < b; L += cob ? rn(4, 12) : rn(8, 25)) if (pr() < 0.6){ const k = cob ? 0.6 : 1; put(L, rn(WALK + 1, W - WALK - 1), rn(0.6, 2.0) * k, rn(0.5, 1.3) * k, 0.022, rn(-0.6, 0.6)); } };   // in the dips
   const inTown = (x, z) => x > TOWN.x0 && x < TOWN.x1 && z > TOWN.z0 && z < TOWN.z1;
-  for (let gz = -10; gz <= 7; gz++) for (let gx = -9; gx <= 8; gx++){ const s = cellK(gx, gz), n = cellK(gx, gz + 1), x0 = bx0(gx), z = bz0(gz) + BLOCK;   // along x
-    if (!(s === 2 && n === 2) && s + n > 0 && inTown(x0 + BLOCK / 2, z + STREET / 2)) stretch(true, z, x0, x0 + BLOCK, s > 0, n > 0, COBX[gz]); }
+  for (let gz = -10; gz <= 7; gz++) for (let gx = -9; gx <= 8; gx++){ const s = cellK(gx, gz), n = cellK(gx, gz + 1), x0 = bx0(gx), z = bz1(gz);   // along x
+    if (!(s === 2 && n === 2) && s + n > 0 && inTown(x0 + BLOCK / 2, z + STREET / 2)) stretch(true, z, x0, x0 + BLOCK, s > 0, n > 0, COBX[gz], streetW(gz)); }
   for (let gx = -8; gx <= 7; gx++) for (let gz = -9; gz <= 7; gz++){ const w = cellK(gx, gz), e = cellK(gx + 1, gz), x = bx0(gx) + BLOCK, z0 = bz0(gz);   // along z
-    if (!(w === 2 && e === 2) && w + e > 0 && inTown(x + STREET / 2, z0 + BLOCK / 2)) stretch(false, x, z0, z0 + BLOCK, w > 0, e > 0, COBZ[gx]); }
+    if (!(w === 2 && e === 2) && w + e > 0 && inTown(x + STREET / 2, z0 + BLOCK / 2)) stretch(false, x, z0, z0 + BLOCK, w > 0, e > 0, COBZ[gx], STREET, blockD(gz) < BLOCK ? bz1(gz) - 2 : Infinity); }
   for (const [key, T] of tiles){ const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(T.P, 3)); g.setAttribute('aPud', new THREE.Float32BufferAttribute(T.A, 3)); g.setIndex(T.I); g.computeVertexNormals();
     const m = new THREE.Mesh(g, puddleMatT), [tx, tz] = key.split(',').map(Number); m.receiveShadow = true; m.renderOrder = 1; m.userData.c = new V3((tx + 0.5) * TILE, 0, (tz + 0.5) * TILE); puddles.add(m); TOWNPUD.push(m); }
 }
@@ -8731,7 +8739,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     if (Math.abs(x) < 17.9) box(-17.9, 17.9, BZ - 12, BZ + 0.015, 'wall');
     for (const I of INDS) box(I.x0, I.x1, I.z0, I.z1, 'workshop');
     if (!inHome(x, z) || z > STABU_FRONT - 3){ box(-76, GATE_X0, LANE_END, STABU_FRONT, 'house'); box(-76, -63, -194, LANE_END, 'house'); box(73, 86, -194, LANE_END, 'house'); box(-76, 86, -207, -194, 'house'); box(WOOD.x1, 86, LANE_END, STABU_FRONT, 'house'); box(WOOD.x0, WOOD.x1, WOOD.zb, WOOD.zf, 'house');   // the houses in the town
-      const ax = Math.floor((x - TX0 + STREET / 2) / CELL), az = Math.floor((z - TZ0 + STREET / 2) / CELL); for (let gx = ax - 1; gx <= ax + 1; gx++) for (let gz = az - 1; gz <= az + 1; gz++) if (blockOn(gx, gz)) box(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz0(gz) + BLOCK, 'house'); }
+      const ax = Math.floor((x - TX0 + STREET / 2) / CELL), az = Math.floor((z - TZ0 + STREET / 2) / CELL); for (let gx = ax - 1; gx <= ax + 1; gx++) for (let gz = az - 1; gz <= az + 1; gz++) if (blockOn(gx, gz)) box(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz1(gz), 'house'); }
     return out.filter(c => !lilacData.some(L => Math.hypot(c.w.x - L.p.x, c.w.z - L.p.z) < 0.95 * L.s + 0.8)); };   // (not into a lilac)
   const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
     wall: 'I leaned my bike against the wall.', house: 'I leaned my bike against the house.', workshop: 'I leaned my bike against the workshop wall.' };
