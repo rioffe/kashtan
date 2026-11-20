@@ -6846,9 +6846,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
         az += 2.4 + ln(-0.25, 0.25); const ang = lerp(1.05, 0.45, i / (n - 1)) + ln(-0.1, 0.1), dir = new V3(Math.sin(ang) * Math.cos(az), Math.cos(ang), Math.sin(ang) * Math.sin(az));
         branch(a, dir, Math.min(5.5, Math.max(0.8, env(h + 1) * 0.95) / Math.sin(ang)) * ln(0.85, 1.05), lerp(0.13, 0.05, i / (n - 1)), 0); }
       for (const t of tips){ const out = new V3(t.p.x - x, (t.p.y - hc) * 0.4, t.p.z - z); if (out.lengthSq() < 1e-4) out.set(ln(-1, 1), 0.3, ln(-1, 1)); out.normalize();   // the leafy shoots: sprays held out flat
-        for (let k = 0; k < 9; k++){ const off = new V3(ln(-1, 1), ln(-0.5, 0.7), ln(-1, 1)).normalize().multiplyScalar(ln(0.1, 0.7));
+        for (let k = 0; k < 14; k++){ const off = new V3(ln(-1, 1), ln(-0.5, 0.7), ln(-1, 1)).normalize().multiplyScalar(ln(0.1, 0.8));
           const dir = out.clone().multiplyScalar(0.7).addScaledVector(t.d, 0.35).addScaledVector(off.clone().normalize(), 0.6).addScaledVector(up, 0.05).normalize();
-          spots.push({ p: t.p.clone().add(off).addScaledVector(dir, -0.12), dir, k: ln(1.25, 1.5) }); } }   // (the crown thick with them)
+          spots.push({ p: t.p.clone().add(off).addScaledVector(dir, -0.12), dir, k: ln(1.45, 1.8) }); } }   // (thick with them, as the lindens of Riga's streets are)   // (the crown thick with them)
     }   // (no core, as the rowan and the fruit trees have none: from under it, the sky through the leaves)
     // the wood: grey-brown bark, ridged and fissured along it
     const bark = tex(256, 512, (g, w, h) => { const r = mkRng(18640603); g.fillStyle = '#6a6258'; g.fillRect(0, 0, w, h);
@@ -6859,15 +6859,56 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       g.translate(0, len / 2, 0); g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, sg.b.clone().sub(sg.a).normalize())); g.translate(sg.a.x, sg.a.y, sg.a.z); return g; });
     const wood = new THREE.Mesh(mergeGeometries(geos), snowify(new THREE.MeshStandardMaterial({ map: bark, roughness: 0.9 }), 1.3)); wood.castShadow = wood.receiveShadow = true; scene.add(wood);
     // the leaf: heart-shaped, notched at the stalk, broadest low down, drawn out to a short point, finely toothed; three veins from its base
+    const LIND_KEYS = [[0.5, C('#5e6046')], [1.5, C('#a8c862')], [1.8, C('#7aaa4a')], [2.2, C('#4e7e38')], [2.9, C('#4c7a36')], [3.15, C('#6e8636')]];
     const lindenProf = t => t < 0.3 ? 0.62 + 0.38 * Math.sin(t / 0.3 * Math.PI / 2) : Math.pow(Math.cos((t - 0.3) / 0.7 * Math.PI / 2), 0.85) * (1 - 0.25 * smooth((t - 0.8) / 0.2));
-    LEAFY.push(leafyBushes({ name: 'linden', seed: 6911, tex: { w: 260, h: 300, len: 0.17 }, stemTex: '#a8a070',
+    const LIND = leafyBushes({ name: 'linden', seed: 6911, tex: { w: 260, h: 300, len: 0.17 }, stemTex: '#a8a070',
       draw: (g, mode) => { if (mode === 'color') stalk(g, 0, 60, 7, 5, '#b0a878');
         g.save(); g.translate(0, -56); paintBlade(g, { L: 232, H: 108, prof: lindenProf, notch: 0.07, teeth: (t, s) => t < 0.05 || t > 0.95 ? 0 : 0.035 * saw(t * 26 + (s > 0 ? 0 : 0.5)) ** 1.5,
           veins: [[0.06, 0.55, 0.12, 0.9, 0.3], ...pinnate(lindenProf, [0.2, 0.34, 0.48, 0.62, 0.76], 0.16, 0.88)], col: ['#d2dcbc', '#e0e8ca'], vc: 'rgba(246,248,222,0.42)', vh: 120 }, mode); g.restore(); },
       shoot: { alt: true, nodes: [[0.14, 0.82], [0.3, 0.94], [0.46, 1], [0.62, 1], [0.78, 0.95], [0.95, 0.84, true]], len: [0.38, 0.48], bend: 0.12, fwd: 0.3, face: [0.85, 0.6], droop: [0.06, 0.2], fold: [0.02, 0.1], stemW: 0.004, stemC: [0.6, 0.5, 0.4] },
       spots,
-      amt: [1.5, 1.82, 3.42, 3.86], keys: [[0.5, C('#5e6046')], [1.5, C('#a8c862')], [1.8, C('#7aaa4a')], [2.2, C('#4e7e38')], [2.9, C('#4c7a36')], [3.15, C('#6e8636')]],
-      turn: { at: 3.12, span: 0.45, k: 0.85, yel: '#dcbc3c', brn: '#9a7238' }, rough: 0.6, nScale: 0.6, sway: [0.12, 0.3] })); }
+      amt: [1.5, 1.82, 3.42, 3.86], keys: LIND_KEYS,
+      turn: { at: 3.12, span: 0.45, k: 0.85, yel: '#dcbc3c', brn: '#9a7238' }, rough: 0.6, nScale: 0.6, sway: [0.12, 0.3] }); LEAFY.push(LIND);
+    // the blossom, at the turn of June and July: from under the leaves hang the flower clusters, each on a long pale bract, six or seven
+    // little cream-yellow flowers all stamens; then the small round fruits on the same bracts, green, going grey-brown into the autumn
+    const flAtlas = tex(512, 128, (g) => { g.clearRect(0, 0, 512, 128); const r = mkRng(6927);
+      const puff = (cx, cy, R) => { const gr = g.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 0.78); gr.addColorStop(0, 'rgba(250,244,196,1)'); gr.addColorStop(0.7, 'rgba(244,232,160,0.95)'); gr.addColorStop(1, 'rgba(240,228,150,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R * 0.78, 0, TAU); g.fill();   // (the haze of stamens, solid enough to be seen from afar)
+        for (let k = 0; k < 5; k++){ const a = k * TAU / 5; g.fillStyle = '#efe6b0'; g.beginPath(); g.ellipse(cx + Math.cos(a) * R * 0.32, cy + Math.sin(a) * R * 0.32, R * 0.3, R * 0.18, a, 0, TAU); g.fill(); }
+        g.lineWidth = Math.max(1.5, R * 0.06); for (let k = 0; k < 34; k++){ const a = r() * TAU, l = R * (0.55 + 0.45 * r()); g.strokeStyle = 'rgba(246,236,170,0.95)'; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * l, cy + Math.sin(a) * l); g.stroke();
+          g.fillStyle = '#e8cf6a'; g.beginPath(); g.arc(cx + Math.cos(a) * l, cy + Math.sin(a) * l, R * 0.045, 0, TAU); g.fill(); }
+        g.fillStyle = '#c8cc80'; g.beginPath(); g.arc(cx, cy, R * 0.12, 0, TAU); g.fill(); };   // (and the green heart)
+      puff(64, 64, 60);   // [0, 128): a flower
+      { const gr = g.createRadialGradient(176, 54, 6, 192, 64, 46); gr.addColorStop(0, '#e8ecc8'); gr.addColorStop(0.5, '#b4b886'); gr.addColorStop(1, '#6e7050'); g.fillStyle = gr; g.beginPath(); g.arc(192, 64, 44, 0, TAU); g.fill(); }   // [128, 256): a fruit
+      { g.fillStyle = '#d4dc98'; g.beginPath(); g.moveTo(288, 126); g.quadraticCurveTo(262, 70, 276, 8); g.quadraticCurveTo(290, 0, 302, 8); g.quadraticCurveTo(316, 70, 290, 126); g.closePath(); g.fill();   // [256, 320): the bract
+        g.strokeStyle = 'rgba(160,172,100,0.8)'; g.lineWidth = 2; g.beginPath(); g.moveTo(289, 124); g.lineTo(289, 10); g.stroke(); }
+      g.fillStyle = '#b8c27a'; g.fillRect(322, 0, 12, 128);   // [320, 336): the stalks
+      { g.fillStyle = '#d4dc98'; g.beginPath(); g.moveTo(404, 124); g.quadraticCurveTo(388, 80, 398, 30); g.quadraticCurveTo(408, 22, 416, 30); g.quadraticCurveTo(424, 80, 410, 124); g.fill();   // [384, 512): the whole, far off
+        for (let k = 0; k < 8; k++) puff(436 + r() * 56, 28 + r() * 72, 20); } }, {});
+    const U_ = (x0, x1) => [x0 / 512, x1 / 512];
+    const lcGeo = (fruit) => { const A = { P: [], U: [], I: [] }, F = { P: [], U: [], I: [] }, cr = mkRng(fruit ? 6931 : 6929), cn = (a, b) => a + (b - a) * cr();
+      const vtx = (B, x, y, z, u, v) => { B.P.push(x, y, z); B.U.push(u, v); return B.P.length / 3 - 1; };
+      const card = (B, cx, cy, cz, ax, ay, az, bx, by, bz, [u0, u1], v0 = 0, v1 = 1) => { const i = [vtx(B, cx - ax - bx, cy - ay - by, cz - az - bz, u0, v0), vtx(B, cx + ax - bx, cy + ay - by, cz + az - bz, u1, v0), vtx(B, cx + ax + bx, cy + ay + by, cz + az + bz, u1, v1), vtx(B, cx - ax + bx, cy - ay + by, cz - az + bz, u0, v1)]; B.I.push(i[0], i[1], i[2], i[0], i[2], i[3]); };
+      card(A, 0.012, 0.04, 0, 0.009, 0, 0.002, 0.004, 0.04, 0, U_(258, 318));   // the bract, out along the stalk (its far end, the cluster's hanging end, at +y)
+      const hub = [-0.004, 0.058, 0.008]; card(A, hub[0] / 2, hub[1] / 2, hub[2] / 2, 0.0012, 0, 0, hub[0] / 2, hub[1] / 2, hub[2] / 2, U_(322, 334));   // the stalk
+      const n = 9; for (let k = 0; k < n; k++){ const a = k / n * TAU + cn(-0.3, 0.3), rr = cn(0.012, 0.028), fx = hub[0] + Math.cos(a) * rr, fz = hub[2] + Math.sin(a) * rr, fy = hub[1] + cn(0.012, 0.03), sz = fruit ? 0.0048 : 0.012;
+        card(A, (hub[0] + fx) / 2, (hub[1] + fy) / 2, (hub[2] + fz) / 2, 0.0007, 0, 0, (fx - hub[0]) / 2, (fy - hub[1]) / 2, (fz - hub[2]) / 2, U_(322, 334));   // its pedicel
+        card(A, fx, fy, fz, sz, 0, 0, 0, sz, 0, U_(fruit ? 128 : 0, fruit ? 256 : 128)); card(A, fx, fy, fz, 0, 0, sz, 0, sz, 0, U_(fruit ? 128 : 0, fruit ? 256 : 128)); }   // the flower (or fruit), two crossed cards
+      card(F, 0.004, 0.05, 0, 0.038, 0, 0, 0, 0.05, 0, U_(384, 512));   // (far off: one card)
+      return [A, F].map(B => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.U, 2)); g.setIndex(B.I); g.computeVertexNormals(); return g; }); };
+    { const fr = mkRng(6933), frn = (a, b) => a + (b - a) * fr(), items = [];
+      for (const sh of LIND.shoots) if (sh.v > 0.8 && fr() < 0.6){ const out = sh.tip.clone().sub(sh.p); out.y = 0; out.normalize(); const dir = out.multiplyScalar(0.4).add(new V3(frn(-0.2, 0.2), -1, frn(-0.2, 0.2))).normalize();   // (hanging under the leaves)
+        items.push({ p: sh.p.clone().lerp(sh.tip, frn(0.55, 0.95)), q: new THREE.Quaternion().setFromUnitVectors(up, dir).multiply(new THREE.Quaternion().setFromAxisAngle(up, fr() * TAU)), s: frn(1.8, 2.3), r: fr(), r2: fr(), vI: 0 }); }
+      const mat = (near) => lodify(leafGlow(swayify(new THREE.MeshStandardMaterial({ map: flAtlas, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.75 }), 0.3, 0.2)), near);
+      const fl = lodSet(items, [lcGeo(false)], mat(true), mat(false)), fitems = items.map(h => ({ ...h })), fu = lodSet(fitems, [lcGeo(true)], mat(true), mat(false));
+      const M = new THREE.Matrix4(), Sc = new V3(), col = new THREE.Color(), green = C('#c8d49a'), brown = C('#9a8a64'), last = { s: -1 }, on = { f: false, b: false };
+      LEAFY.push({ name: 'linden flowers', core: { count: 0 }, shoots: [], blocks: fl.blocks, tris: [[0, 0]],
+        update(S_){ if (Math.abs(S_ - last.s) < 0.002) return; last.s = S_; const f = bump(S_, 2.0, 2.07, 2.26, 2.33), b = bump(S_, 2.26, 2.36, 3.62, 3.95), ripe = smooth((S_ - 2.6) / 0.7);
+          on.f = f > 0; on.b = b > 0;
+          items.forEach((h, i) => { const vf = smooth(clamp((f * 1.25 - h.r) / 0.25)); M.compose(h.p, h.q, Sc.setScalar(h.s * vf)); fl.set(h, M);
+            const bh = fitems[i], vb = smooth(clamp((b * 1.25 - h.r2) / 0.25)); M.compose(bh.p, bh.q, Sc.setScalar(bh.s * vb)); fu.set(bh, M, col.copy(green).lerp(brown, clamp(ripe * 1.2 - h.r2 * 0.2))); });
+          fl.touch(); fu.touch(); },
+        lod(){ fl.lod(on.f); fu.lod(on.b); } }); } }
 }
 
 /* ---------- smoke from the chimneys: in 1984 the houses were still heated with wood, from October to the end of March; the stoves were
