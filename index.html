@@ -6596,7 +6596,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
    set-offs and a pinnacle on each; a corbel frieze under the eaves; gutters and downpipes. Local u along it (the tower at +u, to the east,
    to us), v across it ---------- */
 { const SQ = CHURCH_SQ, CX = SQ.cx, CZ = SQ.cz, UPV_ = new V3(0, 1, 0);
-  const acc = () => ({ p: [], n: [], uv: [], i: [] }), BR = acc(), ST = acc(), RF = acc(), CU = acc(), WN = acc(), FR = acc(), MT = acc(), CLK = acc();
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), BR = acc(), ST = acc(), RF = acc(), CU = acc(), WN = acc(), FR = acc(), MT = acc(), CLK = acc(), GLD = acc();
   const P = (u, y, v) => [CX + u, y, CZ + v];
   // a flat polygon, its corners in order; its normal from them (or turned up, for what must face the sky); uv per corner
   const poly = (B, pts, uvs, up = false) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
@@ -7005,17 +7005,24 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       for (const sd of [-1, 1]) stick(CU, onFace(k, sd * w / 2, yS, 0.05).map((q, i) => i === 1 ? q : q - [CX, 0, CZ][i]), onFace(k, 0, top + 0.05, 0.05).map((q, i) => i === 1 ? q : q - [CX, 0, CZ][i]), 0.05, 4);
       const ca = Math.PI / 8 + k * TAU / 8, r = (ap(yL1) + 0.18) / c8, x = cu + Math.cos(ca) * r, z = Math.sin(ca) * r;   // and a spike at each corner, its tip hooked outwards
       stick(CU, [x, yS, z], [x, yS + 1.3, z], 0.075, 5, 0.014); stick(CU, [x, yS + 1.02, z], [x + Math.cos(ca) * 0.16, yS + 1.22, z + Math.sin(ca) * 0.16], 0.03, 4, 0.01); }
-    // the finial: a collar where the spire ends; a slender shaft on a flared bracket; the crown, flat, its eight corners turned up in hooks;
-    // a flared neck, a disc, and the cross, its ends budded in trefoils, a knot on its shaft under the arms
-    prism(CU, oc(0.5), yC - 0.05, yC + 0.17, true, true); prism(CU, oc(0.57), yC + 0.17, yC + 0.36, true, true); frust(CU, yC + 0.36, 0.5, yC + 0.47, 0.3, true);
-    prism(CU, oc(0.29), yC + 0.47, 61.25, false); frust(CU, 61.25, 0.29, 61.5, 0.47, true);
-    prism(CU, oc(0.8), 61.5, 61.6, true, true); frust(CU, 61.6, 0.8, 61.95, 0.17, true);
-    for (let k = 0; k < 8; k++){ const ca = Math.PI / 8 + k * TAU / 8, r = 0.8 / c8; stick(CU, [cu + Math.cos(ca) * r, 61.57, Math.sin(ca) * r], [cu + Math.cos(ca) * (r + 0.15), 61.8, Math.sin(ca) * (r + 0.15)], 0.04, 4, 0.012); }
-    stick(MT, [cu, 61.9, 0], [cu, 62.18, 0], 0.22, 8, 0.1); stick(MT, [cu, 62.18, 0], [cu, 62.95, 0], 0.1, 8, 0.075);
-    { const g = new THREE.CylinderGeometry(0.25, 0.25, 0.15, 14); g.translate(CX + cu, 63.0, CZ); addGeo(MT, g); }
-    for (const [x0, x1, ya, yb, z0, z1] of [[-0.055, 0.055, 63.05, 64.95, -0.055, 0.055], [-0.055, 0.055, 64.38, 64.5, -0.6, 0.6]]) prism(MT, rect(cu + x0, cu + x1, z0, z1), ya, yb, true, true);   // (its arms across the church: it faces the street)
-    { const g = new THREE.SphereGeometry(0.1, 10, 8); g.scale(1, 1.3, 1); g.translate(CX + cu, 64.02, CZ); addGeo(MT, g); }   // (the knot)
-    for (const [z, y, az, ay] of [[-0.6, 64.44, -1, 0], [0.6, 64.44, 1, 0], [0, 64.95, 0, 1]]) for (const [pz, py, r] of [[az * 0.1, ay * 0.1, 0.07], [-ay * 0.075 + az * 0.03, az * 0.075 + ay * 0.03, 0.055], [ay * 0.075 + az * 0.03, -az * 0.075 + ay * 0.03, 0.055]]){ const g = new THREE.SphereGeometry(r, 8, 6); g.translate(CX + cu, y + py, CZ + z + pz); addGeo(MT, g); } }   // (its ends budded)
+    // the finial, after the photographs: a collar where the spire ends; a shaft; the capital, its four arms of leaves reaching out and curling
+    // up at their ends, leaves between them; a short neck, a disc; and the cross, gilt, its bars stout, each end rounded with a pair of buds
+    // inside it, a pair more on its shaft under the arms
+    prism(CU, oc(0.5), yC - 0.05, yC + 0.17, true, true); prism(CU, oc(0.55), yC + 0.17, yC + 0.42, true, true); frust(CU, yC + 0.42, 0.5, yC + 0.55, 0.32, true);
+    prism(CU, oc(0.31), yC + 0.55, 61.5, false);
+    frust(CU, 61.45, 0.31, 61.75, 0.4, true); prism(CU, oc(0.4), 61.75, 62.2, true, true); frust(CU, 62.2, 0.36, 62.42, 0.2, true);   // (the capital's core)
+    const lump = (p, r) => { const g = new THREE.IcosahedronGeometry(r, 0); g.translate(CX + p[0], p[1], CZ + p[2]); addGeo(CU, g); };
+    for (let k = 0; k < 4; k++){ const a = k * Math.PI / 2, du = Math.cos(a), dv = Math.sin(a), at = (r, y) => [cu + du * r, y, dv * r], ad = (r, y) => [cu + Math.cos(a + Math.PI / 4) * r, y, Math.sin(a + Math.PI / 4) * r];
+      stick(CU, at(0.3, 61.72), at(0.72, 61.86), 0.15, 6, 0.12); stick(CU, at(0.7, 61.84), at(0.9, 62.12), 0.11, 6, 0.06); stick(CU, at(0.88, 62.1), at(0.82, 62.3), 0.06, 5, 0.02);   // (an arm, its end curling up and in)
+      stick(CU, at(0.34, 61.58), at(0.64, 61.78), 0.07, 5, 0.04);   // (a leaf under it)
+      for (const [r, y, sz] of [[0.44, 61.99, 0.11], [0.62, 62.02, 0.1], [0.8, 62.05, 0.075]]) lump(at(r, y), sz);   // (its leaves along it)
+      stick(CU, ad(0.33, 61.92), ad(0.56, 62.2), 0.075, 5, 0.02); lump(ad(0.42, 62.0), 0.08); }   // (and a smaller leaf between each two)
+    prism(CU, oc(0.17), 62.4, 62.82, false);
+    frust(CU, 62.8, 0.2, 62.88, 0.28, true); prism(CU, oc(0.28), 62.88, 63.02, true, true); frust(CU, 63.02, 0.28, 63.1, 0.16, true);   // (the disc)
+    prism(GLD, rect(cu - 0.1, cu + 0.1, -0.1, 0.1), 63.05, 64.9, true, true); prism(GLD, rect(cu - 0.09, cu + 0.09, -0.56, 0.56), 64.23, 64.41, true, true);   // the cross (its arms across the church: it faces the street)
+    const bud = (z, y, r) => { const g = new THREE.SphereGeometry(r, 10, 8); g.translate(CX + cu, y, CZ + z); addGeo(GLD, g); };
+    bud(0, 64.9, 0.105); bud(-0.56, 64.32, 0.1); bud(0.56, 64.32, 0.1);   // (its ends rounded)
+    for (const sd of [-1, 1]){ bud(sd * 0.39, 64.43, 0.055); bud(sd * 0.39, 64.21, 0.055); bud(sd * 0.115, 64.73, 0.055); bud(sd * 0.115, 63.93, 0.055); } }   // (and budded)
 
   // ---- gutters along the eaves and downpipes from them, dark: the nave's, the transept's, the choir's
   { const gut = (a, b, y) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]), tu = (b[0] - a[0]) / l, tv = (b[1] - a[1]) / l; prism(MT, [[a[0], a[1]], [b[0], b[1]], [b[0] - tv * 0.16, b[1] + tu * 0.16], [a[0] - tv * 0.16, a[1] + tu * 0.16]], y - 0.14, y, true, true); };
@@ -7059,6 +7066,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   mk(MT, lampLit(new THREE.MeshStandardMaterial({ color: 0x3a4341, roughness: 0.45, metalness: 0.55, side: THREE.DoubleSide })));
   mk(WN, lampLit(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide })), false);
   mk(CLK, lampLit(new THREE.MeshStandardMaterial({ map: clockT, roughness: 0.6, metalness: 0.15, side: THREE.DoubleSide })), false);
+  mk(GLD, lampLit(new THREE.MeshStandardMaterial({ color: 0xd8b55e, metalness: 0.75, roughness: 0.3 })));   // (the cross, gilt)
   { const M = new THREE.Matrix4(), Q0 = new THREE.Quaternion(), V = new V3(), Sc = new V3();
   for (const [geo, list, rot, mat] of [[pinGeo, PINS, false, stoneM], [finGeo, FINS, false, stoneM], [crockGeo, CROCK.map(p => [p[0], p[1], p[2], 1]), true, stoneM], [crockGeo, CROCKCU.map(p => [p[0], p[1], p[2], 0.8]), true, copperM]]){ if (!list.length) continue;
     const im = new THREE.InstancedMesh(geo, mat, list.length), rr = mkRng(1869);
