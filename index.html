@@ -605,7 +605,7 @@ function drawStucco(g, w, h, ppm){
 }
 
 /* ============================== world layout ============================== */
-const TREE = new V3(12, 0, -137);
+const TREE = new V3(12, 0, -137), LOTROADS = [];   // (LOTROADS: the dirt roads in the lots round the workshops, for their puddles: [x0, z0, ux, uz, L, w])
 /* where fallen leaves lie, for the grass and dandelions under them to bend down beneath them (not show through): a map of the ground round
    the tree, 4 cm a texel, 30.7 m across. r: the turn of the first litter leaf over it (see LITTER), g: that leaf's height there; b: till
    when a leaf come down from the tree lies over it, a: its height. Filled in by LEAFLAY */
@@ -758,13 +758,13 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
 }
 const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
 {
-  var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1);
+  var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1), LANE_EDGE;   // (LANE_EDGE: its ragged edges, for the dirt roads in the lots too)
   { // ragged verges: the grass bites into the lane's edges in uneven scallops, as on the paths
     const er = mkRng(3131), en = (a, b) => a + er() * (b - a);
     const edge = tex(64, 1024, (g, w, h) => { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
       for (const side of [0, 1]){ let d = 3; for (let y = 0; y < h; y += 2){ d += en(-0.9, 0.9) + (4 - d) * 0.04; d = Math.max(0.5, Math.min(9, d)); const bite = er() < 0.03 ? en(3, 9) : 0;
         g.fillStyle = '#000'; g.fillRect(side ? w - d - bite : 0, y, d + bite, 2); } } }, { srgb: false, repeat: [1, 5] });
-    roadMat.alphaMap = edge; roadMat.alphaTest = 0.5; }
+    roadMat.alphaMap = edge; roadMat.alphaTest = 0.5; LANE_EDGE = edge; }
   const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, STABU_FRONT - ROAD_Z0).rotateX(-Math.PI / 2), roadMat);
   road.position.set(ROAD_X, 0.01, (ROAD_Z0 + STABU_FRONT) / 2);
   road.receiveShadow = true; scene.add(road);   // (the pavement on our side of Stabu: the ring round our blocks, below)
@@ -5903,7 +5903,7 @@ const AN = (() => {
   signs.wrapS = signs.wrapT = THREE.ClampToEdgeWrapping;
   return { color, mask, designs, gablePts, UV, FIRE, rail, signs, NSIGN: SIGNS.length, bdesigns, rdesigns, ydesigns, bcolor: BSH.color, bmask: BSH.mask, UVb, BFIRE, PRT, parts, rail2 };
 })();
-var blockMats = [];
+var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
 {
   const PAL = ['#e8d6a0', '#f0e6d0', '#c8d8bc', '#ecc8b8', '#cfcac2', '#dcc4a0', '#bccad8', '#e4bc90', '#f2dcc4', '#d4b8a8'].map(C);
   const ROOF = ['#6a2e24', '#5a5a5c', '#4e5a52', '#7a3a2a', '#60646a', '#5a7a6a'].map(C);
@@ -6444,9 +6444,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const [z, s] of [[za, 1], [zb, -1]]) poly(rust ? RF : GR, [[xa, hy(z), z], [xb, hy(z), z], [xb, yt(z), z], [xa, yt(z), z]], [0, 0, s], [ROOFU, ROOFU, ROOFU, ROOFU], rust ? [rust.r * 0.8, rust.g * 0.8, rust.b * 0.8] : null);
     for (const x of [xa, xb]) poly(rust ? RF : GR, [[x, hy(za), za], [x, hy(zb), zb], [x, yt(zb), zb], [x, yt(za), za]], [Math.sign(x), 0, 0], [ROOFU, ROOFU, ROOFU, ROOFU], rust ? [rust.r * 0.8, rust.g * 0.8, rust.b * 0.8] : null); };
   // dirt roads, rutted, their edges ragged into the grass
-  const road = (x0, z0, x1, z1, w, y) => { const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, px = -uz, pz = ux, n = Math.ceil(L / 1.5), o = RD.p.length / 3; ROADS.push([x0, z0, ux, uz, L, w]);
-    for (let k = 0; k <= n; k++){ const t = k / n * L, hl = w / 2 + R(-0.25, 0.25), hr = w / 2 + R(-0.25, 0.25), cx = x0 + ux * t, cz = z0 + uz * t;
-      RD.p.push(cx - px * hl, y, cz - pz * hl, cx + px * hr, y, cz + pz * hr); RD.n.push(0, 1, 0, 0, 1, 0); RD.uv.push(0.5 - hl / w, t / 2.4, 0.5 + hr / w, t / 2.4); }
+  const road = (x0, z0, x1, z1, w, y) => { const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, px = -uz, pz = ux, n = Math.ceil(L / 1.5), o = RD.p.length / 3; ROADS.push([x0, z0, ux, uz, L, w]); LOTROADS.push([x0, z0, ux, uz, L, w]);
+    for (let k = 0; k <= n; k++){ const t = k / n * L, hl = w / 2 + R(-0.25, 0.25), hr = w / 2 + R(-0.25, 0.25), cx = x0 + ux * t, cz = z0 + uz * t;   // (u 0 to 1 edge to edge, for the ragged edge)
+      RD.p.push(cx - px * hl, y, cz - pz * hl, cx + px * hr, y, cz + pz * hr); RD.n.push(0, 1, 0, 0, 1, 0); RD.uv.push(0, t / 2.4, 1, t / 2.4); }
     for (let k = 0; k < n; k++){ const a = o + k * 2; RD.i.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } };   // (facing up)
   road(-61, -165.5, 71, -165.5, 4.2, 0.012);   // behind our house, along the back of the lot
   road(-48, -165.5, -48, -61, 3.6, 0.016);     // and up through the lots either side, behind the workshops
@@ -6471,7 +6471,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const meshes = [new THREE.Mesh(geo(A, true, true, true), wallMat), new THREE.Mesh(geo(RF, true, true), wetRoof(roofWear(snowify(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.3 }), 1.3)))),
     new THREE.Mesh(geo(GR), tarMat), chimneyMesh(K)];
   for (const m of meshes){ m.castShadow = m.receiveShadow = true; scene.add(m); }
-  const rm = new THREE.Mesh(geo(RD, true), snowify(new THREE.MeshStandardMaterial({ map: roadT, color: '#d8ccb8', roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 0.9)); rm.receiveShadow = true; scene.add(rm);
+  const roadEdge = LANE_EDGE.clone(); roadEdge.repeat.set(1, 2.4 / 16); roadEdge.needsUpdate = true;   // (the grass biting into their edges as into the lane's: one ragged run every 16 m)
+  const rm = new THREE.Mesh(geo(RD, true), snowify(new THREE.MeshStandardMaterial({ map: roadT, alphaMap: roadEdge, alphaTest: 0.5, color: '#d8ccb8', roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 0.9)); rm.receiveShadow = true; scene.add(rm);
+  roadsMat = rm.material;   // (darkened with the rain, as the lane)
 
   // and everywhere else the grass, in clumps, thick along the roads' verges and on the hump between their ruts; dandelions scattered through
   // it in loose drifts: the yard's own grass and dandelions, only sparser (seen from the workshops' roofs, not walked through), each plant's
@@ -6685,6 +6687,9 @@ const puddles = new THREE.Group(); scene.add(puddles);
       add(P.x + rn(-0.2, 0.2), P.z + rn(-0.2, 0.2), rn(0.3, 0.55), rn(0.45, 1.1), Math.atan2(T.x, T.z) + rn(-0.4, 0.4)); } }
   for (let k = 0; k < 6; k++){ const a = pr() * TAU, r = rn(1.5, 5); add(TREE.x + Math.cos(a) * r, TREE.z + Math.sin(a) * r, rn(0.6, 1.4), rn(0.6, 1.6), rn(0, TAU)); }   // the bare ring under the tree
   for (let k = 0; k < 4; k++) add(rn(-6, 14), BZ + rn(0.4, 0.8), rn(0.6, 1.5), rn(0.25, 0.4), 0);   // along the wall under the eaves
+  for (const [x0, z0, ux, uz, L, w] of LOTROADS){ const px = -uz, pz = ux, yaw = Math.atan2(-ux, uz);   // and the dirt roads in the lots: in their ruts, the odd big one across
+    for (let t = rn(1, 4); t < L - 1.5; t += rn(2.5, 7)){ const big = pr() < 0.22, off = big ? rn(-0.4, 0.4) : (pr() < 0.5 ? -1 : 1) * (w * 0.235 + rn(-0.12, 0.12));
+      add(x0 + ux * t + px * off, z0 + uz * t + pz * off, big ? rn(0.9, 1.5) : rn(0.25, 0.45), big ? rn(1.0, 2.2) : rn(0.8, 2.6), yaw + rn(-0.08, 0.08)); } }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aPud', new THREE.Float32BufferAttribute(A, 3)); g.setIndex(I); g.computeVertexNormals();
   const m = new THREE.Mesh(g, puddleMat); m.receiveShadow = true; m.renderOrder = 1; puddles.add(m);
 }
@@ -8448,7 +8453,8 @@ function updateEnv(sp){
   groundMat.color.copy(cyc(S, groundKeys, tmpC)).multiplyScalar(1 - 0.28 * W.wet); groundMat.roughness = 1 - 0.35 * W.wet;
   { const wt = W.wet * (1 - sp.snow); wetU.wet.value = W.leafWet * (1 - sp.snow); wetU.ground.value = wt; wetU.sky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.4);   // the chestnut in the rain
     tree.barkMat.color.setScalar(1 - 0.38 * wt); tree.barkMat.roughness = 0.95 - 0.5 * wt; roofWetU.value = wt; roofRainU.value = W.rain * (1 - sp.snow); }   // (and the roofs)
-  roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
+  // (the lane and the lots' dirt roads darken in the wet; the puddles fill as the ground gets wetter)
+  roadMat.color.setScalar(1 - 0.38 * W.wet); roadMat.roughness = 1 - 0.6 * W.wet; if (roadsMat){ roadsMat.color.set('#d8ccb8').multiplyScalar(1 - 0.38 * W.wet); roadsMat.roughness = 1 - 0.6 * W.wet; } puddleU.uWet.value = W.wet * (1 - sp.snow); puddleU.uRain.value = W.rain * (1 - sp.snow); puddleU.uSky.value.copy(skyU.horizon.value).lerp(skyU.top.value, 0.35); puddles.visible = puddleU.uWet.value > 0.02;
   if (puddles.visible) for (const m of TOWNPUD) m.visible = Math.hypot(m.userData.c.x - camera.position.x, m.userData.c.z - camera.position.z) < 250;   // (the town's, only near)
   snowU.value = sp.snow; snowLayer.visible = sp.snow > 0.02;
   liftU.value = 0.03 + 0.2 * env.day;
