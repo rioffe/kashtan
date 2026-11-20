@@ -6596,7 +6596,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
    set-offs and a pinnacle on each; a corbel frieze under the eaves; gutters and downpipes. Local u along it (the tower at +u, to the east,
    to us), v across it ---------- */
 { const SQ = CHURCH_SQ, CX = SQ.cx, CZ = SQ.cz, UPV_ = new V3(0, 1, 0);
-  const acc = () => ({ p: [], n: [], uv: [], i: [] }), BR = acc(), ST = acc(), RF = acc(), CU = acc(), WN = acc(), FR = acc(), MT = acc();
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), BR = acc(), ST = acc(), RF = acc(), CU = acc(), WN = acc(), FR = acc(), MT = acc(), CLK = acc();
   const P = (u, y, v) => [CX + u, y, CZ + v];
   // a flat polygon, its corners in order; its normal from them (or turned up, for what must face the sky); uv per corner
   const poly = (B, pts, uvs, up = false) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
@@ -6764,6 +6764,46 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     { const [x, y, w, h] = R_.I;   // two little square-headed windows side by side, a stone mullion between, leaded
       g.fillStyle = stoneC; g.fillRect(x + 2, y + 2, w - 4, h - 4); for (const xx of [x + 16, x + w / 2 + 8]){ g.beginPath(); g.rect(xx, y + 16, w / 2 - 24, h - 32); glass(x, y, w, h); g.strokeStyle = 'rgba(150,150,150,.6)'; g.lineWidth = 3; g.strokeRect(xx, y + 16, w / 2 - 24, h - 32); } } }, { srgb: true });
   atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping;
+  // the clocks' faces, after the photograph: a dial of dark slate, weathered; its hours in Roman numerals of gilt, radial, their strokes
+  // fanning, between a gilt ring at the rim and another within; a stud between each two; a square plate in the middle; round the dial a
+  // moulded ring of stone, and the stone square it is set in, carved in its corners with cusped tracery (2.3 m across; the hands are their own)
+  const clockT = tex(1024, 1024, (g, w, h) => { const c = w / 2, R = 1.04 / 2.3 * w, cr = mkRng(18690901), cn = (a, b) => a + (b - a) * cr();
+    g.fillStyle = '#b6ad9b'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 500; i++){ g.fillStyle = cr() < 0.6 ? `rgba(88,82,70,${cn(0.04, 0.12)})` : `rgba(236,230,214,${cn(0.04, 0.1)})`; g.fillRect(cr() * w, cr() * h, cn(4, 34), cn(2, 12)); }
+    for (let i = 0; i < 18; i++){ const x = cr() * w, gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(58,54,48,.2)'); gr.addColorStop(1, 'rgba(58,54,48,0)'); g.fillStyle = gr; g.fillRect(x, 0, cn(6, 26), h); }
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){   // the corners: the spandrel sunk deep; in it a curved rib round the ring, cusps on it, a rib out to the corner, a quatrefoil
+      const ang = Math.atan2(sy, sx), at = (r, a) => [c + Math.cos(a) * r, c + Math.sin(a) * r], st = '#c4bba8';
+      g.save(); g.beginPath(); g.rect(sx < 0 ? 0 : c, sy < 0 ? 0 : c, c, c); g.clip(); g.beginPath(); g.rect(0, 0, w, h); g.arc(c, c, R * 1.085, 0, TAU); g.clip('evenodd');
+      const gr = g.createRadialGradient(...at(R * 1.35, ang), 20, ...at(R * 1.35, ang), 200); gr.addColorStop(0, '#4c473e'); gr.addColorStop(1, '#6f685b'); g.fillStyle = gr; g.fillRect(26, 26, w - 52, h - 52);
+      g.strokeStyle = st; g.lineCap = 'round'; g.lineWidth = 13; g.beginPath(); g.arc(c, c, R * 1.2, ang - 0.55, ang + 0.55); g.stroke();
+      g.beginPath(); g.moveTo(...at(R * 1.2, ang)); g.lineTo(...at(c * Math.SQRT2 - 34, ang)); g.stroke();
+      g.fillStyle = st; for (const da of [-0.24, 0.24, -0.5, 0.5]){ g.beginPath(); g.arc(...at(R * 1.2 - 12, ang + da), 15, 0, TAU); g.fill(); }   // (the cusps)
+      const [qx, qy] = at((R * 1.2 + c * Math.SQRT2) / 2 + 6, ang); g.fillStyle = '#3a362f'; g.strokeStyle = st; g.lineWidth = 7;
+      for (let k = 0; k < 4; k++){ const a = ang + k * Math.PI / 2; g.beginPath(); g.arc(qx + Math.cos(a) * 15, qy + Math.sin(a) * 15, 14, 0, TAU); g.fill(); g.stroke(); }
+      g.fillStyle = st; g.beginPath(); g.arc(qx, qy, 8, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(36,32,28,.55)'; g.lineWidth = 6; g.lineCap = 'butt'; g.strokeRect(26, 26, w - 52, h - 52); g.restore(); }
+    g.fillStyle = '#c2b9a6'; g.beginPath(); g.arc(c, c, R * 1.085, 0, TAU); g.fill();   // the moulded ring
+    g.strokeStyle = 'rgba(250,246,232,.55)'; g.lineWidth = 7; g.beginPath(); g.arc(c, c, R * 1.06, 0, TAU); g.stroke(); g.strokeStyle = 'rgba(52,48,42,.55)'; g.lineWidth = 6; g.beginPath(); g.arc(c, c, R * 1.015, 0, TAU); g.stroke();
+    g.save(); g.beginPath(); g.arc(c, c, R, 0, TAU); g.clip(); g.fillStyle = '#283037'; g.fillRect(0, 0, w, h);   // the dial, weathered slate
+    for (let i = 0; i < 1400; i++){ const a = cr() * TAU, r = Math.sqrt(cr()) * R, x = c + Math.cos(a) * r, y = c + Math.sin(a) * r, k = cr();
+      g.fillStyle = k < 0.4 ? `rgba(80,94,106,${cn(0.12, 0.3)})` : k < 0.68 ? `rgba(16,20,24,${cn(0.2, 0.4)})` : k < 0.78 ? `rgba(92,74,58,${cn(0.1, 0.22)})` : `rgba(98,112,104,${cn(0.08, 0.2)})`; g.beginPath(); g.ellipse(x, y, cn(3, 22), cn(2, 14), cr() * 3, 0, TAU); g.fill(); }
+    g.fillStyle = '#20262b'; g.fillRect(c - 0.27 * R, c - 0.3 * R, 0.54 * R, 0.6 * R); g.strokeStyle = 'rgba(96,104,108,.6)'; g.lineWidth = 7; g.strokeRect(c - 0.27 * R, c - 0.3 * R, 0.54 * R, 0.6 * R);   // (the plate in the middle)
+    g.strokeStyle = 'rgba(10,12,14,.5)'; g.lineWidth = 4; g.strokeRect(c - 0.245 * R, c - 0.275 * R, 0.49 * R, 0.55 * R); g.restore();
+    const gilt = '#cbc78e', pol = (r, a) => [c + Math.sin(a) * r, c - Math.cos(a) * r], rIn = 0.64 * R, rOut = 0.95 * R, rm = 0.8 * R, lw = 0.034 * R;   // (a: clockwise from twelve)
+    const bar = (a0, r0, a1, r1, wdt, col) => { const [x0, y0] = pol(r0, a0), [x1, y1] = pol(r1, a1); g.strokeStyle = col; g.lineWidth = wdt; g.lineCap = 'butt'; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+    const both = (f) => { g.save(); g.translate(3, 3); f('rgba(0,0,0,.45)'); g.restore(); f(gilt); };   // (each stroke with its shadow under it)
+    for (const r of [0.975 * R, 0.605 * R]) both(col => { g.strokeStyle = col; g.lineWidth = 0.014 * R; g.beginPath(); g.arc(c, c, r, 0, TAU); g.stroke(); });
+    const GW = { I: 0.062, V: 0.15, X: 0.17 }, gap = 0.028;
+    ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'].forEach((num, k) => { const ang = k * TAU / 12, gl = [...num], tot = gl.reduce((s_, q) => s_ + GW[q], 0) + gap * (gl.length - 1); let at = -tot / 2;
+      for (const q of gl){ const ac = ang + (at + GW[q] / 2) * R / rm, hw = GW[q] / 2 * R / rm; at += GW[q] + gap;
+        both(col => { if (q === 'I'){ bar(ac, rIn, ac, rOut, lw, col); for (const r of [rIn + 0.008 * R, rOut - 0.008 * R]) bar(ac - 0.03 * R / r, r, ac + 0.03 * R / r, r, 0.016 * R, col); }
+          else if (q === 'V'){ bar(ac - hw, rOut, ac, rIn, lw, col); bar(ac + hw, rOut, ac, rIn, lw * 0.75, col); }
+          else { bar(ac - hw, rIn, ac + hw, rOut, lw, col); bar(ac + hw, rIn, ac - hw, rOut, lw * 0.75, col); } }); } });
+    for (let k = 0; k < 12; k++){ const [x, y] = pol(0.79 * R, (k + 0.5) * TAU / 12); g.save(); g.translate(x, y); g.rotate((k + 0.5) * TAU / 12 + Math.PI / 4); g.fillStyle = '#121416'; g.fillRect(-9, -9, 18, 18); g.strokeStyle = 'rgba(120,128,132,.5)'; g.lineWidth = 2; g.strokeRect(-9, -9, 18, 18); g.restore(); }   // (the studs)
+  }, { srgb: true });
+  clockT.wrapS = clockT.wrapT = THREE.ClampToEdgeWrapping;
+  const clockFace = (u, v, nu, nv, w = 2.3, y0 = 24.5, y1 = 26.8) => { const tu = nv, tv = -nu, cu = u + nu * 0.1, cv = v + nv * 0.1;
+    poly(CLK, [P(cu - tu * w / 2, y0, cv - tv * w / 2), P(cu + tu * w / 2, y0, cv + tv * w / 2), P(cu + tu * w / 2, y1, cv + tv * w / 2), P(cu - tu * w / 2, y1, cv - tv * w / 2)], [[0, 0], [1, 0], [1, 1], [0, 1]]); };
   const reg = (k) => { const [x, y, w, h] = R_[k]; return [[x / AW, 1 - (y + h) / AH], [(x + w) / AW, 1 - y / AH]]; };
   // a picture on a wall: centred at (u, v) facing (nu, nv), w wide, from y0 to y1, from the sheet's region k
   const pic = (k, u, v, nu, nv, w, y0, y1, o = 0.03) => { const [[a0, b0], [a1, b1]] = reg(k), tu = nv, tv = -nu, cu = u + nu * o, cv = v + nv * o;   // (t: to the right, seen from outside)
@@ -6902,7 +6942,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const [u, v, nu, nv] of [[TW.u1 - 0.2, 0, 1, 0], [mu, f1, 0, 1], [mu, -f1, 0, -1]]){ const tu = nv, tv = -nu, at = (t, d = 0) => [u + tu * t + nu * d, v + tv * t + nv * d];
       for (const t of [-3.3, -2.2, -0.9, 0.9, 2.2, 3.3]) prism(ST, [at(t - 0.1, -0.02), at(t + 0.1, -0.02), at(t + 0.1, 0.12), at(t - 0.1, 0.12)], TW.s1 + 0.05, 23.5, false);
       opening('H', u, v, nu, nv, 0.8, 19.3, 22.9, 0.12, 0.14); for (const t of [-1.55, 1.55]){ const [su, sv] = at(t); pic('H', su, sv, nu, nv, 0.28, 19.9, 22.2); }
-      pic('G', u, v, nu, nv, 2.3, 24.5, 26.8, 0.1); sqFrame(u, v, nu, nv, 2.3, 24.5, 26.8, 0.15, 0.2); setoff(u, v, nu, nv, 3.0, 0.62, 26.95);
+      clockFace(u, v, nu, nv); sqFrame(u, v, nu, nv, 2.3, 24.5, 26.8, 0.15, 0.2); setoff(u, v, nu, nv, 3.0, 0.62, 26.95);
       CLOCKS.push([u, 25.65, v, nu, nv]); }
     for (let k = 0; k < 8; k++){ const a = k * TAU / 8, nu = Math.cos(a), nv = Math.sin(a), u = mu + nu * TW.oa, v = nv * TW.oa, hw = TW.oa * Math.tan(Math.PI / 8), straight = k % 2 === 0;   // the octagon's faces
       if (straight){ opening('D', u, v, nu, nv, 2.3, 28.6, 41.3, 0.22, 0.28); const G = gable(u, v, nu, nv, [[-hw, TW.top], [hw, TW.top], [0, 43.2]], 0.5); G.panel('O', 0, 0.6, 41.75, 42.35); G.finAt(0, 43.2, 0.75); }   // the straight ones: the tall arch, louvred, in two tiers, up into the gable
@@ -7018,15 +7058,26 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const copperM = snowify(new THREE.MeshStandardMaterial({ map: copperT, roughness: 0.55, metalness: 0.2, side: THREE.DoubleSide }), 1.1); mk(CU, copperM);
   mk(MT, lampLit(new THREE.MeshStandardMaterial({ color: 0x3a4341, roughness: 0.45, metalness: 0.55, side: THREE.DoubleSide })));
   mk(WN, lampLit(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.35, metalness: 0.15, side: THREE.DoubleSide })), false);
+  mk(CLK, lampLit(new THREE.MeshStandardMaterial({ map: clockT, roughness: 0.6, metalness: 0.15, side: THREE.DoubleSide })), false);
   { const M = new THREE.Matrix4(), Q0 = new THREE.Quaternion(), V = new V3(), Sc = new V3();
   for (const [geo, list, rot, mat] of [[pinGeo, PINS, false, stoneM], [finGeo, FINS, false, stoneM], [crockGeo, CROCK.map(p => [p[0], p[1], p[2], 1]), true, stoneM], [crockGeo, CROCKCU.map(p => [p[0], p[1], p[2], 0.8]), true, copperM]]){ if (!list.length) continue;
     const im = new THREE.InstancedMesh(geo, mat, list.length), rr = mkRng(1869);
     list.forEach(([x, y, z, s], k) => { if (rot) Q0.setFromEuler(new THREE.Euler(0, rr() * TAU, 0)); im.setMatrixAt(k, M.compose(V.set(x, y, z), Q0, Sc.set(s, s, s))); });
     im.castShadow = !rot; im.receiveShadow = true; scene.add(im); Q0.identity(); } }
-  { const gold = lampLit(new THREE.MeshStandardMaterial({ color: 0xd9b45c, metalness: 0.7, roughness: 0.32 })), hand = (len, wid) => { const g = new THREE.BoxGeometry(wid, len, 0.035); g.translate(0, len / 2 - 0.12, 0); return g; };
-    const hG = hand(0.62, 0.1), mG = hand(0.95, 0.065), hands = [];
+  { // the hands, after the photograph, flat and gilt (R: the dial's radius): the minute hand's bar to a collar, two curled lobes and a knob,
+    // then on, narrower, to its rounded end; the hour hand's to a collar and a cloverleaf; each with its tail, a collar and a tulip of three
+    // lobes for a counterweight; a boss over them
+    const gold = lampLit(new THREE.MeshStandardMaterial({ color: 0xe8d28a, metalness: 0.7, roughness: 0.3 })), R = 1.04;
+    const handGeo = (minute) => { const S = [], V2 = (x, y) => new THREE.Vector2(x * R, y * R), box = (x0, y0, x1, y1) => S.push(new THREE.Shape([V2(x0, y0), V2(x1, y0), V2(x1, y1), V2(x0, y1)]));
+      const ell = (x, y, rx, ry, rot = 0) => { const sh = new THREE.Shape(); sh.absellipse(x * R, y * R, rx * R, ry * R, 0, TAU, false, rot); S.push(sh); };
+      if (minute){ box(-0.032, 0, 0.032, 0.49); box(-0.062, 0.483, 0.062, 0.51); for (const sd of [-1, 1]) ell(sd * 0.06, 0.575, 0.033, 0.068, -sd * 0.35); ell(0, 0.56, 0.034, 0.06); ell(0, 0.655, 0.03, 0.03);
+        const tip = new THREE.Shape(); tip.moveTo(-0.025 * R, 0.6 * R); tip.lineTo(0.025 * R, 0.6 * R); tip.lineTo(0.025 * R, 0.845 * R); tip.absarc(0, 0.845 * R, 0.025 * R, 0, Math.PI, false); tip.lineTo(-0.025 * R, 0.6 * R); S.push(tip); }
+      else { box(-0.034, 0, 0.034, 0.37); box(-0.065, 0.363, 0.065, 0.39); for (const sd of [-1, 1]) ell(sd * 0.068, 0.455, 0.042, 0.07, -sd * 0.7); ell(0, 0.53, 0.055, 0.048); ell(0, 0.44, 0.04, 0.05); }
+      box(-0.026, -0.22, 0.026, 0); box(-0.055, -0.235, 0.055, -0.21); for (const sd of [-1, 1]) ell(sd * 0.045, -0.29, 0.035, 0.055, sd * 0.45); ell(0, -0.3, 0.03, 0.04); ell(0, -0.355, 0.033, 0.033);   // (the tail)
+      return new THREE.ExtrudeGeometry(S, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.005, bevelSegments: 1, curveSegments: 10 }); };
+    const hG = handGeo(false), mG = handGeo(true), bossG = new THREE.CylinderGeometry(0.07 * R, 0.075 * R, 0.05, 16).rotateX(Math.PI / 2), hands = [];
     for (const [u, y, v, nu, nv] of CLOCKS){ const grp = new THREE.Group(); onWall(u, y, v, nu, nv, 0.13).decompose(grp.position, grp.quaternion, grp.scale);
-      const h = new THREE.Mesh(hG, gold), m = new THREE.Mesh(mG, gold); h.position.z = 0.02; m.position.z = 0.05; grp.add(h, m); scene.add(grp); hands.push([h, m]); }
+      const h = new THREE.Mesh(hG, gold), m = new THREE.Mesh(mG, gold), b = new THREE.Mesh(bossG, gold); h.position.z = 0.02; m.position.z = 0.05; b.position.z = 0.07; grp.add(h, m, b); scene.add(grp); hands.push([h, m]); }
     CHURCH_CLOCK = (hr) => { const a = (((hr % 12) + 12) % 12) / 12 * TAU, b = (((hr % 1) + 1) % 1) * TAU; for (const [h, m] of hands){ h.rotation.z = -a; m.rotation.z = -b; } };
     CHURCH_CLOCK(10.1); }
 
