@@ -7209,7 +7209,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
    proportions: 36 m by 24.5, the middle gable 23.5 m to its top. The yard paved, an iron railing on stone posts round it. Local u along it
    (its front at +u, to the east), v across it (its north side at -v) ---------- */
 { const SY = SYN, CX = SY.cx, CZ = SY.cz, UPS = new V3(0, 1, 0);
-  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc();
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc(), DWD = acc(), DWK = acc(), IRN = acc(), KH = acc(), STP = acc();
   const P = (u, y, v) => [CX + u, y, CZ + v];
   // a flat polygon, its corners in order; its normal from them (up 1: turned to face the sky, -1: the ground); uv per corner
   const poly = (B, pts, uvs, up = 0) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
@@ -7255,6 +7255,20 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const roofT = tex(256, 256, (g, w, h) => { g.fillStyle = '#8a3a24'; g.fillRect(0, 0, w, h);   // tin painted red, standing seams every half metre (tile 2 m)
     for (let i = 0; i < 4; i++){ const x = i * 64, t = sn(0.92, 1.06); g.fillStyle = `rgb(${172 * t | 0},${76 * t | 0},${50 * t | 0})`; g.fillRect(x + 3, 0, 58, h); g.fillStyle = 'rgba(236,160,128,.45)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(60,20,12,.45)'; g.fillRect(x + 2, 0, 1.5, h); }
     for (let i = 0; i < 40; i++){ g.fillStyle = `rgba(${sr() < 0.5 ? '80,30,18' : '210,120,90'},${sn(0.05, 0.14)})`; g.fillRect(sr() * w, sr() * h, sn(2, 10), sn(10, 80)); } }, { repeat: [0.5, 0.5] });
+  const wr_ = mkRng(18710902), wn_ = (a, b) => a + (b - a) * wr_();
+  const ironT = tex(64, 64, (g, w, h) => { g.fillStyle = '#56504a'; g.fillRect(0, 0, w, h);   // old iron: dark, worn grey at the edges, specks of rust (tile 0.12 m)
+    for (let i = 0; i < 160; i++){ const q = wr_(); g.fillStyle = q < 0.4 ? `rgba(118,62,34,${wn_(0.15, 0.4)})` : q < 0.75 ? `rgba(150,146,138,${wn_(0.15, 0.35)})` : `rgba(14,12,10,${wn_(0.2, 0.4)})`; g.fillRect(wr_() * w, wr_() * h, wn_(1, 4), wn_(1, 4)); } }, { repeat: [1 / 0.12, 1 / 0.12] });
+  const woodT = tex(256, 512, (g, w, h) => { g.fillStyle = '#875b5e'; g.fillRect(0, 0, w, h);   // the doors' wood: a deep red-brown, purplish, its grain soft and its figure mottled (tile 0.6 by 1.2 m), polished (below)
+    for (let i = 0; i < 70; i++){ const x = wr_() * w, a = wn_(0.05, 0.14); g.strokeStyle = wr_() < 0.55 ? `rgba(44,26,30,${a})` : `rgba(170,114,114,${a})`; g.lineWidth = wn_(3, 12); g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= h; y += 32) g.lineTo(x + Math.sin(y * 0.012 + i) * wn_(2, 8), y); g.stroke(); }
+    for (let i = 0; i < 60; i++){ const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1), dark = wr_() < 0.5; gr.addColorStop(0, dark ? 'rgba(30,16,20,.18)' : 'rgba(150,92,86,.14)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.save(); g.translate(wr_() * w, wr_() * h); g.scale(wn_(10, 30), wn_(30, 90)); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, TAU); g.fill(); g.restore(); } }, { repeat: [1 / 0.6, 1 / 1.2] });
+  // what the lacquer, the brass and the gilding mirror: the sky, pale to the horizon; the street's pale fronts; the cobbles
+  const synEnv = tex(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6d9ad0'); gr.addColorStop(0.42, '#d8e4ee'); gr.addColorStop(0.5, '#c9bba0'); gr.addColorStop(0.62, '#8f8672'); gr.addColorStop(0.7, '#5d5a54'); gr.addColorStop(1, '#3a3936'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += wn_(10, 26)){ const bh = wn_(6, 16), t = wn_(0.85, 1.1); g.fillStyle = `rgb(${200 * t | 0},${186 * t | 0},${160 * t | 0})`; g.fillRect(x, h / 2 - bh, wn_(8, 24), bh + 6); g.fillStyle = 'rgba(40,46,54,.6)'; for (let y = h / 2 - bh + 2; y < h / 2 + 4; y += 4) for (let xx = x + 2; xx < x + 20; xx += 5) g.fillRect(xx, y, 2, 2); } }, { srgb: true });
+  synEnv.mapping = THREE.EquirectangularReflectionMapping;
+  const stepT = tex(256, 256, (g, w, h) => { g.fillStyle = '#cfc6b3'; g.fillRect(0, 0, w, h);   // plain sandstone, worn (tile 1.2 m)
+    for (let i = 0; i < 900; i++){ g.fillStyle = wr_() < 0.55 ? `rgba(110,100,82,${wn_(0.04, 0.12)})` : `rgba(240,234,220,${wn_(0.04, 0.1)})`; g.fillRect(wr_() * w, wr_() * h, wn_(1, 8), wn_(1, 5)); }
+    g.fillStyle = 'rgba(90,82,68,.35)'; g.fillRect(0, 0, w, 2); g.fillRect(0, 0, 2, h); g.fillRect(w / 2, 0, 2, h); }, { repeat: [1 / 1.2, 1 / 1.2] });
   const paveT = tex(256, 256, (g, w, h) => { g.fillStyle = '#8f8a80'; g.fillRect(0, 0, w, h); const q = w / 4;   // flags 0.6 m (tile 2.4)
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++){ const t = sn(0.9, 1.06); g.fillStyle = `rgb(${190 * t | 0},${184 * t | 0},${170 * t | 0})`; g.fillRect(i * q + 2, j * q + 2, q - 4, q - 4);
       for (let k = 0; k < 14; k++){ g.fillStyle = `rgba(${sr() < 0.5 ? '90,86,78' : '228,224,212'},${sn(0.05, 0.14)})`; g.fillRect(i * q + 4 + sr() * (q - 12), j * q + 4 + sr() * (q - 12), sn(2, 9), sn(2, 7)); } } }, { repeat: [1 / 2.4, 1 / 2.4] });
@@ -7262,11 +7276,11 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     g.fillRect(0, h - 12, w, 8); g.fillRect(0, 40, w, 7); g.fillRect(0, (h * 0.66) | 0, w, 5);
     for (let i = 0; i < 10; i++){ const x = i * w / 10 + w / 20; g.fillRect(x - 2.5, 16, 5, h - 22); g.beginPath(); g.moveTo(x - 6.5, 20); g.lineTo(x + 6.5, 20); g.lineTo(x, 1); g.closePath(); g.fill(); }
     g.strokeStyle = '#242625'; g.lineWidth = 3.5; for (let i = 0; i < 10; i++){ g.beginPath(); g.arc(i * w / 10, 60, 9, 0, TAU); g.stroke(); } }, { srgb: true });
-  // the sheet: W2 a window of two lights (the long sides'), W3 of three (the ends' side bays'), WP the front's pointed middle one, W4 of four
-  // (the back's middle ones); D a portal's doors and fanlight; B a cellar window; O a round window, a star in it; G a garland
-  const AW = 2048, AH = 1024, R_ = { W2: [0, 0, 256, 1024], W3: [256, 0, 384, 1024], WP: [640, 0, 384, 1024], W4: [1024, 0, 384, 1024], D: [1408, 0, 256, 512], B: [1408, 512, 256, 256], O: [1664, 0, 256, 256], G: [1664, 256, 384, 192] };
+  // the sheet: W2 a window of two lights (the long sides'), W3 of three (the back's side bays'), WP a pointed one, W4 of four (the middle
+  // ones); B a cellar window; O a round window, a star in it; G a garland
+  const AW = 2048, AH = 1024, R_ = { W2: [0, 0, 256, 1024], W3: [256, 0, 384, 1024], WP: [640, 0, 384, 1024], W4: [1024, 0, 384, 1024], B: [1408, 512, 256, 256], O: [1664, 0, 256, 256], G: [1664, 256, 384, 192], W5: [1664, 448, 384, 576] };
   const archTopC = (span, k) => { if (k <= 0.5) return span / 2; const r = span * k; return r * Math.sin(Math.acos((r - span / 2) / r)); };
-  const atlas = tex(AW, AH, (g) => { g.clearRect(0, 0, AW, AH);
+  const GLASS = { on: false }, paintAtlas = (g) => { g.clearRect(0, 0, AW, AH);
     const inR = (k, vh, fn) => { const [x, y, w, h] = R_[k]; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.translate(x, y); g.scale(1, h / vh); fn(w, vh); g.restore(); };
     const cream = '#f4eddd', bar = '#efe7d3';
     const archP = (x0, x1, ys, yb, k) => { g.beginPath(); g.moveTo(x0, yb); g.lineTo(x0, ys);
@@ -7289,27 +7303,102 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       else if (lights === 3){ for (let i = 0; i < 3; i++){ archP(s + i * lw, s + (i + 1) * lw, ys, h, k); g.stroke(); } const cy = ys - 1.9 * rl, cr = 1.05 * rl; circ(w / 2, cy, cr); g.lineWidth = w * 0.02;
         for (let q = 0; q < 3; q++){ const a = -Math.PI / 2 + q * TAU / 3; circ(w / 2 + Math.cos(a) * cr * 0.45, cy + Math.sin(a) * cr * 0.45, cr * 0.45); } for (const sd of [-1, 1]) circ(w / 2 + sd * 1.75 * rl, ys - 0.95 * rl, 0.38 * rl); }
       else { for (let i = 0; i < lights; i++){ archP(s + i * lw, s + (i + 1) * lw, ys, h, k); g.stroke(); } circ(w / 2, ys - 4 / 3 * rl, 2 / 3 * rl); } };
-    inR('W2', 544, (w, h) => win(w, h, 2, 0.5)); inR('W3', 628, (w, h) => win(w, h, 3, 0.5)); inR('WP', 589, (w, h) => win(w, h, 3, 0.72)); inR('W4', 603, (w, h) => win(w, h, 4, 0.5));
-    inR('D', 471, (w, h) => { const ys = w / 2 + 2; g.fillStyle = cream; archP(1, w - 1, ys, h, 0.5); g.fill(); archP(9, w - 9, ys, h, 0.5); g.save(); g.clip();   // the doors: the fanlight, a transom, two leaves of panels
-      const gr = g.createLinearGradient(0, 0, 0, ys + 12); gr.addColorStop(0, '#3a4550'); gr.addColorStop(1, '#1c2228'); g.fillStyle = gr; g.fillRect(0, 0, w, ys + 12);
-      g.strokeStyle = bar; g.lineWidth = 5; for (let q = 1; q < 8; q++){ const a = Math.PI + q * Math.PI / 8; g.beginPath(); g.moveTo(w / 2, ys + 10); g.lineTo(w / 2 + Math.cos(a) * w, ys + 10 + Math.sin(a) * w); g.stroke(); }
-      g.beginPath(); g.arc(w / 2, ys + 10, w * 0.18, Math.PI, 2 * Math.PI); g.stroke();
-      g.fillStyle = cream; g.fillRect(0, ys + 8, w, 16); g.fillStyle = '#4a3122'; g.fillRect(0, ys + 24, w, h);
-      for (const x0 of [12, w / 2 + 5]) for (const [y0, y1] of [[ys + 36, ys + 150], [ys + 162, h - 60], [h - 50, h - 14]]){ g.fillStyle = '#563a29'; g.fillRect(x0, y0, w / 2 - 17, y1 - y0); g.fillStyle = 'rgba(255,220,180,.12)'; g.fillRect(x0, y0, w / 2 - 17, 3); g.fillRect(x0, y0, 3, y1 - y0); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x0, y1 - 3, w / 2 - 17, 3); g.fillRect(x0 + w / 2 - 20, y0, 3, y1 - y0); }
-      g.fillStyle = '#1e140e'; g.fillRect(w / 2 - 2, ys + 24, 4, h); g.fillStyle = '#c9a65a'; for (const sd of [-1, 1]){ g.beginPath(); g.arc(w / 2 + sd * 12, ys + 200, 5, 0, TAU); g.fill(); } g.restore(); });
+    // every other window in the manner of the end bays' side ones: a round head; round-headed lights between colonnettes, four panes each, the
+    // glass leaded and a little coloured; in the head a round with a five-petalled flower (by three lights, between two curved triangles
+    // with three-petalled ones; by four, over two arches each round a pair of lights, a round with three petals in each)
+    const tintP = (col) => { g.save(); g.clip(); g.fillStyle = col; g.fillRect(-10, -10, 4000, 4000); g.restore(); };
+    const petals = (cx, cy, r, n, a0 = -Math.PI / 2) => Array.from({ length: n }, (_, k) => { const a = a0 + k * TAU / n, d = n === 5 ? 0.5 : 0.44; return [cx + Math.cos(a) * r * d, cy + Math.sin(a) * r * d, r * (n === 5 ? 0.4 : 0.4)]; });
+    // stained glass, after the photograph of such a window: in each light a roundel with the Star of David (blue on white, a ring of red
+    // dots) and under it a chain of interlaced circles (pale blue and pink, cream bands, a jewel in each, little blue squares at the edges;
+    // the middle light's amber, its jewels red); in the tracery's rounds a rosette in each petal round a star; in its curved triangles gold
+    // round pink; pale fans of pink, cream, blue and gold behind them; all of it leaded (how it looks from outside: see the windows' material)
+    const SG = { cream: '#f1e4bd', blue: '#9cc3cf', pink: '#d9a291', gold: '#e2b85a', amber: '#d9953e', red: '#ad3529', deep: '#3b5f9e', sky: '#5a83bd', green: '#3e8c6c', white: '#f3eee2' }, LEAD = '#2b2521';
+    const leadW = (w) => { g.strokeStyle = LEAD; g.lineWidth = Math.max(1.2, w * 0.008); };
+    const disc = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.stroke(); };   // (the lead round it)
+    const rosette = (x, y, r, a, b, c) => { disc(x, y, r, a); disc(x, y, r * 0.64, b); disc(x, y, r * 0.28, c); };
+    const starDavid = (cx, cy, R, warm) => { disc(cx, cy, R, SG.white);
+      for (let q = 0; q < 12; q++){ const a = q * TAU / 12; disc(cx + Math.cos(a) * R * 0.8, cy + Math.sin(a) * R * 0.8, R * 0.11, SG.red); }
+      const tri = (a0) => { g.beginPath(); for (let q = 0; q < 3; q++){ const a = a0 + q * TAU / 3, x = cx + Math.cos(a) * R * 0.6, y = cy + Math.sin(a) * R * 0.6; q ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); };
+      g.fillStyle = warm ? SG.red : SG.deep; tri(-Math.PI / 2); g.fill(); g.stroke(); tri(Math.PI / 2); g.fill(); g.stroke(); disc(cx, cy, R * 0.18, warm ? SG.gold : SG.red); };
+    const chain = (x0, x1, yA, yB, warm) => { const cw = x1 - x0, cx = (x0 + x1) / 2, R = cw * 0.4, st = R * 1.3, lw0 = g.lineWidth, ys = [];
+      g.fillStyle = warm ? SG.gold : SG.cream; g.fillRect(x0, yA - R, cw, yB - yA + 2 * R);
+      for (let y = yA + R; y - R < yB; y += st) ys.push(y);
+      ys.forEach((y, k) => disc(cx, y, R, warm ? (k % 2 ? SG.amber : SG.pink) : (k % 2 ? SG.pink : SG.blue)));
+      g.strokeStyle = warm ? '#f3d98e' : SG.cream; g.lineWidth = R * 0.24; for (const y of ys){ g.beginPath(); g.arc(cx, y, R * 0.88, 0, TAU); g.stroke(); }   // (the interlaced bands)
+      g.strokeStyle = LEAD; g.lineWidth = lw0; for (const y of ys) for (const rr of [R, R * 0.76]){ g.beginPath(); g.arc(cx, y, rr, 0, TAU); g.stroke(); }
+      for (const y of ys){ disc(cx, y, R * 0.42, warm ? SG.cream : SG.white); disc(cx, y, R * 0.17, warm ? SG.red : SG.green); g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.arc(cx - R * 0.05, y - R * 0.06, R * 0.05, 0, TAU); g.fill(); }
+      const q = cw * 0.07; for (const y of ys) for (const ex of [x0 + cw * 0.07, x1 - cw * 0.07]){ g.fillStyle = warm ? SG.amber : SG.deep; g.fillRect(ex - q / 2, y + st / 2 - q / 2, q, q); g.strokeRect(ex - q / 2, y + st / 2 - q / 2, q, q); } };
+    const fan = (cx, cy, R, cols) => { const n = 14; for (let q = 0; q < n; q++){ const a0 = Math.PI + q * Math.PI / n; g.fillStyle = cols[q % cols.length]; g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a0, a0 + Math.PI / n); g.closePath(); g.fill(); g.stroke(); } };
+    const lightGlass = (x0, lw, ylh, h, warm) => { const rl = lw / 2; g.save(); g.beginPath(); g.moveTo(x0, h); g.lineTo(x0, ylh); g.arc(x0 + rl, ylh, rl, Math.PI, 2 * Math.PI, false); g.lineTo(x0 + lw, h); g.closePath(); g.clip();
+      chain(x0, x0 + lw, ylh + rl * 0.9, h, warm); starDavid(x0 + rl, ylh, rl * 0.88, warm); g.restore(); };
+    // the glass in a figure of the tracery: a round's ground blue, a rosette in each of its petals, a star in its middle; a curved triangle's gold
+    const figGlass = (kind, cx, cy, r, q) => { g.save(); g.beginPath();
+      if (kind === 't'){ const th0 = Math.PI / 2 + q * 0.35, V = [0, 1, 2].map(k => [cx + Math.cos(th0 + k * TAU / 3) * r, cy + Math.sin(th0 + k * TAU / 3) * r]); g.moveTo(V[1][0], V[1][1]);
+        for (let k = 0; k < 3; k++){ const C = V[k], A = V[(k + 1) % 3], B = V[(k + 2) % 3]; g.arc(C[0], C[1], r * Math.sqrt(3), Math.atan2(A[1] - C[1], A[0] - C[0]), Math.atan2(B[1] - C[1], B[0] - C[0]), false); } g.closePath(); }
+      else g.arc(cx, cy, r, 0, TAU);
+      g.clip(); g.fillStyle = kind === 't' ? SG.gold : q === 5 ? SG.sky : SG.amber; g.fillRect(cx - 2 * r, cy - 2 * r, 4 * r, 4 * r);
+      for (const [px, py, pr] of (kind === 't' ? petals(cx, cy, r * 0.95, 3, Math.PI / 2 + q * 0.35) : petals(cx, cy, r, q))) kind === 't' ? rosette(px, py, pr, SG.pink, SG.cream, SG.deep) : q === 5 ? rosette(px, py, pr, SG.red, SG.gold, SG.blue) : rosette(px, py, pr, SG.pink, SG.cream, SG.green);
+      if (kind === 'c') starDavid(cx, cy, r * (q === 5 ? 0.24 : 0.2), false);
+      g.restore(); };
+    const tracery = (w, h, lights, ylhF) => { const s = w * 0.045, ys = w / 2 + 1, iw = w - 2 * s, mw = w * (lights > 2 ? 0.045 : 0.055), lw = (iw - (lights - 1) * mw) / lights, rl = lw / 2, ylh = ys + h * ylhF, sw = w * 0.032, LX = (i) => s + i * (lw + mw);
+      const headP = (ins) => { g.beginPath(); g.moveTo(ins, h); g.lineTo(ins, ys); g.arc(w / 2, ys, w / 2 - ins, Math.PI, 2 * Math.PI, false); g.lineTo(w - ins, h); g.closePath(); };
+      g.fillStyle = cream; headP(0); g.fill();
+      const figs = [];
+      if (lights === 2) figs.push(['c', w / 2, ys - 1.3 * rl, 0.64 * rl, 5]);
+      else if (lights === 3){ figs.push(['c', w / 2, ys - 0.25 * w, 0.165 * w, 5]); for (const sd of [-1, 1]) figs.push(['t', w / 2 + sd * 0.3 * w, ys - 0.135 * w, 0.09 * w, sd]); }
+      else { for (const sd of [-1, 1]) figs.push(['c', w / 2 + sd * (lw + mw / 2), ylh - 1.55 * rl, 0.5 * rl, 3]); figs.push(['c', w / 2, ys - 0.27 * w, 0.16 * w, 5]); }
+      g.save(); headP(s); g.clip(); GLASS.on = true; leadW(w); fan(w / 2, ylh, w * 0.75, [SG.pink, SG.cream, SG.blue, SG.gold]);
+      for (let i = 0; i < lights; i++) lightGlass(LX(i), lw, ylh, h, lights === 3 ? i === 1 : lights === 4 && (i === 1 || i === 2));
+      for (const F of figs) figGlass(...F);
+      GLASS.on = false; g.restore();
+      g.strokeStyle = cream; g.fillStyle = cream; g.lineCap = 'butt';
+      for (let i = 0; i < lights; i++){ const x0 = LX(i); g.lineWidth = mw; g.beginPath(); g.arc(x0 + lw / 2, ylh, lw / 2 + mw / 2, Math.PI, 2 * Math.PI); g.stroke(); if (i < lights - 1) g.fillRect(x0 + lw, ylh, mw, h - ylh);
+        g.strokeStyle = '#d6ccb6'; g.lineWidth = Math.max(2, w * 0.012); for (let k = 1; k < 4; k++){ const y = ylh + (h - ylh) * k / 4; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + lw, y); g.stroke(); } g.strokeStyle = cream; }
+      g.fillStyle = 'rgba(0,0,0,.22)'; for (let i = 0; i < lights - 1; i++) g.fillRect(LX(i) + lw + mw * 0.7, ylh, mw * 0.3, h - ylh);
+      if (lights === 4) for (const sd of [-1, 1]){ g.lineWidth = mw; g.beginPath(); g.arc(w / 2 + sd * (lw + mw / 2), ylh, lw + mw, Math.PI, 2 * Math.PI); g.stroke(); }
+      for (const [kind, cx, cy, r, q] of figs){ g.lineWidth = sw; g.beginPath();
+        if (kind === 't'){ const th0 = Math.PI / 2 + q * 0.35, V = [0, 1, 2].map(k => [cx + Math.cos(th0 + k * TAU / 3) * r, cy + Math.sin(th0 + k * TAU / 3) * r]);
+          for (let k = 0; k < 3; k++){ const C = V[k], A = V[(k + 1) % 3], B = V[(k + 2) % 3]; g.moveTo(A[0], A[1]); g.arc(C[0], C[1], r * Math.sqrt(3), Math.atan2(A[1] - C[1], A[0] - C[0]), Math.atan2(B[1] - C[1], B[0] - C[0]), false); } }
+        else g.arc(cx, cy, r, 0, TAU);
+        g.stroke(); g.lineWidth = sw * 0.62; for (const [px, py, pr] of (kind === 't' ? petals(cx, cy, r * 0.95, 3, Math.PI / 2 + q * 0.35) : petals(cx, cy, r, q))){ g.beginPath(); g.arc(px, py, pr, 0, TAU); g.stroke(); } }
+      g.lineWidth = s * 1.2; headP(s * 0.6); g.stroke(); };
+    inR('W2', 544, (w, h) => tracery(w, h, 2, 0)); inR('W3', 628, (w, h) => tracery(w, h, 3, 0.08)); inR('W4', 603, (w, h) => tracery(w, h, 4, 0.06));
+    // the end bays' side windows, after the photograph: a segmental head; three round-headed lights between colonnettes, four panes each,
+    // their glass leaded; over them a round with a five-petalled flower in it between two curved triangles with three-petalled ones
+    inR('W5', 558, (w, h) => { const rise = h * 0.13, R = (w * w / 4 + rise * rise) / (2 * rise), s = w * 0.04, ylh = h * 0.43, mw = w * 0.05, lw = (w - 2 * s - 2 * mw) / 3, sw = w * 0.034;
+      const head = (ins) => { const a = Math.asin((w / 2 - ins) / (R - ins)); g.beginPath(); g.moveTo(ins, h); g.lineTo(ins, R - (R - ins) * Math.cos(a)); g.arc(w / 2, R, R - ins, -Math.PI / 2 - a, -Math.PI / 2 + a, false); g.lineTo(w - ins, h); g.closePath(); };
+      g.fillStyle = cream; head(0); g.fill();
+      const yc = h * 0.165, rc = w * 0.165, tre = [];   // (the curved triangles: their middles, their points)
+      for (const sd of [-1, 1]){ const cx = w / 2 + sd * w * 0.315, cy = h * 0.235, rt = w * 0.13, th0 = Math.PI / 2 + sd * 0.35, V = [0, 1, 2].map(k => [cx + Math.cos(th0 + k * TAU / 3) * rt, cy + Math.sin(th0 + k * TAU / 3) * rt]); tre.push([cx, cy, rt, V, th0, sd]); }
+      g.save(); head(s); g.clip(); GLASS.on = true; leadW(w); fan(w / 2, ylh, w * 0.8, [SG.pink, SG.cream, SG.blue, SG.gold]);
+      for (let i = 0; i < 3; i++) lightGlass(s + i * (lw + mw), lw, ylh, h, i === 1);
+      figGlass('c', w / 2, yc, rc, 5); for (const [cx, cy, rt, , , sd] of tre) figGlass('t', cx, cy, rt, sd);
+      GLASS.on = false; g.restore();
+      g.strokeStyle = cream; g.lineCap = 'butt';
+      for (let i = 0; i < 3; i++){ const x0 = s + i * (lw + mw); g.lineWidth = mw; g.beginPath(); g.arc(x0 + lw / 2, ylh, lw / 2 + mw / 2, Math.PI, 2 * Math.PI); g.stroke(); if (i < 2){ g.fillStyle = cream; g.fillRect(x0 + lw, ylh, mw, h - ylh); }
+        g.strokeStyle = '#d6ccb6'; g.lineWidth = Math.max(2, w * 0.012); for (let k = 1; k < 4; k++){ const y = ylh + (h - ylh) * k / 4; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + lw, y); g.stroke(); } g.strokeStyle = cream; }
+      g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 2; i++) g.fillRect(s + (i + 1) * lw + i * mw + mw * 0.7, ylh, mw * 0.3, h - ylh);   // (the colonnettes round)
+      g.lineWidth = sw; g.beginPath(); g.arc(w / 2, yc, rc, 0, TAU); g.stroke(); g.lineWidth = sw * 0.65; for (let k = 0; k < 5; k++){ const a = -Math.PI / 2 + k * TAU / 5; g.beginPath(); g.arc(w / 2 + Math.cos(a) * rc * 0.5, yc + Math.sin(a) * rc * 0.5, rc * 0.4, 0, TAU); g.stroke(); }
+      for (const [cx, cy, rt, V, th0] of tre){ g.lineWidth = sw; g.beginPath(); for (let k = 0; k < 3; k++){ const C = V[k], A = V[(k + 1) % 3], B = V[(k + 2) % 3], r = rt * Math.sqrt(3); g.moveTo(A[0], A[1]); g.arc(C[0], C[1], r, Math.atan2(A[1] - C[1], A[0] - C[0]), Math.atan2(B[1] - C[1], B[0] - C[0]), false); } g.stroke();
+        g.lineWidth = sw * 0.6; for (let k = 0; k < 3; k++){ const a = th0 + k * TAU / 3; g.beginPath(); g.arc(cx + Math.cos(a) * rt * 0.42, cy + Math.sin(a) * rt * 0.42, rt * 0.36, 0, TAU); g.stroke(); } }
+      g.lineWidth = s * 1.2; head(s * 0.6); g.stroke(); });
     inR('B', 166, (w, h) => { g.fillStyle = cream; g.beginPath(); g.moveTo(2, h); g.lineTo(2, 34); g.quadraticCurveTo(w / 2, 0, w - 2, 34); g.lineTo(w - 2, h); g.closePath(); g.fill();   // a cellar window: segmental, barred
       g.beginPath(); g.moveTo(16, h - 12); g.lineTo(16, 42); g.quadraticCurveTo(w / 2, 14, w - 16, 42); g.lineTo(w - 16, h - 12); g.closePath(); glass(w, h);
       g.fillStyle = '#2a2b2a'; for (let i = 1; i < 7; i++) g.fillRect(16 + i * (w - 32) / 7 - 2, 18, 4, h - 30); g.fillRect(16, h * 0.55, w - 32, 4); });
-    inR('O', 256, (w, h) => { const c = w / 2, r = c - 3; g.fillStyle = cream; g.beginPath(); g.arc(c, c, r, 0, TAU); g.fill();   // a round window, its glass a six-pointed star
-      g.beginPath(); for (let q = 0; q < 12; q++){ const a = -Math.PI / 2 + q * Math.PI / 6, rr = q % 2 ? r * 0.8 / Math.sqrt(3) : r * 0.8; q ? g.lineTo(c + Math.cos(a) * rr, c + Math.sin(a) * rr) : g.moveTo(c + Math.cos(a) * rr, c + Math.sin(a) * rr); } g.closePath(); glass(w, h);
-      g.strokeStyle = bar; g.lineWidth = 5; g.beginPath(); g.arc(c, c, r * 0.3, 0, TAU); g.stroke(); g.strokeStyle = 'rgba(90,80,64,.35)'; g.lineWidth = 3; g.beginPath(); g.arc(c, c, r * 0.9, 0, TAU); g.stroke(); });
+    inR('O', 256, (w, h) => { const c = w / 2, r = c - 3; g.fillStyle = cream; g.beginPath(); g.arc(c, c, r, 0, TAU); g.fill();   // a round window, stained: the Star of David in its ring of red, on blue
+      g.save(); g.beginPath(); g.arc(c, c, r * 0.88, 0, TAU); g.clip(); GLASS.on = true; g.strokeStyle = LEAD; g.lineWidth = 3; disc(c, c, r * 0.88, SG.sky); starDavid(c, c, r * 0.8, false); GLASS.on = false; g.restore();
+      g.strokeStyle = 'rgba(90,80,64,.35)'; g.lineWidth = 3; g.beginPath(); g.arc(c, c, r * 0.9, 0, TAU); g.stroke(); });
     inR('G', 139, (w, h) => { const sw = (t) => [w * 0.13 + t * w * 0.74, 26 + Math.sin(t * Math.PI) * 62];   // a garland: a swag of leaves between two rosettes, ribbons falling at its ends
       for (const sd of [0, 1]){ const x = sd ? w * 0.9 : w * 0.1; g.fillStyle = '#e3d9c2'; g.beginPath(); g.moveTo(x - 7, 26); g.bezierCurveTo(x - 16, 60, x + 10, 90, x - 4, h - 6); g.lineTo(x + 6, h - 8); g.bezierCurveTo(x + 18, 90, x - 4, 60, x + 7, 26); g.fill(); g.strokeStyle = 'rgba(110,96,72,.45)'; g.lineWidth = 2; g.stroke(); }
       for (let i = 0; i <= 70; i++){ const t = i / 70, [x, y] = sw(t), th = 8 + Math.sin(t * Math.PI) * 13;
         for (const [ox, oy, rr] of [[-4, -th * 0.4, th * 0.55], [4, th * 0.35, th * 0.6], [0, 0, th * 0.62]]){ g.fillStyle = 'rgba(105,90,66,.5)'; g.beginPath(); g.ellipse(x + ox + 1.5, y + oy + 2.5, rr * 1.15, rr * 0.7, t * 2 + ox, 0, TAU); g.fill();
           g.fillStyle = sr() < 0.5 ? '#efe7d4' : '#e2d8c1'; g.beginPath(); g.ellipse(x + ox, y + oy, rr * 1.1, rr * 0.66, t * 2 + ox, 0, TAU); g.fill(); } }
-      for (const x of [w * 0.1, w * 0.9]){ g.fillStyle = '#f1e9d6'; g.beginPath(); g.arc(x, 24, 15, 0, TAU); g.fill(); g.strokeStyle = 'rgba(110,96,72,.55)'; g.lineWidth = 2.5; g.stroke(); g.beginPath(); g.arc(x, 24, 6, 0, TAU); g.stroke(); } }); }, { srgb: true });
-  atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping;
+      for (const x of [w * 0.1, w * 0.9]){ g.fillStyle = '#f1e9d6'; g.beginPath(); g.arc(x, 24, 15, 0, TAU); g.fill(); g.strokeStyle = 'rgba(110,96,72,.55)'; g.lineWidth = 2.5; g.stroke(); g.beginPath(); g.arc(x, 24, 6, 0, TAU); g.stroke(); } }); };
+  const atlas = tex(AW, AH, paintAtlas, { srgb: true });
+  // which of it is glass: the same drawing again, black, but for what is painted while the glass is (white)
+  const glassMask = tex(AW, AH, (g) => { paintAtlas(new Proxy(g, { get: (t, k) => { const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; },
+    set: (t, k, v) => { t[k] = k === 'fillStyle' || k === 'strokeStyle' ? (GLASS.on ? '#fff' : '#000') : v; return true; } })); }, { srgb: false });
+  atlas.wrapS = atlas.wrapT = glassMask.wrapS = glassMask.wrapT = THREE.ClampToEdgeWrapping;
   const reg = (k) => { const [x, y, w, h] = R_[k]; return [[x / AW, 1 - (y + h) / AH], [(x + w) / AW, 1 - y / AH]]; };
 
   // ---- a face of it: its middle at (u0, v0), looking out along (nu, nv); t across it (to the right seen from outside), d out of it
@@ -7335,6 +7424,14 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     f.ext(B, shp(pts), t, 0, d0, depth);
     for (const sd of [-1, 1]){ const c = new THREE.CylinderGeometry(th * 0.62, th * 0.62, depth + 0.04, 10).rotateX(Math.PI / 2); f.geo(B, c, t + sd * Math.sin(a) * R, yc + Math.cos(a) * R, d0 + depth / 2); } };   // (its ends rolled)
   const keystone = (f, t, y0, y1, wb, wt, d, depth) => f.ext(TM, shp([[-wb / 2, y0], [wb / 2, y0], [wt / 2, y1], [-wt / 2, y1]]), t, 0, d, depth);
+  // the outline of a segmental head over an opening w wide whose top is h over its foot, rising `rise` over its springing, grown by g
+  const segPts = (w, h, rise, g, n = 18) => { const R = (w * w / 4 + rise * rise) / (2 * rise), cy = h - R, Rg = R + g, a = Math.asin(Math.min(1, (w / 2 + g) / Rg)), pts = [];
+    for (let i = 0; i <= n; i++){ const q = -a + 2 * a * i / n; pts.push([Rg * Math.sin(q), cy + Rg * Math.cos(q)]); } return pts; };
+  const segBand = (f, t, y0, w, h, rise, gi, go, depth, d0) => { const o = segPts(w, h, rise, go), i = segPts(w, h, rise, gi);
+    f.ext(TM, shp([[-w / 2 - go, 0], ...o, [w / 2 + go, 0], [w / 2 + gi, 0], ...i.reverse(), [-w / 2 - gi, 0]]), t, y0, d0, depth); };
+  // a tuft of acanthus leaves
+  const leaves = (f, t, y, d, s) => { for (const [x, yy, a, k] of [[0, 0.25, 0, 1], [-0.55, 0, 0.7, 0.85], [0.55, 0, -0.7, 0.85], [-0.3, -0.4, 0.4, 0.7], [0.3, -0.4, -0.4, 0.7], [0, -0.15, 0, 0.75]]){
+    const g = new THREE.SphereGeometry(1, 7, 5); g.scale(s * 0.45 * k, s * 0.8 * k, s * 0.35 * k); g.rotateZ(a); f.geo(TM, g, t + x * s, y + yy * s, d + s * 0.2); } };
   // a raised frame round a panel
   const panel = (f, t0, t1, y0, y1, d = 0, wd = 0.07, dp = 0.05) => { f.box(TM, t0, t1, y0, y0 + wd, d, d + dp); f.box(TM, t0, t1, y1 - wd, y1, d, d + dp); f.box(TM, t0, t0 + wd, y0 + wd, y1 - wd, d, d + dp, false, false); f.box(TM, t1 - wd, t1, y0 + wd, y1 - wd, d, d + dp, false, false); };
   const sill = (f, t, w, y, d = 0, out = 0.2) => { f.box(TM, t - w / 2, t + w / 2, y - 0.12, y, d, d + out); for (const sd of [-1, 1]){ const c = t + sd * (w / 2 - 0.22); f.box(TM, c - 0.07, c + 0.07, y - 0.42, y - 0.12, d, d + out * 0.8); } };
@@ -7354,20 +7451,25 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     const sh = new THREE.Shape(); sh.absarc(0, 0, r + 0.36, 0, TAU, false); const hl = new THREE.Path(); hl.absarc(0, 0, r + 0.14, 0, TAU, true); sh.holes.push(hl); f.ext(TM, sh, t, y, d, 0.08, 28);
     for (const sd of [-1, 1]) f.geo(TM, new THREE.CylinderGeometry(0.14, 0.14, 0.18, 12).rotateX(Math.PI / 2), t + sd * (r + 0.42), y - 0.12, d + 0.09);
     keystone(f, t, y + r + 0.1, y + r + 0.5, 0.26, 0.4, d, 0.16); };
-  const medallion = (f, t, y, r, d) => { f.geo(TM, new THREE.TorusGeometry(r, 0.07, 8, 28), t, y, d + 0.05); const sh = new THREE.Shape(); sh.absarc(0, 0, r * 0.62, 0, TAU, false); f.ext(TM, sh, t, y, d, 0.08, 20);
-    for (let q = 0; q < 6; q++){ const a = q * TAU / 6; f.geo(TM, new THREE.SphereGeometry(r * 0.13, 6, 4), t + Math.cos(a) * r * 0.38, y + Math.sin(a) * r * 0.38, d + 0.1); } };   // (a rosette in it)
+  const medallion = (f, t, y, r, d) => { f.geo(TM, new THREE.TorusGeometry(r, 0.05, 8, 32), t, y, d + 0.05); const sh = new THREE.Shape(); sh.absarc(0, 0, r * 0.6, 0, TAU, false); f.ext(TM, sh, t, y, d, 0.06, 24);
+    for (let q = 0; q < 20; q++){ const a = q * TAU / 20, g = new THREE.SphereGeometry(1, 6, 4); g.scale(r * 0.15, r * 0.075, r * 0.07); g.rotateZ(a + Math.PI / 2 + 0.45); f.geo(TM, g, t + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8, d + 0.05); }   // (a wreath of leaves)
+    for (let q = 0; q < 6; q++){ const a = q * TAU / 6; f.geo(TM, new THREE.SphereGeometry(r * 0.11, 6, 4), t + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, d + 0.08); } f.geo(TM, new THREE.SphereGeometry(r * 0.12, 6, 4), t, y, d + 0.09); };   // (a rosette in it)
   // a palmette standing on a cornice: a fan of seven lobes
   const palmette = (f, t, y, d, s = 0.5) => { const pts = [[0, 0]]; for (let i = 0; i <= 42; i++){ const a = Math.PI * i / 42, rr = s * (0.72 + 0.28 * Math.abs(Math.cos(3.5 * a))); pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 1.25]); }
     f.ext(TM, shp(pts), t, y + 0.12, d - 0.06, 0.12); f.box(TM, t - s * 0.35, t + s * 0.35, y, y + 0.14, d - 0.12, d + 0.12); };
-  // a finial: a pedestal, a gilt knob, a rod, the Star of David
+  // a scrolled cartouche standing on a corner of the attic: a shield, volutes at its feet and shoulders, an oval in it
+  const cartouche = (f, t, y, d) => { const R = [[0, 0], [0.3, 0.03], [0.44, 0.17], [0.4, 0.34], [0.33, 0.45], [0.42, 0.6], [0.4, 0.76], [0.28, 0.9], [0.13, 0.99], [0, 1.08]];
+    f.box(TM, t - 0.42, t + 0.42, y, y + 0.16, d - 0.3, d + 0.12); f.ext(TM, shp([...R, ...R.slice(1, -1).reverse().map(([a, b]) => [-a, b])].map(([a, b]) => [a, b + 0.16])), t, y, d - 0.14, 0.2, 1);
+    for (const sd of [-1, 1]){ f.geo(TM, new THREE.TorusGeometry(0.09, 0.035, 6, 14), t + sd * 0.36, y + 0.33, d + 0.07); f.geo(TM, new THREE.TorusGeometry(0.075, 0.03, 6, 14), t + sd * 0.33, y + 0.9, d + 0.07); }
+    const o = new THREE.TorusGeometry(0.16, 0.035, 6, 20); o.scale(0.8, 1.15, 1); f.geo(TM, o, t, y + 0.66, d + 0.08); f.geo(TM, new THREE.SphereGeometry(0.08, 8, 6), t, y + 1.26, d - 0.04); };
+  // a finial: a gilt baluster, the Star of David on it
   const star = (R, hole) => { const pts = (r) => Array.from({ length: 12 }, (_, q) => { const a = Math.PI / 2 + q * Math.PI / 6, rr = q % 2 ? r / Math.sqrt(3) : r; return V2(Math.cos(a) * rr, Math.sin(a) * rr); });
     const sh = new THREE.Shape(pts(R)); sh.holes.push(new THREE.Path(pts(R * hole).reverse())); return sh; };
-  const finial = (f, t, y, dm) => { f.box(TM, t - 0.2, t + 0.2, y - 0.1, y + 0.18, dm - 0.2, dm + 0.2); f.box(TM, t - 0.13, t + 0.13, y + 0.18, y + 0.3, dm - 0.13, dm + 0.13);
-    f.geo(GD, new THREE.SphereGeometry(0.15, 12, 8), t, y + 0.42, dm); f.geo(GD, new THREE.CylinderGeometry(0.028, 0.04, 0.95, 6).translate(0, 0.47, 0), t, y + 0.5, dm);
-    f.ext(GD, star(0.34, 0.62), t, y + 1.75, dm - 0.025, 0.05, 1); };
+  const finial = (f, t, y, dm) => { const prof = [[0, 0], [0.15, 0], [0.15, 0.05], [0.09, 0.1], [0.07, 0.17], [0.13, 0.27], [0.14, 0.33], [0.1, 0.42], [0.045, 0.5], [0.035, 0.74], [0.065, 0.77], [0.065, 0.82], [0, 0.84]];   // (a baluster, gilt)
+    f.geo(GD, new THREE.LatheGeometry(prof.map(([r, h]) => V2(r, h)), 14), t, y - 0.05, dm); f.ext(GD, star(0.33, 0.6), t, y + 1.1, dm - 0.025, 0.05, 1); };
 
   // ---- the plan: the main block, its middle bays standing forward 0.8 m at either end, the end bays of the long sides 0.25 m
-  const H = { pl: 2.0, sc: 7.4, co: 13.8, at: 15.0, cc: 15.0, ca: 16.2 };   // the plinth's top, the string course, the cornice's and attic's tops; the middle bays' cornice and attic
+  const H = { fl: 1.8, pl: 2.4, sc: 7.8, co: 14.4, at: 15.6, cc: 15.6, ca: 16.8 };   // the floor (seven steps up, as the model has), the plinth's top, the string course, the cornice's and attic's tops; the middle bays' cornice and attic
   const FP = [[18, -12.25], [18, -4.5], [18.8, -4.5], [18.8, 4.5], [18, 4.5], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, 4.5], [-18.8, 4.5], [-18.8, -4.5], [-18, -4.5], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const FA = [[18, -12.25], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const MIDF = rect(17.7, 18.8, -4.5, 4.5), MIDR = rect(-18.8, -17.7, -4.5, 4.5);
@@ -7393,32 +7495,171 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const M_ of [MIDF, MIDR]){ prism(TM, off(M_, 0.08), H.ca, H.ca + 0.12, true); } }
 
   // ---- the roof: hipped, tin, behind the attic; its ridge and hips capped
-  { const e = 14.6, r = 21.0, hu = 17.55, hv = 11.55, ur = hu - hv;
+  { const e = H.co + 0.8, r = H.co + 7.2, hu = 17.55, hv = 11.55, ur = hu - hv;
     const slope = (a, b, c, d) => { const L = Math.hypot(b[0] - a[0], b[2] - a[2]), Hh = Math.hypot(d[0] - a[0], d[1] - a[1], d[2] - a[2]); poly(RF, [a, b, c, d], [[0, 0], [L, 0], [L, Hh], [0, Hh]], 1); };
     for (const s of [1, -1]){ slope(P(-hu, e, s * hv), P(hu, e, s * hv), P(ur, r, 0), P(-ur, r, 0)); poly(RF, [P(s * hu, e, -hv), P(s * hu, e, hv), P(s * ur, r, 0)], [[0, 0], [2 * hv, 0], [hv, 13]], 1); }
     const cap = (a, b) => { const l = Math.hypot(b[0] - a[0], b[2] - a[2]), tu = (b[0] - a[0]) / l, tv = (b[2] - a[2]) / l, nu = -tv * 0.15, nv = tu * 0.15;
       for (const s of [1, -1]) poly(IR, [[a[0] + nu * s, a[1] - 0.05, a[2] + nv * s], [b[0] + nu * s, b[1] - 0.05, b[2] + nv * s], [b[0], b[1] + 0.07, b[2]], [a[0], a[1] + 0.07, a[2]]], [[0, 0], [l, 0], [l, 1], [0, 1]], 1); };
     cap(P(-ur, r, 0), P(ur, r, 0)); for (const su of [1, -1]) for (const sv of [1, -1]) cap(P(su * hu, e, sv * hv), P(su * ur, r, 0)); }
 
+  // a garland in relief: a swag of leaves between two rosettes, sagging, and a drop of leaves falling from each
+  const garland = (f, t, y0, half, sag, drop, d) => { const leaf = (x, y, s, ang) => { const g = new THREE.SphereGeometry(1, 7, 5); g.scale(s * 1.4, s * 0.85, s * 0.62); g.rotateZ(ang); f.geo(TM, g, t + x, y, d + s * 0.5); };
+    for (let i = 0; i <= 18; i++){ const q = i / 18, x = -half + 2 * half * q, y = y0 - sag * Math.sin(Math.PI * q), s = 0.05 + 0.07 * Math.sin(Math.PI * q), ang = Math.atan(-sag * Math.PI * Math.cos(Math.PI * q) / (2 * half));
+      leaf(x, y + s * 0.35, s, ang + 0.55); leaf(x + 0.015, y - s * 0.35, s * 0.92, ang - 0.55); }
+    for (const sd of [-1, 1]){ for (let k = 0; k < 6; k++) leaf(sd * (half + 0.03 * (k % 2 ? 1 : -1)), y0 - 0.08 - k * drop / 6, 0.062 - k * 0.006, Math.PI / 2 + sd * (k % 2 ? 0.35 : -0.35));
+      f.geo(TM, new THREE.CylinderGeometry(0.08, 0.085, 0.07, 12).rotateX(Math.PI / 2), t + sd * half, y0 + 0.05, d + 0.04); f.geo(TM, new THREE.SphereGeometry(0.04, 6, 4), t + sd * half, y0 + 0.05, d + 0.09); } };
+  // a window in the manner of the side ones: deep in a stepped round-headed frame (its reveal, the architrave, a bead), a keystone, leaves at
+  // its shoulders (and over its keystone, unless a hood is to come over it); a sill on consoles; an apron under it, a garland carved or drawn in it
+  const deepWin = (f, k, c, y0, w, h, d0, o = {}) => { const R = w / 2, yc = y0 + h - R;
+    f.pic(k, c, w, y0, y0 + h, d0 + 0.02);
+    archFrame(f, TM, c, y0, w, h, 0.5, 0.08, 0.36, d0); archFrame(f, TM, c, y0, w + 0.16, h + 0.08, 0.5, 0.16, 0.2, d0); archFrame(f, TM, c, y0, w + 0.48, h + 0.24, 0.5, 0.06, 0.12, d0);
+    keystone(f, c, y0 + h - 0.12, y0 + h + 0.34, 0.26, 0.38, d0, 0.3); if (o.topLeaves !== false) leaves(f, c, y0 + h + 0.38, d0 + 0.22, 0.2);
+    for (const sd of [-1, 1]) leaves(f, c + sd * (R + 0.2), yc + 0.02, d0 + 0.18, 0.15);
+    f.box(TM, c - R - 0.42, c + R + 0.42, y0 - 0.15, y0, d0, d0 + 0.34); f.box(TM, c - R - 0.37, c + R + 0.37, y0 - 0.21, y0 - 0.15, d0, d0 + 0.25);
+    if (o.consoles !== false) for (const sd of [-1, 1]){ const x = c + sd * (R + 0.22); f.box(TM, x - 0.1, x + 0.1, y0 - 0.75, y0 - 0.21, d0, d0 + 0.2); f.geo(TM, new THREE.CylinderGeometry(0.1, 0.1, 0.22, 10).rotateZ(Math.PI / 2), x, y0 - 0.7, d0 + 0.11); }
+    if (o.apron){ panel(f, c - R + 0.1, c + R - 0.1, y0 - 0.72, y0 - 0.27, d0); garland(f, c, y0 - 0.33, Math.max(0.38, R - 0.32), 0.13, 0.14, d0); } };
+
   // ---- the long sides: seven bays; the cellar windows, the lower windows under their hoods, the aprons and sills, the upper windows; panels
   // between; pilasters at the end bays' edges; the attic's panels, its dormers at the ends and in the middle, palmettes beside them
   const UB = [-14.5, -7.5, -3.75, 0, 3.75, 7.5, 14.5], PANS = [-16.7, -12.3, -9.4, -5.625, -1.875, 1.875, 5.625, 9.4, 12.3, 16.7];
   for (const sv of [-1, 1]){ const f = face(0, sv * 12, 0, sv), T = (u) => sv * u, D = (u) => Math.abs(u) > 11 ? 0.25 : 0;
     for (const u of UB){ const t = T(u), d0 = D(u);
-      f.pic('B', t, 1.0, 0.5, 1.15, d0 + 0.14);
-      f.pic('W2', t, 1.6, 3.0, 6.4, d0 + 0.02); archFrame(f, TM, t, 3.0, 1.6, 3.4, 0.5, 0.16, 0.14, d0); sill(f, t, 2.1, 2.98, d0, 0.18);
-      hood(f, TM, t, 5.35, 1.3, 1.0, 0.18, 0.2, d0); keystone(f, t, 6.3, 6.95, 0.26, 0.4, d0, 0.24);
-      panel(f, t - 0.7, t + 0.7, 7.95, 8.55, d0); sill(f, t, 2.0, 8.82, d0, 0.18);
-      f.pic('W2', t, 1.5, 8.85, 12.0, d0 + 0.02); archFrame(f, TM, t, 8.85, 1.5, 3.15, 0.5, 0.15, 0.12, d0); keystone(f, t, 11.82, 12.3, 0.22, 0.32, d0, 0.18);
-      if (Math.abs(u) > 1 && Math.abs(u) < 11) panel(f, t - 0.95, t + 0.95, 14.1, 14.75, d0); }
-    for (const u of PANS){ const t = T(u), d0 = D(u), w = Math.abs(u) > 11 ? 0.4 : 0.32; panel(f, t - w, t + w, 3.2, 6.3, d0); panel(f, t - w, t + w, 9.0, 11.9, d0); }
+      f.pic('B', t, 1.1, 0.75, 1.65, d0 + 0.14);
+      deepWin(f, 'W2', t, 3.3, 1.6, 3.4, d0, { topLeaves: false }); hood(f, TM, t, 5.9, 1.32, 0.95, 0.18, 0.22, d0);
+      deepWin(f, 'W2', t, 9.25, 1.5, 3.15, d0, { apron: 'carved' });
+      if (Math.abs(u) > 1 && Math.abs(u) < 11) panel(f, t - 0.95, t + 0.95, H.co + 0.3, H.co + 0.95, d0); }
+    for (const u of PANS){ const t = T(u), d0 = D(u), w = Math.abs(u) > 11 ? 0.4 : 0.32; panel(f, t - w, t + w, 3.5, 6.6, d0); panel(f, t - w, t + w, 9.4, 12.3, d0); }
     for (const [u0, u1] of [[11, 11.7], [17.3, 18], [-11.7, -11], [-18, -17.3]]){ const t0 = Math.min(T(u0), T(u1)), t1 = Math.max(T(u0), T(u1)); f.box(TM, t0, t1, H.pl + 0.22, H.co - 0.9, 0.25, 0.33, false, false); }   // (pilasters)
     // the dormers: a little scrolled gable on the attic, its round window, the garland under it; a palmette either side
     for (const u of [-14.5, 0, 14.5]){ const t = T(u), d0 = D(u), steps = [[0.5, 0.3, 0.3]];
       f.ext(WL, shp(gablePts(1.5, steps, 1.15, 0)), t, H.at, d0 - 0.45, 0.45); f.ext(TM, shp([...gablePts(1.5, steps, 1.15, 0.09), ...gablePts(1.5, steps, 1.15, -0.11).reverse()]), t, H.at, d0 - 0.03, 0.15);
-      oculus(f, t, H.at + 1.02, 0.34, d0); f.pic('G', t, 1.5, H.at - 0.42, H.at + 0.12, d0 + 0.06);
+      oculus(f, t, H.at + 1.02, 0.34, d0); garland(f, t, H.at + 0.12, 0.62, 0.36, 0.4, d0);
       for (const sd of [-1, 1]) palmette(f, t + sd * 2.0, H.at + 0.12, d0 - 0.15, 0.42); }
-    for (const u of [-17.3, 17.3]) palmette(f, T(u), H.at + 0.12, 0.1, 0.42); }
+    for (const u of [-17.2, 17.2]) cartouche(f, T(u), H.at + 0.12, 0.12); }
+
+  // ---- the end bays' gables, after the photographs and the colouring of them. Each between two broad piers (a pedestal, pilaster strips at
+  // their edges, a panel between, an entablature, a low hipped roof of red tin); the body between them, its round window in a moulded arch
+  // on imposts, the garland in relief under it; over the piers' tops it swells out in quarter-round shoulders (twice on the middle one), blind
+  // niches under them; then the tall lobe with its half-round head, an arch in it round a medallion in a wreath; deep enough behind its face
+  // that its shoulders and head vault over like a bonnet; a gilt finial on its top, the Star of David on it. G: wb the body's half-width, wp
+  // the piers' outer edge, hp their tops over the gable's foot; tiers [ws, wt, rv, he]: a shoulder from ws out over the piers in to wt,
+  // rising rv, then the side on up to he; rt the head's half-width; arch [its middle's height, inner and outer radius]; ocu [height, radius];
+  // gar [its ends' height, half-width, sag]; niches [x, width, foot, apex]; rib [foot, top] between the niches; med [height, radius]
+  const GSIDE = { wb: 1.35, wp: 3.875, hp: 3.6, tiers: [[1.75, 1.03, 1.1, 5.2]], rt: 1.03, arch: [1.1, 0.98, 1.22], ocu: [1.27, 0.38], gar: [0.66, 0.86, 0.58], niches: [[-0.68, 0.8, 2.45, 4.3], [0.68, 0.8, 2.45, 4.3]], rib: [2.6, 4.35], med: [5.3, 0.44] };
+  const GMID = { wb: 1.6, wp: 4.5, hp: 3.8, tiers: [[2.15, 1.5, 1.0, 5.5], [1.5, 1.0, 0.6, 6.4]], rt: 1.0, arch: [1.35, 1.12, 1.38], ocu: [1.55, 0.48], gar: [0.85, 1.0, 0.62], niches: [[-0.86, 0.56, 3.0, 4.6], [0, 0.56, 3.2, 5.2], [0.86, 0.56, 3.0, 4.6]], rib: null, med: [6.5, 0.45] };
+  // its outline (grown by g, for the moulded edge), from the body's right foot up, over, and down its left
+  const gOut = (G, g) => { const R = [[G.wb + g, 0], [G.wb + g, G.hp - g]]; let x = G.wb, y = G.hp;
+    for (const [ws, wt, rv, he] of G.tiers){ if (ws > x + 1e-6) R.push([ws + g, y - g]);
+      const rh = ws - wt, q = []; for (let i = 0; i <= 12; i++){ const a = Math.PI / 2 * i / 12; q.push([wt + Math.cos(a) * (rh + g), y + Math.sin(a) * (rv + g)]); }
+      if (g > 0) R.push(...q.filter(p => p[0] >= wt + g), [wt + g, y + (rv + g) * Math.sqrt(1 - (g / (rh + g)) ** 2)]); else R.push(...q, [wt + g, y + rv + g]);
+      R.push([wt + g, he]); x = wt; y = he; }
+    for (let i = 1; i < 24; i++){ const a = Math.PI / 2 * i / 24; R.push([Math.cos(a) * (G.rt + g), y + Math.sin(a) * (G.rt + g)]); }
+    R.push([0, y + G.rt + g]); return [...R, ...R.slice(0, -1).reverse().map(([a, b]) => [-a, b])]; };
+  const nicheP = (x, w, yb, ya) => { const p = new THREE.Path(), r = w / 2, ys = ya - r; p.moveTo(x - r, yb); p.lineTo(x + r, yb); p.lineTo(x + r, ys); p.absarc(x, ys, r, 0, Math.PI, false); p.lineTo(x - r, yb); return p; };
+  // a band along an arc, centred over t at the height yc (from a0 to a1: a half round by default)
+  const arcBand = (f, t, yc, ri, ro, depth, d, a0 = 0, a1 = Math.PI) => { const pts = [];
+    for (let i = 0; i <= 28; i++){ const a = a0 + (a1 - a0) * i / 28; pts.push([Math.cos(a) * ro, yc + Math.sin(a) * ro]); }
+    for (let i = 28; i >= 0; i--){ const a = a0 + (a1 - a0) * i / 28; pts.push([Math.cos(a) * ri, yc + Math.sin(a) * ri]); }
+    f.ext(TM, shp(pts), t, 0, d, depth); };
+  // a broad pier beside a gable: from yb (the cornice's top) up; its attic panel, its pedestal's cap, the strips at its edges with their
+  // capitals, the panel between, the entablature, its little hipped roof of red tin
+  const pier = (f, t0, t1, yb, h0, hp, d0) => { const df = d0 + 0.05, db = d0 - 1.35, top = h0 + hp, m = (t0 + t1) / 2, w = t1 - t0;
+    f.box(WL, t0, t1, yb, top - 0.7, db, df); panel(f, t0 + 0.22, t1 - 0.22, yb + 0.28, h0 - 0.3, df);
+    f.box(TM, t0 - 0.05, t1 + 0.05, h0 + 0.62, h0 + 0.78, db, df + 0.08);
+    for (const e of [t0, t1 - 0.34]){ f.box(TM, e, e + 0.34, h0 + 0.78, top - 0.86, df, df + 0.06, false, false); f.box(TM, e - 0.03, e + 0.37, top - 0.86, top - 0.7, df, df + 0.1); }
+    panel(f, t0 + 0.55, t1 - 0.55, h0 + 1.05, top - 1.05, df);
+    f.box(TM, t0 - 0.06, t1 + 0.06, top - 0.7, top - 0.6, db - 0.06, df + 0.08); f.box(WL, t0 - 0.03, t1 + 0.03, top - 0.6, top - 0.28, db - 0.03, df + 0.03); f.box(TM, t0 - 0.18, t1 + 0.18, top - 0.28, top - 0.04, db - 0.18, df + 0.2);
+    const ya = top - 0.04, W = w + 0.32, Dd = df - db + 0.34, hl = Math.max(0, (W - Dd) / 2), dm = (db + df) / 2 + 0.01;
+    const cu = [f.at(t0 - 0.16, ya, db - 0.16), f.at(t1 + 0.16, ya, db - 0.16), f.at(t1 + 0.16, ya, df + 0.18), f.at(t0 - 0.16, ya, df + 0.18)], r0 = f.at(m - hl, ya + 0.6, dm), r1 = f.at(m + hl, ya + 0.6, dm);
+    poly(RF, [cu[3], cu[2], r1, r0], [[0, 0], [W, 0], [W / 2 + hl, 1], [W / 2 - hl, 1]], 1); poly(RF, [cu[1], cu[0], r0, r1], [[0, 0], [W, 0], [W / 2 + hl, 1], [W / 2 - hl, 1]], 1);
+    poly(RF, [cu[0], cu[3], r0], [[0, 0], [Dd, 0], [Dd / 2, 1]], 1); poly(RF, [cu[2], cu[1], r1], [[0, 0], [Dd, 0], [Dd / 2, 1]], 1); };
+  const bigGable = (f, c, G, h0, d0, yb) => { const out = gOut(G, 0), front = shp(out), hs = G.tiers[G.tiers.length - 1][3];
+    for (const [x, w, y0, y1] of G.niches) front.holes.push(nicheP(x, w, y0, y1));
+    f.ext(WL, front, c, h0, d0 - 0.15, 0.15, 12); f.ext(WL, shp(out), c, h0, d0 - 1.4, 1.25, 12);   // (its face, the niches cut in it; the mass behind, vaulted over)
+    f.ext(TM, shp([...gOut(G, 0.1).filter(p => p[1] > G.hp - 0.15), ...gOut(G, -0.12).filter(p => p[1] > G.hp + 0.05).reverse()]), c, h0, d0 - 0.04, 0.18, 12);   // (its moulded edge)
+    const [ac, ri, ro] = G.arch; arcBand(f, c, h0 + ac, ri + 0.1, ro, 0.12, d0); arcBand(f, c, h0 + ac, ri, ri + 0.1, 0.06, d0);
+    for (const sd of [-1, 1]) f.box(TM, c + sd * (ri - 0.04), c + sd * (G.wb - 0.02), h0 + ac - 0.17, h0 + ac, d0, d0 + 0.16);   // (the imposts)
+    const [oc, orr] = G.ocu; f.pic('O', c, 2 * orr, h0 + oc - orr, h0 + oc + orr, d0 + 0.03); f.geo(TM, new THREE.TorusGeometry(orr + 0.04, 0.07, 8, 32), c, h0 + oc, d0 + 0.05); f.geo(TM, new THREE.TorusGeometry(orr + 0.18, 0.045, 6, 36), c, h0 + oc, d0 + 0.03);
+    garland(f, c, h0 + G.gar[0], G.gar[1], G.gar[2], 0.62, d0);
+    for (const [x, w, y0, y1] of G.niches){ archFrame(f, TM, c + x, h0 + y0, w, y1 - y0, 0.5, 0.1, 0.08, d0); f.box(TM, c + x - w / 2 - 0.12, c + x + w / 2 + 0.12, h0 + y0 - 0.1, h0 + y0, d0, d0 + 0.12); }
+    if (G.rib) f.box(TM, c - 0.14, c + 0.14, h0 + G.rib[0], h0 + G.rib[1], d0, d0 + 0.06);
+    arcBand(f, c, h0 + hs, G.rt - 0.25, G.rt - 0.13, 0.07, d0); for (const sd of [-1, 1]) f.box(TM, c + sd * (G.rt - 0.25), c + sd * (G.rt - 0.13), h0 + hs - 0.45, h0 + hs, d0, d0 + 0.07);
+    medallion(f, c, h0 + G.med[0], G.med[1], d0); finial(f, c, h0 + hs + G.rt - 0.02, d0 - 0.3);
+    for (const sd of [-1, 1]){ const t0 = c + sd * G.wb, t1 = c + sd * G.wp; pier(f, Math.min(t0, t1), Math.max(t0, t1), yb, h0, G.hp, d0); }
+    panel(f, c - G.wb + 0.2, c + G.wb - 0.2, yb + 0.28, h0 - 0.3, d0); };   // (and a panel in the attic under it)
+
+  // the end bays' side windows, after the photograph: deep in a segmental-headed architrave (so the window sits well back in the wall), leaves
+  // at its shoulders and on its keystone; under it a sill on two consoles, a carved apron between them
+  const sideWindow = (f, c, y0, d0) => { const w = 2.2, h = 3.5, rise = 0.45;
+    f.pic('W5', c, w, y0, y0 + h, d0 + 0.02);
+    segBand(f, c, y0, w, h, rise, 0, 0.09, 0.38, d0); segBand(f, c, y0, w, h, rise, 0.09, 0.27, 0.22, d0); segBand(f, c, y0, w, h, rise, 0.27, 0.34, 0.13, d0);
+    keystone(f, c, y0 + h - 0.1, y0 + h + 0.38, 0.3, 0.42, d0, 0.3); leaves(f, c, y0 + h + 0.42, d0 + 0.22, 0.22);
+    for (const sd of [-1, 1]) leaves(f, c + sd * (w / 2 + 0.2), y0 + h - rise + 0.02, d0 + 0.18, 0.17);
+    f.box(TM, c - w / 2 - 0.45, c + w / 2 + 0.45, y0 - 0.16, y0, d0, d0 + 0.36); f.box(TM, c - w / 2 - 0.4, c + w / 2 + 0.4, y0 - 0.22, y0 - 0.16, d0, d0 + 0.26);
+    for (const sd of [-1, 1]){ const x = c + sd * (w / 2 + 0.24); f.box(TM, x - 0.11, x + 0.11, y0 - 0.86, y0 - 0.22, d0, d0 + 0.22); f.geo(TM, new THREE.CylinderGeometry(0.11, 0.11, 0.24, 10).rotateZ(Math.PI / 2), x, y0 - 0.8, d0 + 0.12); }
+    panel(f, c - 0.92, c + 0.92, y0 - 0.8, y0 - 0.28, d0); garland(f, c, y0 - 0.36, 0.7, 0.14, 0.16, d0); };
+
+  // the portals, after the photograph: the doors of dark wood deep in a block of stone, its reveal coffered up the jambs and round the soffit;
+  // a broad moulded arch round it, roundels on it, a carved cartouche its keystone; pilasters either side, their capitals, an oval on the
+  // block over each; a wide curved cornice over all; the landing and the steps up to it between low walls
+  // a wall in a vertical plane across the face, from t0 to t1, its outline [d, y] (convex)
+  const cheek = (f, B, t0, t1, prof) => { for (const t of [t0, t1]) poly(B, prof.map(([d, y]) => f.at(t, y, d)), prof.map(([d, y]) => [d, y]));
+    for (let k = 0; k < prof.length; k++){ const a = prof[k], b = prof[(k + 1) % prof.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); poly(B, [f.at(t0, a[1], a[0]), f.at(t1, a[1], a[0]), f.at(t1, b[1], b[0]), f.at(t0, b[1], b[0])], [[0, 0], [t1 - t0, 0], [t1 - t0, L], [0, L]]); } };
+  // the doors, after the model: solid, of lacquered dark wood. Over the transom the half-round, its edge moulded, a ring in it round a carved
+  // Star of David; under it two leaves, each of two panels in its frame (the upper round-headed and tall, the lower square), the fields raised
+  // and bevelled; a bead where the leaves meet; on their meeting stiles old iron lever handles. The wood a deep red-brown, polished
+  const door3D = (f, c, y0, w, hO, dz) => { const r = w / 2, ys = y0 + hO - r, Hl = ys - 0.1 - y0, rc = 0.32 * r, yc = ys + 0.16 + rc;
+    f.ext(DWD, shp([[-r, 0], ...archPts(w, ys - y0, 0.5, 0), [r, 0]]), c, y0, dz, 0.08, 18);   // (the slab)
+    const ring = (yy, ri, ro, depth, d) => { const pts = []; for (let i = 0; i <= 28; i++){ const a = Math.PI * i / 28; pts.push([Math.cos(a) * ro, yy + Math.sin(a) * ro]); } for (let i = 28; i >= 0; i--){ const a = Math.PI * i / 28; pts.push([Math.cos(a) * ri, yy + Math.sin(a) * ri]); } f.ext(DWD, shp(pts), c, 0, d, depth); };
+    ring(ys, r - 0.11, r, 0.05, dz + 0.08); ring(ys, r - 0.17, r - 0.14, 0.03, dz + 0.08);
+    f.box(DWD, c - r, c + r, ys - 0.1, ys + 0.07, dz + 0.08, dz + 0.14); f.box(DWD, c - r, c + r, ys + 0.07, ys + 0.11, dz + 0.08, dz + 0.11);   // (the transom)
+    { const disc = new THREE.Shape(); disc.absarc(0, 0, rc, 0, TAU, false); f.ext(DWK, disc, c, yc, dz + 0.08, 0.008, 28); }   // (the ground the star is carved from, darker)
+    f.geo(DWD, new THREE.TorusGeometry(rc, 0.032, 8, 36), c, yc, dz + 0.1); f.geo(DWD, new THREE.TorusGeometry(rc + 0.07, 0.016, 6, 36), c, yc, dz + 0.09);
+    f.ext(DWD, star(rc * 0.8, 0.6), c, yc, dz + 0.088, 0.045, 1);   // (the star, carved)
+    const so = 0.15, sm = 0.11, rb = 0.3, rm = 0.17, rt = 0.15, ph = rb + 0.27 * Hl;
+    for (const sd of [-1, 1]){ const x0 = sd < 0 ? -r : 0, x1 = sd < 0 ? 0 : r, px0 = sd < 0 ? -r + so : sm, px1 = sd < 0 ? -sm : r - so, pw = px1 - px0, py0 = ph + rm, py1 = Hl - rt;
+      const lowP = (i) => [[px0 + i, rb + i], [px1 - i, rb + i], [px1 - i, ph - i], [px0 + i, ph - i]], upP = (i) => { const p = new THREE.Shape(), rr = pw / 2 - i, cx = (px0 + px1) / 2; p.moveTo(px0 + i, py0 + i); p.lineTo(px1 - i, py0 + i); p.lineTo(px1 - i, py1 - pw / 2); p.absarc(cx, py1 - pw / 2, rr, 0, Math.PI, false); p.lineTo(px0 + i, py0 + i); return p; };
+      const fr = shp([[x0, 0], [x1, 0], [x1, Hl], [x0, Hl]]), hl = new THREE.Path(lowP(0).map(([a, b]) => V2(a, b))); fr.holes.push(hl); const hu = new THREE.Path(); hu.curves = upP(0).curves; fr.holes.push(hu);
+      f.ext(DWD, fr, c, y0, dz + 0.08, 0.04, 14);   // (the leaf's frame, the panels' openings in it)
+      const fld = (sh) => { const g = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.016, bevelSize: 0.035, bevelSegments: 1, curveSegments: 14 }); f.geo(DWD, g, c, y0, dz + 0.096); };
+      fld(shp(lowP(0.06))); fld(upP(0.06));   // (the raised fields)
+      const x = c + sd * 0.062, yh = y0 + 1.16;   // (the handle, old iron: a long plate riveted at its corners, a notched rosette on it, the lever out of
+      // its hub, a collar, swelling to a ball at its end and turned away from the meeting stiles; a keyhole under it)
+      f.box(IRN, x - 0.045, x + 0.045, y0 + 0.74, y0 + 1.25, dz + 0.12, dz + 0.133);
+      for (const [px, py] of [[-0.03, 0.77], [0.03, 0.77], [-0.03, 1.22], [0.03, 1.22]]) f.geo(IRN, new THREE.SphereGeometry(0.008, 6, 4), x + px, y0 + py, dz + 0.134);
+      f.geo(IRN, new THREE.CylinderGeometry(0.043, 0.045, 0.014, 18).rotateX(Math.PI / 2), x, yh, dz + 0.136); for (let q = 0; q < 10; q++){ const a = q * TAU / 10; f.geo(IRN, new THREE.SphereGeometry(0.008, 5, 4), x + Math.cos(a) * 0.04, yh + Math.sin(a) * 0.04, dz + 0.142); }
+      f.geo(IRN, new THREE.CylinderGeometry(0.016, 0.02, 0.05, 10).rotateX(Math.PI / 2), x, yh, dz + 0.165); f.geo(IRN, new THREE.SphereGeometry(0.027, 12, 8), x, yh, dz + 0.195);
+      f.geo(IRN, new THREE.CylinderGeometry(0.018, 0.018, 0.022, 10).rotateZ(-sd * Math.PI / 2), x + sd * 0.036, yh, dz + 0.195);
+      f.geo(IRN, new THREE.CylinderGeometry(0.018, 0.012, 0.12, 10).rotateZ(-sd * Math.PI / 2), x + sd * 0.107, yh, dz + 0.195);
+      f.geo(IRN, new THREE.CylinderGeometry(0.019, 0.019, 0.01, 10).rotateZ(-sd * Math.PI / 2), x + sd * 0.171, yh, dz + 0.195); f.geo(IRN, new THREE.SphereGeometry(0.016, 10, 8), x + sd * 0.188, yh, dz + 0.195);
+      f.geo(KH, new THREE.CylinderGeometry(0.013, 0.013, 0.004, 10).rotateX(Math.PI / 2), x, y0 + 0.93, dz + 0.134); f.box(KH, x - 0.007, x + 0.007, y0 + 0.88, y0 + 0.93, dz + 0.132, dz + 0.136); }
+    f.box(DWD, c - 0.018, c + 0.018, y0, ys - 0.1, dz + 0.12, dz + 0.15);   // (the bead where they meet)
+  };
+  const portal = (f, c, w, hO, d0) => { const y0 = H.fl, r = w / 2, ys = y0 + hO - r, yT = y0 + hO, k = w / 2.1, D = 0.85, df = d0 + D;
+    const PW = r + 0.29 * k, PO = PW + 0.56 * k, Sx = PO + 0.2, yE = yT + 0.16, th = 0.3, rise = 0.6 * k, Rh = (Sx * Sx + rise * rise) / (2 * rise), ah = Math.asin(Sx / Rh), yh = yE - Rh * Math.cos(ah), Ri = Rh - th / 2;
+    const ai = Math.asin(PW / Ri), top = []; for (let i = 0; i <= 16; i++){ const a = -ai + 2 * ai * i / 16; top.push([Ri * Math.sin(a), yh + Ri * Math.cos(a) - y0]); }
+    f.ext(TM, shp([[-PW, 0], ...top, [PW, 0], [r, 0], ...archPts(w, ys - y0, 0.5, 0).reverse(), [-r, 0]]), c, y0, d0, D, 16);
+    door3D(f, c, y0, w, hO, d0 + 0.2);   // (in front of the plinth's cap, which runs behind it)
+    for (const sd of [-1, 1]){ const xj = c + sd * r;   // (the coffers: ribs across the jambs and along their edges, ribs round the soffit)
+      for (let y = y0 + 0.05; y < ys - 0.1; y += 0.42) f.box(TM, xj - sd * 0.05, xj, y, y + 0.07, d0 + 0.42, df - 0.1);
+      f.box(TM, xj - sd * 0.05, xj, y0, ys, d0 + 0.34, d0 + 0.42); f.box(TM, xj - sd * 0.05, xj, y0, ys, df - 0.12, df - 0.04); }
+    for (let i = 0; i <= 8; i++){ const a = Math.PI * i / 8, g = new THREE.BoxGeometry(0.07, 0.05, D - 0.52); g.rotateZ(a - Math.PI / 2); f.geo(TM, g, c + Math.cos(a) * (r - 0.025), ys + Math.sin(a) * (r - 0.025), d0 + 0.42 + (D - 0.52) / 2); }
+    arcBand(f, c, ys, r - 0.05, r, 0.08, d0 + 0.34); arcBand(f, c, ys, r - 0.05, r, 0.08, df - 0.12);
+    archFrame(f, TM, c, y0, w, hO, 0.5, 0.23 * k, 0.1, df); archFrame(f, TM, c, y0, w, hO, 0.5, 0.07, 0.17, df);
+    for (const a of [0.35, 0.8, 1.2]) for (const sd of [-1, 1]){ const q = sd > 0 ? a : Math.PI - a, R0 = r + 0.115 * k, x = c + Math.cos(q) * R0, y = ys + Math.sin(q) * R0;
+      f.geo(TM, new THREE.CylinderGeometry(0.07 * k, 0.07 * k, 0.05, 14).rotateX(Math.PI / 2), x, y, df + 0.12); f.geo(TM, new THREE.TorusGeometry(0.075 * k, 0.017, 5, 14), x, y, df + 0.14); }
+    f.ext(TM, shp([[-0.2, 0], [0.2, 0], [0.3, 0.3], [0.24, 0.55], [0, 0.66], [-0.24, 0.55], [-0.3, 0.3]].map(([x, y]) => [x * k, y * k])), c, yT - 0.12, df - 0.05, 0.32, 1); leaves(f, c, yT + 0.26 * k, df + 0.22, 0.22 * k);
+    for (const sd of [-1, 1]){ const a0 = c + sd * PW, a1 = c + sd * PO, lo = Math.min(a0, a1), hi = Math.max(a0, a1), m = (lo + hi) / 2;
+      f.box(TM, lo, hi, y0, yE - 0.08, d0, df + 0.06); panel(f, lo + 0.1, hi - 0.1, y0 + 0.4, ys - 0.28, df + 0.06);
+      f.box(TM, lo - 0.05, hi + 0.05, y0, y0 + 0.28, d0, df + 0.12); f.box(TM, lo - 0.06, hi + 0.06, ys - 0.2, ys, d0, df + 0.14);
+      for (const e of [lo, hi]) f.geo(TM, new THREE.CylinderGeometry(0.07, 0.07, 0.22, 10).rotateX(Math.PI / 2), e, ys - 0.12, df + 0.1);
+      const o = new THREE.TorusGeometry(0.1 * k, 0.025, 5, 16); o.scale(0.8, 1.25, 1); f.geo(TM, o, m, (ys + yE) / 2, df + 0.08); }
+    hood(f, TM, c, yh, Rh, ah, th, 0.35, df - 0.1);
+    const hw = PO + 0.3, L1 = df + 0.35, rs = y0 / 8, td = 0.31, Le = L1 + 7 * td; f.box(STP, c - hw, c + hw, 0, y0, d0 - 0.02, L1);   // (the landing; seven steps down from it)
+    for (let q = 1; q <= 7; q++) f.box(STP, c - hw, c + hw, 0, y0 - rs * q, L1 + td * (q - 1), L1 + td * q);
+    for (const sd of [-1, 1]){ const ct = c + sd * (hw + 0.2); cheek(f, STP, ct - 0.2, ct + 0.2, [[d0 - 0.02, 0], [Le + 0.1, 0], [Le + 0.1, 0.5], [L1 + 0.3, y0 + 0.35], [d0 - 0.02, y0 + 0.35]]);   // (the low walls either side, their tops sloping down with the steps)
+      f.box(STP, ct - 0.24, ct + 0.24, y0 + 0.35, y0 + 0.47, d0 - 0.06, L1 + 0.34); } };
+
 
   // ---- the ends: three bays, the middle 9 m wide and 0.8 forward; the side bays 7.75. The front with its portals, the back with windows
   const BAYS = [0, 8.375, -8.375];
@@ -7427,39 +7668,16 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const sd of [-1, 1]){ f.box(TM, sd > 0 ? 3.7 : -4.5, sd > 0 ? 4.5 : -3.7, H.pl + 0.22, H.cc - 0.9, 0.8, 0.9, false, false); f.box(TM, sd > 0 ? 4.5 : -5.2, sd > 0 ? 5.2 : -4.5, H.pl + 0.22, H.co - 0.9, 0, 0.1, false, false);
       f.box(TM, sd > 0 ? 11.55 : -12.25, sd > 0 ? 12.25 : -11.55, H.pl + 0.22, H.co - 0.9, 0, 0.1, false, false); }
     for (const c of BAYS){ const mid = c === 0, d0 = mid ? 0.8 : 0;
-      if (front){   // the portal: its doors under the arch, the frame, pilasters, the hood and its cartouche; the landing and steps up to it
-        const w = mid ? 2.5 : 2.1, hO = mid ? 4.6 : 4.0, y0 = 1.5, yc = y0 + hO - w / 2, R = w / 2 + 0.72;
-        f.pic('D', c, w, y0, y0 + hO, d0 + 0.02); archFrame(f, TM, c, y0, w, hO, 0.5, 0.28, 0.24, d0);
-        for (const sd of [-1, 1]){ const pt = c + sd * (w / 2 + 0.58); f.box(TM, pt - 0.25, pt + 0.25, y0, yc + 0.2, d0, d0 + 0.3); f.box(TM, pt - 0.32, pt + 0.32, y0, y0 + 0.4, d0, d0 + 0.37); f.box(TM, pt - 0.33, pt + 0.33, yc + 0.2, yc + 0.48, d0, d0 + 0.4); }
-        hood(f, TM, c, yc, R, 1.12, 0.24, 0.42, d0); f.ext(TM, shp([[-0.34, yc + R - 0.4], [0.34, yc + R - 0.4], [0.42, yc + R + 0.3], [0.22, yc + R + 0.55], [-0.22, yc + R + 0.55], [-0.42, yc + R + 0.3]]), c, 0, d0, 0.5);
-        const hw = w / 2 + 1.0, D1 = d0 + 0.6; f.box(PB, c - hw, c + hw, 0, y0, d0 - 0.02, D1);
-        for (let k = 1; k <= 5; k++) f.box(PB, c - hw, c + hw, 0, y0 - 0.27 * k, D1 + 0.33 * (k - 1), D1 + 0.33 * k);
-        for (const sd of [-1, 1]){ const ct = c + sd * (hw + 0.2); f.box(PB, ct - 0.2, ct + 0.2, 0, y0 + 0.35, d0 - 0.02, D1 + 0.5); f.box(PB, ct - 0.2, ct + 0.2, 0, 0.9, D1 + 0.5, D1 + 1.65); } }
-      else if (mid){ f.pic('W4', c, 2.6, 2.7, 6.5, d0 + 0.02); archFrame(f, TM, c, 2.7, 2.6, 3.8, 0.5, 0.2, 0.14, d0); sill(f, c, 3.2, 2.68, d0); hood(f, TM, c, 5.2, 1.6, 0.95, 0.2, 0.22, d0); keystone(f, c, 6.4, 6.95, 0.3, 0.44, d0, 0.26); f.pic('B', c, 1.2, 0.5, 1.15, d0 + 0.14); }
-      else { f.pic('W3', c, 2.0, 3.0, 6.4, d0 + 0.02); archFrame(f, TM, c, 3.0, 2.0, 3.4, 0.5, 0.18, 0.14, d0); sill(f, c, 2.6, 2.98, d0); hood(f, TM, c, 5.4, 1.28, 1.0, 0.18, 0.2, d0); keystone(f, c, 6.3, 6.95, 0.26, 0.4, d0, 0.24); f.pic('B', c, 1.0, 0.5, 1.15, d0 + 0.14); }
+      if (front) portal(f, c, mid ? 2.5 : 2.1, mid ? 4.7 : 4.3, d0);
+      else if (mid){ deepWin(f, 'W4', c, 3.1, 2.6, 3.8, d0, { consoles: false, topLeaves: false }); hood(f, TM, c, 5.6, 1.75, 0.95, 0.2, 0.22, d0); f.pic('B', c, 1.2, 0.75, 1.65, d0 + 0.14); }
+      else { deepWin(f, 'W3', c, 3.3, 2.0, 3.4, d0, { topLeaves: false }); hood(f, TM, c, 5.7, 1.45, 0.95, 0.18, 0.22, d0); f.pic('B', c, 1.0, 0.75, 1.65, d0 + 0.14); }
       // the window over it; a panel under the middle one
-      if (mid && front){ f.pic('WP', c, 3.0, 8.6, 13.2, d0 + 0.02); archFrame(f, TM, c, 8.6, 3.0, 4.6, 0.72, 0.24, 0.16, d0); sill(f, c, 3.8, 8.52, d0, 0.22); keystone(f, c, 13.15, 13.75, 0.3, 0.46, d0, 0.22); panel(f, c - 1.4, c + 1.4, 7.85, 8.3, d0); }
-      else if (mid){ f.pic('W4', c, 2.8, 8.6, 13.0, d0 + 0.02); archFrame(f, TM, c, 8.6, 2.8, 4.4, 0.5, 0.22, 0.15, d0); sill(f, c, 3.6, 8.52, d0, 0.22); keystone(f, c, 12.95, 13.6, 0.3, 0.46, d0, 0.22); }
-      else { f.pic('W3', c, 2.2, 8.5, 12.1, d0 + 0.02); archFrame(f, TM, c, 8.5, 2.2, 3.6, 0.5, 0.2, 0.14, d0); sill(f, c, 2.9, 8.42, d0, 0.2); keystone(f, c, 11.95, 12.45, 0.24, 0.36, d0, 0.2); }
+      if (mid && front) deepWin(f, 'W4', c, 9.2, 3.0, 4.6, d0, { apron: 'carved' });
+      else if (mid) deepWin(f, 'W4', c, 9.2, 2.8, 4.4, d0, { apron: 'carved' });
+      else sideWindow(f, c, 9.2, d0);
       // panels beside the portal (or window) and the window over it
-      for (const sd of [-1, 1]){ const pt = c + sd * (mid ? 2.9 : 2.55); panel(f, pt - 0.35, pt + 0.35, 2.5, 6.5, d0); panel(f, pt - 0.35, pt + 0.35, 8.6, mid ? 13.0 : 12.0, d0); }
-      // the gable over the bay: between its piers, its scrolled outline, the moulding round it, its round window and garland, a medallion
-      // in its top (niches beside it in the middle one's), a finial on it
-      const h0 = mid ? H.ca : H.at, w0 = mid ? 3.3 : 2.95, steps = mid ? [[3.0, 0.55, 0.55], [4.9, 0.45, 0.45]] : [[2.2, 0.5, 0.5], [3.6, 0.4, 0.4]], top = mid ? 6.0 : 4.6, wt = gableTopW(w0, steps);
-      f.ext(WL, shp(gablePts(w0, steps, top, 0)), c, h0, d0 - (mid ? 0.7 : 0.45), mid ? 0.7 : 0.45);
-      f.ext(TM, shp([...gablePts(w0, steps, top, 0.1), ...gablePts(w0, steps, top, -0.12).reverse()]), c, h0, d0 - 0.04, 0.18);
-      oculus(f, c, h0 + (mid ? 1.75 : 1.3), mid ? 0.85 : 0.62, d0); f.pic('G', c, mid ? 1.9 : 1.5, h0 + (mid ? 0.1 : -0.25), h0 + (mid ? 0.78 : 0.3), d0 + 0.06);
-      medallion(f, c, h0 + top + wt * 0.3, wt * 0.42, d0);
-      if (mid) for (const sd of [-1, 1]) archFrame(f, TM, c + sd * 1.4, h0 + 4.15, 0.5, 1.05, 0.5, 0.08, 0.08, d0);
-      finial(f, c, h0 + top + wt + 0.05, d0 - (mid ? 0.35 : 0.22));
-      // its piers, stepping in twice at their caps
-      const pz = mid ? [[3.3, 4.5]] : [[4.5, 5.4], [11.35, 12.25]], pTop = h0 + (mid ? 3.4 : 2.6), pBot = mid ? H.cc : H.co, bd0 = d0 - (mid ? 0.95 : 0.9), bd1 = d0 + 0.06;
-      for (const [a, b] of pz) for (const sd of [-1, 1]){ if (!mid && Math.sign(c) !== sd) continue;
-        const t0 = sd * a, t1 = sd * b, lo = Math.min(t0, t1), hi = Math.max(t0, t1), m = (lo + hi) / 2, hw = (hi - lo) / 2;
-        f.box(WL, lo, hi, pBot, pTop, bd0, bd1); f.box(TM, m - hw - 0.15, m + hw + 0.15, pTop, pTop + 0.28, bd0 - 0.12, bd1 + 0.15);
-        f.box(WL, m - hw + 0.18, m + hw - 0.18, pTop + 0.28, pTop + 0.95, bd0 + 0.15, bd1 - 0.12); f.box(TM, m - hw + 0.06, m + hw - 0.06, pTop + 0.95, pTop + 1.15, bd0 + 0.05, bd1 - 0.02);
-        const ya = pTop + 1.15, cu = [f.at(m - hw + 0.06, ya, bd0 + 0.05), f.at(m + hw - 0.06, ya, bd0 + 0.05), f.at(m + hw - 0.06, ya, bd1 - 0.02), f.at(m - hw + 0.06, ya, bd1 - 0.02)], ap = f.at(m, ya + 0.55, (bd0 + bd1) / 2);   // (a low red tin roof on it)
-        for (let q = 0; q < 4; q++) poly(RF, [cu[q], cu[(q + 1) % 4], ap], [[0, 0], [1, 0], [0.5, 0.6]], 1); } } }
+      for (const sd of [-1, 1]){ const pt = c + sd * (mid ? 2.9 : 2.55); panel(f, pt - 0.35, pt + 0.35, H.pl + 0.5, 7.0, d0); panel(f, pt - 0.35, pt + 0.35, 9.2, mid ? 13.8 : 12.7, d0); }
+      bigGable(f, c, mid ? GMID : GSIDE, mid ? H.ca : H.at, d0, mid ? H.cc : H.co); } }
 
   // ---- its yard: paved, an iron railing round it on a low wall between stone posts, along the pavement
   { const u0 = SY.x0 - CX, u1 = SY.x1 - CX, v0 = SY.z0 - CZ, v1 = SY.z1 - CZ, y = KERB_H + 0.012;
@@ -7481,8 +7699,32 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const trimM = lampLit(snowify(new THREE.MeshStandardMaterial({ map: plasterT, color: 0xffffff, roughness: 0.86, side: THREE.DoubleSide }), 1));
   mk(WL, wallM); mk(TM, trimM); mk(PB, lampLit(snowify(new THREE.MeshStandardMaterial({ map: plinthT, roughness: 0.9, side: THREE.DoubleSide }), 1)));
   mk(RF, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: roofT, roughness: 0.5, metalness: 0.35, side: THREE.DoubleSide }), 1.3)));
-  mk(WN, lampLit(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.62, metalness: 0.0, side: THREE.DoubleSide })), false);
-  mk(GD, lampLit(new THREE.MeshStandardMaterial({ color: 0xd8b55e, metalness: 0.75, roughness: 0.3 })));
+  // the windows: their stone matte; their glass (by the mask) scattering little of the light that falls on it, its colour the light come
+  // through it (as much as the sky gives), deep and jewel-like; smooth, mirroring the street and the sky, each pane a little tilted and
+  // catching more or less of it, as old leaded glass does
+  { const winM = lampLit(new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.62, metalness: 0, envMap: synEnv, envMapIntensity: 1.5, side: THREE.DoubleSide }));
+    shaderChain(winM, 'synGlass', (sh) => { sh.uniforms.uGlassMask = { value: glassMask };
+      sh.fragmentShader = 'uniform sampler2D uGlassMask;\n' + sh.fragmentShader
+        .replace('#include <map_fragment>', `#include <map_fragment>
+  float gm = texture2D(uGlassMask, vMapUv).r; vec3 glassCol = diffuseColor.rgb * diffuseColor.rgb; diffuseColor.rgb *= 1.0 - 0.95 * gm;
+  vec2 paneQ = vMapUv * vec2(${AW}.0, ${AH}.0) / 14.0, paneC = floor(paneQ); float paneK = fract(sin(dot(paneC, vec2(12.9898, 78.233))) * 43758.5453), paneL = fract(sin(dot(paneC, vec2(39.346, 11.135))) * 24634.6345);`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = mix(roughnessFactor, 0.04, gm);`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+  normal = normalize(normal + gm * 0.09 * vec3(paneK - 0.5 + 0.3 * sin(paneQ.y * 2.1), paneL - 0.5 + 0.3 * sin(paneQ.x * 1.7), 0.0));`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  #if NUM_HEMI_LIGHTS > 0
+  totalEmissiveRadiance += glassCol * gm * hemisphereLights[0].skyColor * (0.68 + 0.14 * paneL);
+  #endif`)
+        .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>
+  iblIrradiance = vec3(0.0); radiance *= gm * (0.35 + 1.3 * paneK * paneK);`); });   // (the sky mirrored in the glass alone; the stone lit as before)
+    mk(WN, winM, false); }
+  mk(GD, lampLit(new THREE.MeshStandardMaterial({ color: 0xd8b55e, metalness: 0.75, roughness: 0.3, envMap: synEnv, envMapIntensity: 0.9 })));
+  mk(DWD, lampLit(new THREE.MeshPhysicalMaterial({ map: woodT, roughness: 0.5, clearcoat: 0.7, clearcoatRoughness: 0.22, envMap: synEnv, envMapIntensity: 0.5 })));   // (polished)
+  mk(DWK, lampLit(new THREE.MeshPhysicalMaterial({ map: woodT, color: 0xa0948c, roughness: 0.7, clearcoat: 0.2, clearcoatRoughness: 0.5, envMap: synEnv, envMapIntensity: 0.3 })));
+  mk(IRN, lampLit(new THREE.MeshStandardMaterial({ map: ironT, metalness: 0.5, roughness: 0.66, envMap: synEnv, envMapIntensity: 0.6 })));   // (old iron)
+  mk(KH, new THREE.MeshStandardMaterial({ color: 0x0b0a09, roughness: 0.9 }), false);
+  mk(STP, lampLit(snowify(new THREE.MeshStandardMaterial({ map: stepT, roughness: 0.9, side: THREE.DoubleSide }), 1)));
   mk(IR, lampLit(new THREE.MeshStandardMaterial({ color: 0x4a5052, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide })));
   mk(RL, lampLit(new THREE.MeshStandardMaterial({ map: railT, alphaTest: 0.5, metalness: 0.4, roughness: 0.55, side: THREE.DoubleSide })));
   mk(PV, lampLit(snowify(new THREE.MeshStandardMaterial({ map: paveT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1)), false);
