@@ -7478,6 +7478,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   // (PW, PO, PX), its cornice over the band (yE, ct), and the hood on it, the door's own curvature (cy, Ri): see portal and the back's
   const CEN = (() => { const r = 1.25, k = 2.5 / 2.1, PW = r + 0.29 * k, PO = PW + 0.56 * k, yT = H.fl + 5.25;
     return { PW, PO, PX: PO + 0.42, yE: yT + 0.4, ct: yT + 0.4 + BAND.yt - BAND.yb, cy: yT + 1.12 - r, Ri: r }; })();
+  // the end bays' gables' measures (see the gables, below; the dormers are drawn to them too)
+  const GSIDE = { wb: 1.35, wp: 3.875, hp: 3.6, tiers: [[1.75, 1.03, 1.1, 5.2]], rt: 1.03, arch: [1.1, 0.98, 1.22], ocu: [1.27, 0.38], gar: [0.66, 0.86, 0.58], niches: [[-0.68, 0.8, 2.45, 4.3], [0.68, 0.8, 2.45, 4.3]], rib: [2.6, 4.35], med: [5.3, 0.44] };
+  const GMID = { wb: 1.6, wp: 4.5, hp: 3.8, tiers: [[2.15, 1.5, 1.0, 5.5], [1.5, 1.0, 0.6, 6.4]], rt: 1.0, arch: [1.35, 1.12, 1.38], ocu: [1.55, 0.48], gar: [0.85, 1.0, 0.62], niches: [[-0.86, 0.56, 3.0, 4.6], [0, 0.56, 3.2, 5.2], [0.86, 0.56, 3.0, 4.6]], rib: null, med: [6.5, 0.45] };
   const FP = [[18, -12.25], [18, -4.5], [18.8, -4.5], [18.8, 4.5], [18, 4.5], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, 4.5], [-18.8, 4.5], [-18.8, -4.5], [-18, -4.5], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const FA = [[18, -12.25], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const MIDF = rect(17.7, 18.8, -4.5, 4.5), MIDR = rect(-18.8, -17.7, -4.5, 4.5);
@@ -7542,22 +7545,25 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       deepWin(f, 'W2', t, 3.3, 1.6, 3.4, d0, { topLeaves: false });
       deepWin(f, 'W2', t, 9.25, 1.5, 3.15, d0, { apron: 'carved' });
       if (Math.abs(u) > 1 && Math.abs(u) < 11) panel(f, t - 0.95, t + 0.95, H.co + 0.3, H.co + 0.95, d0); }
-    for (const u of PANS){ const t = T(u), d0 = D(u), w = Math.abs(u) > 11 ? 0.4 : 0.32; panel(f, t - w, t + w, 2.9, BAND.yb - 0.35, d0); panel(f, t - w, t + w, BAND.yt + 0.22, 12.3, d0); }
+    for (const u of PANS){ const t = T(u), d0 = D(u), w = Math.abs(u) > 11 ? 0.4 : 0.32; panel(f, t - w, t + w, 2.9, BAND.yb - 0.35, d0); panel(f, t - w, t + w, BAND.yt + 0.22, 9.25 + 3.15 + 0.34, d0); }   // (up to the upper windows' keystones' tops, under their leaves)
     for (const [u0, u1] of [[11, 11.7], [17.3, 18], [-11.7, -11], [-18, -17.3]]){ const t0 = Math.min(T(u0), T(u1)), t1 = Math.max(T(u0), T(u1)); f.box(TM, t0, t1, H.pl + 0.22, H.co - 0.9, 0.25, 0.33, false, false); }   // (pilasters)
-    // the dormers, after the model: the attic rising in a round head, hollows sweeping down from it either side into the attic's top, a
-    // moulding round it all; a little round window in it, the garland under it; behind, a little barrel vault running back into the roof
-    const dOut = (g) => { const R = 0.8, c = 0.5, ys = H.at + c, yc = ys + 0.1, P_ = [];
+    // the dormers, after the model and the photographs: each the lower part of an end bay's gable over again, at its size: the attic rising
+    // in a round head (the gable's arch), hollows sweeping down from it either side into the attic's top, a moulding round it all, its face
+    // carried down over the attic's top; in it the gable's round window, its rings, and the garland under it; behind, a little barrel vault
+    // running back into the roof
+    const DR = GSIDE.arch[2], DYC = H.at + GSIDE.arch[0], DC = 0.5;
+    const dOut = (g) => { const R = DR, c = DC, ys = H.at + c, P_ = [];
       for (let i = 0; i <= 8; i++){ const a = 1.5 * Math.PI - Math.PI / 2 * i / 8; P_.push([R + c + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
-      for (let i = 0; i <= 24; i++){ const a = Math.PI * i / 24; P_.push([Math.cos(a) * (R + g), yc + Math.sin(a) * (R + g)]); }
+      for (let i = 0; i <= 28; i++){ const a = Math.PI * i / 28; P_.push([Math.cos(a) * (R + g), DYC + Math.sin(a) * (R + g)]); }
       for (let i = 0; i <= 8; i++){ const a = -Math.PI / 2 * i / 8; P_.push([-(R + c) + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
       return P_; };
-    for (const u of [-14.5, 0, 14.5]){ const t = T(u), d0 = D(u), R = 0.8, yc = H.at + 0.6;
-      f.ext(WL, shp(dOut(0)), t, 0, d0 - 0.45, 0.45, 1);
-      f.ext(TM, shp([...dOut(0.08), ...dOut(-0.07).reverse()]), t, 0, d0 - 0.04, 0.14, 1);
-      f.pic('O', t, 0.52, yc - 0.26, yc + 0.26, d0 + 0.02); f.geo(TM, new THREE.TorusGeometry(0.29, 0.045, 8, 28), t, yc, d0 + 0.03);
-      garland(f, t, H.at + 0.3, 0.62, 0.28, 0.42, d0);
-      f.geo(RF, new THREE.CylinderGeometry(R + 0.04, R + 0.04, 4.0, 24, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2), t, yc, d0 - 0.45 - 2.0);
-      f.box(WL, t - R - 0.04, t + R + 0.04, H.at - 0.3, yc, d0 - 4.45, d0 - 0.4, false, false); }
+    for (const u of [-14.5, 0, 14.5]){ const t = T(u), d0 = D(u), df = d0 + 0.1, R = DR, W = DR + DC, [oc, orr] = GSIDE.ocu;
+      f.ext(WL, shp([[W, H.at - 0.45], ...dOut(0), [-W, H.at - 0.45]]), t, 0, d0 - 0.45, 0.55, 1);   // (its face, a little proud of the attic's coping)
+      f.ext(TM, shp([...dOut(0.08), ...dOut(-0.07).reverse()]), t, 0, df - 0.04, 0.14, 1);
+      f.pic('O', t, 2 * orr, H.at + oc - orr, H.at + oc + orr, df + 0.03); f.geo(TM, new THREE.TorusGeometry(orr + 0.04, 0.07, 8, 32), t, H.at + oc, df + 0.05); f.geo(TM, new THREE.TorusGeometry(orr + 0.18, 0.045, 6, 36), t, H.at + oc, df + 0.03);
+      garland(f, t, H.at + GSIDE.gar[0], GSIDE.gar[1], GSIDE.gar[2], 0.62, df);
+      f.geo(RF, new THREE.CylinderGeometry(R + 0.04, R + 0.04, 6.0, 28, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2), t, DYC, d0 - 0.45 - 3.0);
+      f.box(WL, t - R - 0.04, t + R + 0.04, H.at - 0.3, DYC, d0 - 6.45, d0 - 0.4, false, false); }
     for (const u of [-17.2, 17.2]) cartouche(f, T(u), H.at + 0.12, 0.12); }
 
   // ---- the end bays' gables, after the photographs and the colouring of them. Each between two broad piers (a pedestal, pilaster strips at
@@ -7568,8 +7574,6 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   // the piers' outer edge, hp their tops over the gable's foot; tiers [ws, wt, rv, he]: a shoulder from ws out over the piers in to wt,
   // rising rv, then the side on up to he; rt the head's half-width; arch [its middle's height, inner and outer radius]; ocu [height, radius];
   // gar [its ends' height, half-width, sag]; niches [x, width, foot, apex]; rib [foot, top] between the niches; med [height, radius]
-  const GSIDE = { wb: 1.35, wp: 3.875, hp: 3.6, tiers: [[1.75, 1.03, 1.1, 5.2]], rt: 1.03, arch: [1.1, 0.98, 1.22], ocu: [1.27, 0.38], gar: [0.66, 0.86, 0.58], niches: [[-0.68, 0.8, 2.45, 4.3], [0.68, 0.8, 2.45, 4.3]], rib: [2.6, 4.35], med: [5.3, 0.44] };
-  const GMID = { wb: 1.6, wp: 4.5, hp: 3.8, tiers: [[2.15, 1.5, 1.0, 5.5], [1.5, 1.0, 0.6, 6.4]], rt: 1.0, arch: [1.35, 1.12, 1.38], ocu: [1.55, 0.48], gar: [0.85, 1.0, 0.62], niches: [[-0.86, 0.56, 3.0, 4.6], [0, 0.56, 3.2, 5.2], [0.86, 0.56, 3.0, 4.6]], rib: null, med: [6.5, 0.45] };
   // its outline (grown by g, for the moulded edge), from the body's right foot up, over, and down its left
   const gOut = (G, g) => { const R = [[G.wb + g, 0], [G.wb + g, G.hp - g]]; let x = G.wb, y = G.hp;
     for (const [ws, wt, rv, he] of G.tiers){ if (ws > x + 1e-6) R.push([ws + g, y - g]);
@@ -7735,7 +7739,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       else if (mid) deepWin(f, 'W4', c, 9.2, 2.8, 4.4, d0);
       else sideWindow(f, c, 9.2, d0);
       // panels beside the portal (or window) and the window over it
-      for (const sd of [-1, 1]){ const pt = c + sd * (mid ? 3.2 : 2.55), pw = mid ? 0.3 : 0.35; panel(f, pt - pw, pt + pw, 2.9, BAND.yb - 0.35, d0); panel(f, pt - pw, pt + pw, BAND.yt + 0.22, mid ? 13.6 : 12.3, d0); }
+      for (const sd of [-1, 1]){ const pt = c + sd * (mid ? 3.2 : 2.55), pw = mid ? 0.3 : 0.35; panel(f, pt - pw, pt + pw, 2.9, BAND.yb - 0.35, d0); panel(f, pt - pw, pt + pw, BAND.yt + 0.22, mid ? (front ? 9.2 + 4.6 + 0.34 : 9.2 + 4.4 + 0.34) : 9.2 + 3.5 + 0.38, d0); }   // (likewise)
       bigGable(f, c, mid ? GMID : GSIDE, mid ? H.ca : H.at, d0, mid ? H.cc : H.co); } }
 
   // ---- the band between the storeys, after the model and the old photographs: just over the ground storey's window heads; over each of
