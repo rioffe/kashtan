@@ -7458,8 +7458,14 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (let q = 0; q < 20; q++){ const a = q * TAU / 20, g = new THREE.SphereGeometry(1, 6, 4); g.scale(r * 0.15, r * 0.075, r * 0.07); g.rotateZ(a + Math.PI / 2 + 0.45); f.geo(TM, g, t + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8, d + 0.05); }   // (a wreath of leaves)
     for (let q = 0; q < 6; q++){ const a = q * TAU / 6; f.geo(TM, new THREE.SphereGeometry(r * 0.11, 6, 4), t + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, d + 0.08); } f.geo(TM, new THREE.SphereGeometry(r * 0.12, 6, 4), t, y, d + 0.09); };   // (a rosette in it)
   // a palmette standing on a cornice: a fan of seven lobes
-  const palmette = (f, t, y, d, s = 0.5) => { const pts = [[0, 0]]; for (let i = 0; i <= 42; i++){ const a = Math.PI * i / 42, rr = s * (0.72 + 0.28 * Math.abs(Math.cos(3.5 * a))); pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 1.25]); }
-    f.ext(TM, shp(pts), t, y + 0.12, d - 0.06, 0.12); f.box(TM, t - s * 0.35, t + s * 0.35, y, y + 0.14, d - 0.12, d + 0.12); };
+  // a palmette standing on the attic's top at y, d in from its face, in the manner of the tufts of leaves over the windows: on a little plinth
+  // five soft leaves fanning out, the middle one tallest, and three small ones at their root
+  const palmette = (f, t, y, d, s = 0.6) => {
+    f.box(TM, t - 0.42 * s, t + 0.42 * s, y, y + 0.08 * s, d - 0.15, d + 0.15); f.box(TM, t - 0.32 * s, t + 0.32 * s, y + 0.08 * s, y + 0.14 * s, d - 0.11, d + 0.11);
+    const y0 = y + 0.2 * s;
+    for (const [a, k] of [[0, 1], [0.58, 0.86], [-0.58, 0.86], [1.15, 0.7], [-1.15, 0.7]]){ const L = 0.5 * s * k, g = new THREE.SphereGeometry(1, 9, 6); g.scale(0.2 * s * k, L, 0.15 * s); g.rotateZ(a);
+      f.geo(TM, g, t - Math.sin(a) * L * 0.92, y0 + Math.cos(a) * L * 0.92, d); }
+    for (const [x, yy, a, k] of [[-0.22, 0.0, 0.9, 0.5], [0.22, 0.0, -0.9, 0.5], [0, 0.04, 0, 0.55]]){ const g = new THREE.SphereGeometry(1, 7, 5); g.scale(s * 0.2 * k, s * 0.32 * k, s * 0.16 * k); g.rotateZ(a); f.geo(TM, g, t + x * s, y0 + yy * s, d + 0.05); } };
   // a scrolled cartouche standing on a corner of the attic: a shield, volutes at its feet and shoulders, an oval in it
   const cartouche = (f, t, y, d) => { const R = [[0, 0], [0.3, 0.03], [0.44, 0.17], [0.4, 0.34], [0.33, 0.45], [0.42, 0.6], [0.4, 0.76], [0.28, 0.9], [0.13, 0.99], [0, 1.08]];
     f.box(TM, t - 0.42, t + 0.42, y, y + 0.16, d - 0.3, d + 0.12); f.ext(TM, shp([...R, ...R.slice(1, -1).reverse().map(([a, b]) => [-a, b])].map(([a, b]) => [a, b + 0.16])), t, y, d - 0.14, 0.2, 1);
@@ -7472,15 +7478,19 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     f.geo(GD, new THREE.LatheGeometry(prof.map(([r, h]) => V2(r, h)), 14), t, y - 0.05, dm); f.ext(GD, star(0.33, 0.6), t, y + 1.1, dm - 0.025, 0.05, 1); };
 
   // ---- the plan: the main block, its middle bays standing forward 0.8 m at either end, the end bays of the long sides 0.25 m
-  const BAND = { yb: 6.96, yt: 7.24 };   // the band between the storeys: its foot and its top
+  const BAND = { yb: 7.36, yt: 7.64 };   // the band between the storeys: its foot and its top
   const H = { fl: 1.8, pl: 2.4, sc: 7.8, co: 14.4, at: 15.6, cc: 15.6, ca: 16.8 };   // the floor (seven steps up, as the model has), the plinth's top, the string course, the cornice's and attic's tops; the middle bays' cornice and attic
   // the middle bays' centre, front and back alike (the front's middle door 2.5 m wide and 5.25 tall): its pilasters' edges out from the middle
   // (PW, PO, PX), its cornice over the band (yE, ct), and the hood on it, the door's own curvature (cy, Ri): see portal and the back's
   const CEN = (() => { const r = 1.25, k = 2.5 / 2.1, PW = r + 0.29 * k, PO = PW + 0.56 * k, yT = H.fl + 5.25;
-    return { PW, PO, PX: PO + 0.42, yE: yT + 0.4, ct: yT + 0.4 + BAND.yt - BAND.yb, cy: yT + 1.12 - r, Ri: r }; })();
-  // the end bays' gables' measures (see the gables, below; the dormers are drawn to them too)
-  const GSIDE = { wb: 1.35, wp: 3.875, hp: 3.6, tiers: [[1.75, 1.03, 1.1, 5.2]], rt: 1.03, arch: [1.1, 0.98, 1.22], ocu: [1.27, 0.38], gar: [0.66, 0.86, 0.58], niches: [[-0.68, 0.8, 2.45, 4.3], [0.68, 0.8, 2.45, 4.3]], rib: [2.6, 4.35], med: [5.3, 0.44] };
-  const GMID = { wb: 1.6, wp: 4.5, hp: 3.8, tiers: [[2.15, 1.5, 1.0, 5.5], [1.5, 1.0, 0.6, 6.4]], rt: 1.0, arch: [1.35, 1.12, 1.38], ocu: [1.55, 0.48], gar: [0.85, 1.0, 0.62], niches: [[-0.86, 0.56, 3.0, 4.6], [0, 0.56, 3.2, 5.2], [0.86, 0.56, 3.0, 4.6]], rib: null, med: [6.5, 0.45] };
+    return { PW, PO, PX: PO + 0.42, yE: yT + 0.8, ct: yT + 0.8 + BAND.yt - BAND.yb, cy: yT + 1.52 - r, Ri: r }; })();
+  // the end bays' gables' measures, after the model (see the gables, below; the dormers are their drums over again). wb the body's half-width,
+  // wp the piers' outer edge, hp their tops over the gable's foot; tiers [ws, wt, rv, he]: a shoulder from ws in to wt rising rv, then the
+  // side on up to he; rt the head's half-width (centred at the last he); drum [its centre's height, radius] (the round window's, in its round
+  // head), ocu the window's radius; gar [its ends' height, half-width, sag]; arches [centre, width, top]: the blind arches in the body (two;
+  // three on the middle one, its middle one taller)
+  const GSIDE = { wb: 1.6, wp: 3.0, hp: 3.6, tiers: [[1.6, 1.1, 0.66, 4.9]], rt: 1.1, drum: [1.07, 1.3], ocu: 0.42, gar: [0.75, 0.95, 0.55], arches: [[-0.65, 1.1, 4.15], [0.65, 1.1, 4.15]] };
+  const GMID = { wb: 2.45, wp: 4.5, hp: 4.3, tiers: [[2.45, 1.45, 1.0, 5.3], [1.45, 1.2, 0.25, 6.36]], rt: 1.2, drum: [1.15, 1.35], ocu: 0.45, gar: [0.85, 1.05, 0.6], arches: [[-1.35, 1.0, 4.9], [0, 1.1, 5.5], [1.35, 1.0, 4.9]] };
   const FP = [[18, -12.25], [18, -4.5], [18.8, -4.5], [18.8, 4.5], [18, 4.5], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, 4.5], [-18.8, 4.5], [-18.8, -4.5], [-18, -4.5], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const FA = [[18, -12.25], [18, 12.25], [11, 12.25], [11, 12], [-11, 12], [-11, 12.25], [-18, 12.25], [-18, -12.25], [-11, -12.25], [-11, -12], [11, -12], [11, -12.25]];
   const MIDF = rect(17.7, 18.8, -4.5, 4.5), MIDR = rect(-18.8, -17.7, -4.5, 4.5);
@@ -7513,8 +7523,8 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     cap(P(-hu, r, 0), P(hu, r, 0)); }
 
   // a garland in relief: a swag of leaves between two rosettes, sagging, and a drop of leaves falling from each
-  const garland = (f, t, y0, half, sag, drop, d) => { const leaf = (x, y, s, ang) => { const g = new THREE.SphereGeometry(1, 7, 5); g.scale(s * 1.4, s * 0.85, s * 0.62); g.rotateZ(ang); f.geo(TM, g, t + x, y, d + s * 0.5); };
-    for (let i = 0; i <= 18; i++){ const q = i / 18, x = -half + 2 * half * q, y = y0 - sag * Math.sin(Math.PI * q), s = 0.05 + 0.07 * Math.sin(Math.PI * q), ang = Math.atan(-sag * Math.PI * Math.cos(Math.PI * q) / (2 * half));
+  const garland = (f, t, y0, half, sag, drop, d, round = false) => { const Y = (q) => round ? sag * Math.sqrt(Math.max(0, 1 - (2 * q - 1) ** 2)) : sag * Math.sin(Math.PI * q); const leaf = (x, y, s, ang) => { const g = new THREE.SphereGeometry(1, 7, 5); g.scale(s * 1.4, s * 0.85, s * 0.62); g.rotateZ(ang); f.geo(TM, g, t + x, y, d + s * 0.5); };
+    for (let i = 0; i <= 18; i++){ const q = i / 18, x = -half + 2 * half * q, y = y0 - Y(q), s = 0.05 + 0.07 * Math.sin(Math.PI * q), ang = Math.atan2(Y(Math.max(0, q - 0.02)) - Y(Math.min(1, q + 0.02)), 2 * half * Math.min(0.04, q + 0.02, 1.02 - q));
       leaf(x, y + s * 0.35, s, ang + 0.55); leaf(x + 0.015, y - s * 0.35, s * 0.92, ang - 0.55); }
     for (const sd of [-1, 1]){ for (let k = 0; k < 6; k++) leaf(sd * (half + 0.03 * (k % 2 ? 1 : -1)), y0 - 0.08 - k * drop / 6, 0.062 - k * 0.006, Math.PI / 2 + sd * (k % 2 ? 0.35 : -0.35));
       f.geo(TM, new THREE.CylinderGeometry(0.08, 0.085, 0.07, 12).rotateX(Math.PI / 2), t + sd * half, y0 + 0.05, d + 0.04); f.geo(TM, new THREE.SphereGeometry(0.04, 6, 4), t + sd * half, y0 + 0.05, d + 0.09); } };
@@ -7536,6 +7546,20 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     if (o.consoles !== false) for (const sd of [-1, 1]){ const x = c + sd * (R + 0.22); f.box(TM, x - 0.1, x + 0.1, y0 - 0.75, y0 - 0.21, d0, d0 + 0.15); f.geo(TM, new THREE.CylinderGeometry(0.1, 0.1, 0.17, 10).rotateZ(Math.PI / 2), x, y0 - 0.7, d0 + 0.085); }
     if (o.apron) panel(f, c - R + 0.1, c + R - 0.1, y0 - 0.6, y0 - 0.27, d0); };
 
+  // a drum, after the model: a round head (radius R, centred yc) over a round window, hollows (radius c) sweeping down from it either side
+  // to the foot (base); its outline grown by g; and the drum itself, its face a little proud, a moulding round it, the window and its rings,
+  // the garland under it (its face carried down drop below the foot, over the coping there). G: a gable's measures
+  const drumOut = (R, c, base, yc, g) => { const ys = base + c, P_ = [];
+    for (let i = 0; i <= 8; i++){ const a = 1.5 * Math.PI - Math.PI / 2 * i / 8; P_.push([R + c + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
+    for (let i = 0; i <= 28; i++){ const a = Math.PI * i / 28; P_.push([Math.cos(a) * (R + g), yc + Math.sin(a) * (R + g)]); }
+    for (let i = 0; i <= 8; i++){ const a = -Math.PI / 2 * i / 8; P_.push([-(R + c) + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
+    return P_; };
+  const drum = (f, t, base, d, G, drop = 0.45) => { const [yo, R] = G.drum, c = 0.45, Y = base + yo, W = R + c, df = d + 0.1, r = G.ocu;
+    f.ext(WL, shp([[W, base - drop], ...drumOut(R, c, base, Y, 0), [-W, base - drop]]), t, 0, d - 0.45, 0.55, 1);
+    f.ext(TM, shp([...drumOut(R, c, base, Y, 0.08), ...drumOut(R, c, base, Y, -0.07).reverse()]), t, 0, df - 0.04, 0.14, 1);
+    f.pic('O', t, 2 * r, Y - r, Y + r, df + 0.03); f.geo(TM, new THREE.TorusGeometry(r + 0.04, 0.07, 8, 32), t, Y, df + 0.05); f.geo(TM, new THREE.TorusGeometry(r + 0.18, 0.045, 6, 36), t, Y, df + 0.03);
+    garland(f, t, Y - 1.2 * r, 1.6 * r, 1.7 * r, 0.5, df, true); return { Y, R }; };   // (round, hanging low: with the window's ring over it, a circle)
+
   // ---- the long sides: seven bays; the cellar windows, the lower windows under their hoods, the aprons and sills, the upper windows; panels
   // between; pilasters at the end bays' edges; the attic's panels, its dormers at the ends and in the middle, palmettes beside them
   const UB = [-14.5, -7.5, -3.75, 0, 3.75, 7.5, 14.5], PANS = [-16.7, -12.3, -9.4, -5.625, -1.875, 1.875, 5.625, 9.4, 12.3, 16.7];
@@ -7547,33 +7571,19 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       if (Math.abs(u) > 1 && Math.abs(u) < 11) panel(f, t - 0.95, t + 0.95, H.co + 0.3, H.co + 0.95, d0); }
     for (const u of PANS){ const t = T(u), d0 = D(u), w = Math.abs(u) > 11 ? 0.4 : 0.32; panel(f, t - w, t + w, 2.9, BAND.yb - 0.35, d0); panel(f, t - w, t + w, BAND.yt + 0.22, 9.25 + 3.15 + 0.34, d0); }   // (up to the upper windows' keystones' tops, under their leaves)
     for (const [u0, u1] of [[11, 11.7], [17.3, 18], [-11.7, -11], [-18, -17.3]]){ const t0 = Math.min(T(u0), T(u1)), t1 = Math.max(T(u0), T(u1)); f.box(TM, t0, t1, H.pl + 0.22, H.co - 0.9, 0.25, 0.33, false, false); }   // (pilasters)
-    // the dormers, after the model and the photographs: each the lower part of an end bay's gable over again, at its size: the attic rising
-    // in a round head (the gable's arch), hollows sweeping down from it either side into the attic's top, a moulding round it all, its face
-    // carried down over the attic's top; in it the gable's round window, its rings, and the garland under it; behind, a little barrel vault
-    // running back into the roof
-    const DR = GSIDE.arch[2], DYC = H.at + GSIDE.arch[0], DC = 0.5;
-    const dOut = (g) => { const R = DR, c = DC, ys = H.at + c, P_ = [];
-      for (let i = 0; i <= 8; i++){ const a = 1.5 * Math.PI - Math.PI / 2 * i / 8; P_.push([R + c + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
-      for (let i = 0; i <= 28; i++){ const a = Math.PI * i / 28; P_.push([Math.cos(a) * (R + g), DYC + Math.sin(a) * (R + g)]); }
-      for (let i = 0; i <= 8; i++){ const a = -Math.PI / 2 * i / 8; P_.push([-(R + c) + (c - g) * Math.cos(a), ys + (c - g) * Math.sin(a)]); }
-      return P_; };
-    for (const u of [-14.5, 0, 14.5]){ const t = T(u), d0 = D(u), df = d0 + 0.1, R = DR, W = DR + DC, [oc, orr] = GSIDE.ocu;
-      f.ext(WL, shp([[W, H.at - 0.45], ...dOut(0), [-W, H.at - 0.45]]), t, 0, d0 - 0.45, 0.55, 1);   // (its face, a little proud of the attic's coping)
-      f.ext(TM, shp([...dOut(0.08), ...dOut(-0.07).reverse()]), t, 0, df - 0.04, 0.14, 1);
-      f.pic('O', t, 2 * orr, H.at + oc - orr, H.at + oc + orr, df + 0.03); f.geo(TM, new THREE.TorusGeometry(orr + 0.04, 0.07, 8, 32), t, H.at + oc, df + 0.05); f.geo(TM, new THREE.TorusGeometry(orr + 0.18, 0.045, 6, 36), t, H.at + oc, df + 0.03);
-      garland(f, t, H.at + GSIDE.gar[0], GSIDE.gar[1], GSIDE.gar[2], 0.62, df);
-      f.geo(RF, new THREE.CylinderGeometry(R + 0.04, R + 0.04, 6.0, 28, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2), t, DYC, d0 - 0.45 - 3.0);
-      f.box(WL, t - R - 0.04, t + R + 0.04, H.at - 0.3, DYC, d0 - 6.45, d0 - 0.4, false, false); }
-    for (const u of [-17.2, 17.2]) cartouche(f, T(u), H.at + 0.12, 0.12); }
+    // the dormers, after the model and the photographs: each a side gable's drum over again, at its size: the round head rising from the
+    // attic, hollows sweeping down from it into the attic's top, its round window, its rings, the garland under it; behind it a little barrel
+    // vault running back into the roof
+    for (const u of [-14.5, 0, 14.5]){ const t = T(u), d0 = D(u), { Y, R } = drum(f, t, H.at, d0, GSIDE);
+      f.geo(RF, new THREE.CylinderGeometry(R + 0.04, R + 0.04, 6.0, 28, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2), t, Y, d0 - 0.45 - 3.0);
+      f.box(WL, t - R - 0.04, t + R + 0.04, H.at - 0.3, Y, d0 - 6.45, d0 - 0.4, false, false); }
+    for (const u of [-14.5, 14.5]) for (const sd of [-1, 1]) palmette(f, T(u + sd * 2.45), H.at + 0.12, D(u) - 0.2, 0.62); }   // (palmettes either side of the corner dormers)
 
-  // ---- the end bays' gables, after the photographs and the colouring of them. Each between two broad piers (a pedestal, pilaster strips at
-  // their edges, a panel between, an entablature, a low hipped roof of red tin); the body between them, its round window in a moulded arch
-  // on imposts, the garland in relief under it; over the piers' tops it swells out in quarter-round shoulders (twice on the middle one), blind
-  // niches under them; then the tall lobe with its half-round head, an arch in it round a medallion in a wreath; deep enough behind its face
-  // that its shoulders and head vault over like a bonnet; a gilt finial on its top, the Star of David on it. G: wb the body's half-width, wp
-  // the piers' outer edge, hp their tops over the gable's foot; tiers [ws, wt, rv, he]: a shoulder from ws out over the piers in to wt,
-  // rising rv, then the side on up to he; rt the head's half-width; arch [its middle's height, inner and outer radius]; ocu [height, radius];
-  // gar [its ends' height, half-width, sag]; niches [x, width, foot, apex]; rib [foot, top] between the niches; med [height, radius]
+  // ---- the end bays' gables, after the model: each between two piers (a block on the attic, a sunk panel in its face, a cap of three
+  // slabs stepping out, flat on top); the drum at its foot with its round window and garland (as the dormers'); behind it the body, two
+  // blind arches in it, their heads swelling out as its shoulders over the piers (twice on the middle one); then the head, half round, rings
+  // in it, a gilt finial on its top with the Star of David; deep enough that its shoulders and head vault over like a bonnet. Palmettes on
+  // the attic at the bays' corners (G: see GSIDE)
   // its outline (grown by g, for the moulded edge), from the body's right foot up, over, and down its left
   const gOut = (G, g) => { const R = [[G.wb + g, 0], [G.wb + g, G.hp - g]]; let x = G.wb, y = G.hp;
     for (const [ws, wt, rv, he] of G.tiers){ if (ws > x + 1e-6) R.push([ws + g, y - g]);
@@ -7588,32 +7598,19 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (let i = 0; i <= 28; i++){ const a = a0 + (a1 - a0) * i / 28; pts.push([Math.cos(a) * ro, yc + Math.sin(a) * ro]); }
     for (let i = 28; i >= 0; i--){ const a = a0 + (a1 - a0) * i / 28; pts.push([Math.cos(a) * ri, yc + Math.sin(a) * ri]); }
     f.ext(TM, shp(pts), t, 0, d, depth); };
-  // a broad pier beside a gable: from yb (the cornice's top) up; its attic panel, its pedestal's cap, the strips at its edges with their
-  // capitals, the panel between, the entablature, its little hipped roof of red tin
-  const pier = (f, t0, t1, yb, h0, hp, d0) => { const df = d0 + 0.05, db = d0 - 1.35, top = h0 + hp, m = (t0 + t1) / 2, w = t1 - t0;
-    f.box(WL, t0, t1, yb, top - 0.7, db, df); panel(f, t0 + 0.22, t1 - 0.22, yb + 0.28, h0 - 0.3, df);
-    f.box(TM, t0 - 0.05, t1 + 0.05, h0 + 0.62, h0 + 0.78, db, df + 0.08);
-    for (const e of [t0, t1 - 0.34]){ f.box(TM, e, e + 0.34, h0 + 0.78, top - 0.86, df, df + 0.06, false, false); f.box(TM, e - 0.03, e + 0.37, top - 0.86, top - 0.7, df, df + 0.1); }
-    panel(f, t0 + 0.55, t1 - 0.55, h0 + 1.05, top - 1.05, df);
-    f.box(TM, t0 - 0.06, t1 + 0.06, top - 0.7, top - 0.6, db - 0.06, df + 0.08); f.box(WL, t0 - 0.03, t1 + 0.03, top - 0.6, top - 0.28, db - 0.03, df + 0.03); f.box(TM, t0 - 0.18, t1 + 0.18, top - 0.28, top - 0.04, db - 0.18, df + 0.2);
-    const ya = top - 0.04, W = w + 0.32, Dd = df - db + 0.34, hl = Math.max(0, (W - Dd) / 2), dm = (db + df) / 2 + 0.01;
-    const cu = [f.at(t0 - 0.16, ya, db - 0.16), f.at(t1 + 0.16, ya, db - 0.16), f.at(t1 + 0.16, ya, df + 0.18), f.at(t0 - 0.16, ya, df + 0.18)], r0 = f.at(m - hl, ya + 0.6, dm), r1 = f.at(m + hl, ya + 0.6, dm);
-    poly(RF, [cu[3], cu[2], r1, r0], [[0, 0], [W, 0], [W / 2 + hl, 1], [W / 2 - hl, 1]], 1); poly(RF, [cu[1], cu[0], r0, r1], [[0, 0], [W, 0], [W / 2 + hl, 1], [W / 2 - hl, 1]], 1);
-    poly(RF, [cu[0], cu[3], r0], [[0, 0], [Dd, 0], [Dd / 2, 1]], 1); poly(RF, [cu[2], cu[1], r1], [[0, 0], [Dd, 0], [Dd / 2, 1]], 1); };
-  const bigGable = (f, c, G, h0, d0, yb) => { const out = gOut(G, 0), front = shp(out), hs = G.tiers[G.tiers.length - 1][3];
-    for (const [x, w, y0, y1] of G.niches) front.holes.push(nicheP(x, w, y0, y1));
-    f.ext(WL, front, c, h0, d0 - 0.15, 0.15, 12); f.ext(WL, shp(out), c, h0, d0 - 1.4, 1.25, 12);   // (its face, the niches cut in it; the mass behind, vaulted over)
+  const pier = (f, t0, t1, h0, hp, d0) => { const df = d0 + 0.05, db = d0 - 1.35, top = h0 + hp;
+    f.box(WL, t0, t1, h0, top - 0.42, db, df); panel(f, t0 + 0.22, t1 - 0.22, h0 + 0.35, top - 0.72, df);
+    for (const [y0, y1, o] of [[top - 0.42, top - 0.3, 0.05], [top - 0.3, top - 0.15, 0.11], [top - 0.15, top, 0.17]]) f.box(TM, t0 - o, t1 + o, y0, y1, db - o, df + o + 0.02); };
+  const bigGable = (f, c, G, h0, d0, yb) => { const out = gOut(G, 0), hs = G.tiers[G.tiers.length - 1][3];
+    f.ext(WL, shp(out), c, h0, d0 - 1.4, 1.4, 12);   // (its face, and the mass behind it vaulting over)
     f.ext(TM, shp([...gOut(G, 0.1).filter(p => p[1] > G.hp - 0.15), ...gOut(G, -0.12).filter(p => p[1] > G.hp + 0.05).reverse()]), c, h0, d0 - 0.04, 0.18, 12);   // (its moulded edge)
-    const [ac, ri, ro] = G.arch; arcBand(f, c, h0 + ac, ri + 0.1, ro, 0.12, d0); arcBand(f, c, h0 + ac, ri, ri + 0.1, 0.06, d0);
-    for (const sd of [-1, 1]) f.box(TM, c + sd * (ri - 0.04), c + sd * (G.wb - 0.02), h0 + ac - 0.17, h0 + ac, d0, d0 + 0.16);   // (the imposts)
-    const [oc, orr] = G.ocu; f.pic('O', c, 2 * orr, h0 + oc - orr, h0 + oc + orr, d0 + 0.03); f.geo(TM, new THREE.TorusGeometry(orr + 0.04, 0.07, 8, 32), c, h0 + oc, d0 + 0.05); f.geo(TM, new THREE.TorusGeometry(orr + 0.18, 0.045, 6, 36), c, h0 + oc, d0 + 0.03);
-    garland(f, c, h0 + G.gar[0], G.gar[1], G.gar[2], 0.62, d0);
-    for (const [x, w, y0, y1] of G.niches){ archFrame(f, TM, c + x, h0 + y0, w, y1 - y0, 0.5, 0.1, 0.08, d0); f.box(TM, c + x - w / 2 - 0.12, c + x + w / 2 + 0.12, h0 + y0 - 0.1, h0 + y0, d0, d0 + 0.12); }
-    if (G.rib) f.box(TM, c - 0.14, c + 0.14, h0 + G.rib[0], h0 + G.rib[1], d0, d0 + 0.06);
-    arcBand(f, c, h0 + hs, G.rt - 0.25, G.rt - 0.13, 0.07, d0); for (const sd of [-1, 1]) f.box(TM, c + sd * (G.rt - 0.25), c + sd * (G.rt - 0.13), h0 + hs - 0.45, h0 + hs, d0, d0 + 0.07);
-    medallion(f, c, h0 + G.med[0], G.med[1], d0); finial(f, c, h0 + hs + G.rt - 0.02, d0 - 0.3);
-    for (const sd of [-1, 1]){ const t0 = c + sd * G.wb, t1 = c + sd * G.wp; pier(f, Math.min(t0, t1), Math.max(t0, t1), yb, h0, G.hp, d0); }
-    panel(f, c - G.wb + 0.2, c + G.wb - 0.2, yb + 0.28, h0 - 0.3, d0); };   // (and a panel in the attic under it)
+    for (const [x, w, top] of G.arches) archFrame(f, TM, c + x, h0 + 0.6, w, top - 0.6, 0.5, 0.08, 0.07, d0);   // (the blind arches)
+    for (const [r, tb] of [[G.rt * 0.58, 0.07], [G.rt * 0.42, 0.05]]) f.geo(TM, new THREE.TorusGeometry(r, tb, 8, 36), c, h0 + hs, d0 + 0.04);   // (the rings in its head)
+    { const disc = new THREE.Shape(); disc.absarc(0, 0, G.rt * 0.27, 0, TAU, false); f.ext(TM, disc, c, h0 + hs, d0, 0.06, 24); }
+    drum(f, c, h0, d0, G); finial(f, c, h0 + hs + G.rt - 0.02, d0 - 0.3);
+    for (const sd of [-1, 1]){ const t0 = c + sd * G.wb, t1 = c + sd * G.wp, lo = Math.min(t0, t1), hi = Math.max(t0, t1); pier(f, lo, hi, h0, G.hp, d0); panel(f, lo + 0.22, hi - 0.22, yb + 0.28, h0 - 0.3, d0); }
+    panel(f, c - G.wb + 0.2, c + G.wb - 0.2, yb + 0.28, h0 - 0.3, d0); };   // (and panels in the attic under them)
+
 
   // the end bays' side windows, after the photograph: deep in a segmental-headed architrave (so the window sits well back in the wall), leaves
   // at its shoulders and on its keystone; under it a sill on two consoles, a carved apron between them
@@ -7624,7 +7621,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const sd of [-1, 1]) leaves(f, c + sd * (w / 2 + 0.2), y0 + h - rise + 0.02, d0 + 0.1, 0.17);
     f.box(TM, c - w / 2 - 0.45, c + w / 2 + 0.45, y0 - 0.16, y0, d0, d0 + 0.22); f.box(TM, c - w / 2 - 0.4, c + w / 2 + 0.4, y0 - 0.22, y0 - 0.16, d0, d0 + 0.16);
     for (const sd of [-1, 1]){ const x = c + sd * (w / 2 + 0.24); f.box(TM, x - 0.11, x + 0.11, y0 - 0.86, y0 - 0.22, d0, d0 + 0.15); f.geo(TM, new THREE.CylinderGeometry(0.11, 0.11, 0.17, 10).rotateZ(Math.PI / 2), x, y0 - 0.8, d0 + 0.085); }
-    panel(f, c - 0.92, c + 0.92, y0 - 0.62, y0 - 0.28, d0); };
+  };
 
   // the portals, after the photograph: the doors of dark wood deep in a block of stone, its reveal coffered up the jambs and round the soffit;
   // a broad moulded arch round it, roundels on it, a carved cartouche its keystone; pilasters either side, their capitals, an oval on the
@@ -7645,10 +7642,10 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const hoodLeaves = (f, A, d) => { leaves(f, A.t, A.crown + 0.1, d, 0.18); for (const sd of [-1, 1]) leaves(f, A.t + sd * (A.xo + 0.08), BAND.yt + 0.06, d - 0.02, 0.11); };
   // a lamp over a door, after the model: a round plate on the wall, a swan-necked arm of iron out from it and down, a little bell of a
   // shade on it, and under that a glass globe (lit when the street lamps are)
-  const doorLamp = (f, c, yP, d) => { f.geo(IRN, new THREE.CylinderGeometry(0.075, 0.075, 0.03, 16).rotateX(Math.PI / 2), c, yP, d + 0.015);
-    const R = 0.25, pts = []; for (let i = 0; i <= 10; i++){ const a = Math.PI / 2 * i / 10; pts.push(new V3(0, yP - R + R * Math.cos(a), d + R * Math.sin(a))); } pts.push(new V3(0, yP - R - 0.06, d + R));
+  const doorLamp = (f, c, yP, d, yLow = -Infinity) => { const drop = Math.max(0.06, yP - 0.25 - 0.345 - yLow + 0.06); f.geo(IRN, new THREE.CylinderGeometry(0.075, 0.075, 0.03, 16).rotateX(Math.PI / 2), c, yP, d + 0.015);
+    const R = 0.25, pts = []; for (let i = 0; i <= 10; i++){ const a = Math.PI / 2 * i / 10; pts.push(new V3(0, yP - R + R * Math.cos(a), d + R * Math.sin(a))); } pts.push(new V3(0, yP - R - drop, d + R));
     f.geo(IRN, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.017, 6), c, 0, 0);
-    const yl = yP - R - 0.06, prof = [[0, 0], [0.025, 0], [0.03, -0.02], [0.06, -0.04], [0.105, -0.1], [0.12, -0.125], [0.11, -0.135], [0, -0.13]];
+    const yl = yP - R - drop, prof = [[0, 0], [0.025, 0], [0.03, -0.02], [0.06, -0.04], [0.105, -0.1], [0.12, -0.125], [0.11, -0.135], [0, -0.13]];
     f.geo(IRN, new THREE.LatheGeometry(prof.map(([r, y]) => V2(r, y)), 16), c, yl, d + R);
     f.geo(GLB, new THREE.SphereGeometry(0.085, 14, 10), c, yl - 0.2, d + R); f.geo(IRN, new THREE.SphereGeometry(0.02, 8, 6), c, yl - 0.29, d + R); };
   // the doors, after the model: solid, of lacquered dark wood. Over the transom the half-round, its edge moulded, a ring in it round a carved
@@ -7682,9 +7679,9 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     f.box(DWD, c - 0.018, c + 0.018, y0, ys - 0.1, dz + 0.12, dz + 0.15);   // (the bead where they meet)
   };
   const portal = (f, c, w, hO, d0, tall = false) => { const y0 = H.fl, r = w / 2, ys = y0 + hO - r, yT = y0 + hO, k = w / 2.1, D = 0.85, df = d0 + D;
-    // (the hood: the doorway's own radius, its inner crown 1.12 m over the door's top, on every portal; it springs from the band, or, on the
+    // (the hood: the doorway's own radius, its inner crown 1.52 m over the door's top, on every portal; it springs from the band, or, on the
     // middle one, which is taller, from a cornice of its own above the band, outer pilasters either side under it, as the model has it)
-    const PW = r + 0.29 * k, PO = PW + 0.56 * k, PX = tall ? PO + 0.42 : PO, yE = tall ? yT + 0.4 : BAND.yb, ct = yE + BAND.yt - BAND.yb, A = hoodArc(0, yT + 1.12 - r, r, yE, ct);
+    const PW = r + 0.29 * k, PO = PW + 0.56 * k, PX = tall ? PO + 0.42 : PO, yE = tall ? yT + 0.8 : BAND.yb, ct = yE + BAND.yt - BAND.yb, A = hoodArc(0, yT + 1.52 - r, r, yE, ct);
     const inner = []; for (let i = 0; i <= 20; i++){ const q = Math.atan2(yE - A.cy, -A.xi) + (Math.atan2(yE - A.cy, A.xi) - Math.atan2(yE - A.cy, -A.xi)) * i / 20; inner.push([Math.cos(q) * A.Ri, A.cy + Math.sin(q) * A.Ri - y0]); }
     f.ext(TM, shp([[-PW, 0], [-PW, yE - y0], ...inner, [PW, yE - y0], [PW, 0], [r, 0], ...archPts(w, ys - y0, 0.5, 0).reverse(), [-r, 0]]), c, y0, d0, D, 16);   // (the block, up under the hood)
     bandTiers(f, -PX - 0.14, PX + 0.14, [{ t: 0, cy: A.cy, Ri: A.Ri }], yE, ct, d0, D + 0.24, D + 0.12, c);   // (the band, or its cornice, across it, its hood)
@@ -7692,7 +7689,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     if (tall) for (const sd of [-1, 1]){ const lo = Math.min(c + sd * PO, c + sd * PX), hi = Math.max(c + sd * PO, c + sd * PX);   // (its outer pilasters; the band breaking round them)
       f.box(TM, lo, hi, y0, yE, d0, df - 0.12, false); panel(f, lo + 0.09, hi - 0.09, y0 + 0.4, BAND.yb - 0.3, df - 0.12); f.box(TM, lo - 0.04, hi + 0.04, y0, y0 + 0.28, d0, df - 0.06);
       const b0 = Math.min(c + sd * PW, c + sd * (PX + 0.08)), b1 = Math.max(c + sd * PW, c + sd * (PX + 0.08)); f.box(TM, b0, b1, (BAND.yb + BAND.yt) / 2, BAND.yt, d0, df + 0.14); f.box(TM, b0, b1, BAND.yb, (BAND.yb + BAND.yt) / 2, d0, df + 0.07); }
-    doorLamp(f, c, A.cy + A.Ri - 0.1, df);
+    doorLamp(f, c, A.cy + A.Ri - 0.1, df, yT + 0.23 * k + 0.15);   // (hanging down to just over the arch's frame)
     door3D(f, c, y0, w, hO, d0 + 0.2);   // (in front of the plinth's cap, which runs behind it)
     for (const sd of [-1, 1]){ const xj = c + sd * r;   // (the coffers: ribs across the jambs and along their edges, ribs round the soffit)
       for (let y = y0 + 0.05; y < ys - 0.1; y += 0.42) f.box(TM, xj - sd * 0.05, xj, y, y + 0.07, d0 + 0.42, df - 0.1);
@@ -7740,12 +7737,13 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       else sideWindow(f, c, 9.2, d0);
       // panels beside the portal (or window) and the window over it
       for (const sd of [-1, 1]){ const pt = c + sd * (mid ? 3.2 : 2.55), pw = mid ? 0.3 : 0.35; panel(f, pt - pw, pt + pw, 2.9, BAND.yb - 0.35, d0); panel(f, pt - pw, pt + pw, BAND.yt + 0.22, mid ? (front ? 9.2 + 4.6 + 0.34 : 9.2 + 4.4 + 0.34) : 9.2 + 3.5 + 0.38, d0); }   // (likewise)
-      bigGable(f, c, mid ? GMID : GSIDE, mid ? H.ca : H.at, d0, mid ? H.cc : H.co); } }
+      bigGable(f, c, mid ? GMID : GSIDE, mid ? H.ca : H.at, d0, mid ? H.cc : H.co);
+      if (!mid) for (const e of [4.93]) palmette(f, Math.sign(c) * e, H.at + 0.12, -0.2, 0.62); } }   // (palmettes at the bays' corners)
 
   // ---- the band between the storeys, after the model and the old photographs: just over the ground storey's window heads; over each of
   // them a hood, of the curvature of the window's frame, raised so that its crown comes up under the window over it; a tuft of three
   // leaves on each hood's crown, little ones at its feet. At the front it runs across the portals (see portal)
-  { const dep = 0.4, ARCS = [], sg = ccw(FP) ? 1 : -1, hood_ = (Rf, apex) => { const Ri = Rf, cy = Math.min(apex + 0.48, 8.15 - 0.28) - Ri; return [cy, Ri]; };   // ([u, v, the hood's centre's height, its inner radius])
+  { const dep = 0.4, ARCS = [], sg = ccw(FP) ? 1 : -1, hood_ = (Rf, apex) => { const Ri = Rf, cy = Math.min(apex + 0.88, 8.55 - 0.28) - Ri; return [cy, Ri]; };   // ([u, v, the hood's centre's height, its inner radius])
     for (const sv of [-1, 1]) for (const u of UB) ARCS.push([u, sv * (Math.abs(u) > 11 ? 12.25 : 12), ...hood_(1.1, 7.0)]);
     ARCS.push([-18, 8.375, ...hood_(1.3, 7.2)], [-18, -8.375, ...hood_(1.3, 7.2)]);
     const GAPS = [[-18.8, 0, CEN.PX + 0.08]];   // (where it stops: against the back's middle pilasters)
