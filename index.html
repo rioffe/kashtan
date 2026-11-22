@@ -7229,7 +7229,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
    proportions: 36 m by 24.5, the middle gable 23.5 m to its top. The yard paved, an iron railing on stone posts round it. Local u along it
    (its front at +u, to the east), v across it (its north side at -v) ---------- */
 { const SY = SYN, CX = SY.cx, CZ = SY.cz, UPS = new V3(0, 1, 0);
-  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc(), DWD = acc(), DWK = acc(), IRN = acc(), KH = acc(), STP = acc(), GLB = acc(), SOIL = acc(), FN = acc(), FENCE = { panels: [], longs: [], shorts: [], yw: 0 };
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc(), DWD = acc(), DWK = acc(), IRN = acc(), KH = acc(), STP = acc(), GLB = acc(), SOIL = acc(), FN = acc(), RK = acc(), FENCE = { panels: [], longs: [], shorts: [], legs: [], stiles: [], scrolls: [], yw: 0 };
   const P = (u, y, v) => [CX + u, y, CZ + v];
   // a flat polygon, its corners in order; its normal from them (up 1: turned to face the sky, -1: the ground); uv per corner
   const poly = (B, pts, uvs, up = 0) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
@@ -7300,13 +7300,22 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const paveT = tex(256, 256, (g, w, h) => { g.fillStyle = '#8f8a80'; g.fillRect(0, 0, w, h); const q = w / 4;   // flags 0.6 m (tile 2.4)
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++){ const t = sn(0.9, 1.06); g.fillStyle = `rgb(${190 * t | 0},${184 * t | 0},${170 * t | 0})`; g.fillRect(i * q + 2, j * q + 2, q - 4, q - 4);
       for (let k = 0; k < 14; k++){ g.fillStyle = `rgba(${sr() < 0.5 ? '90,86,78' : '228,224,212'},${sn(0.05, 0.14)})`; g.fillRect(i * q + 4 + sr() * (q - 12), j * q + 4 + sr() * (q - 12), sn(2, 9), sn(2, 7)); } } }, { repeat: [1 / 2.4, 1 / 2.4] });
-  // the railing, after the old photograph (1.2 m by 1.35): bars every 0.12, long and short by turns, each ending in a spear, the long ones'
-  // over the top rail, the short ones' between it and the middle rail; a rail at the foot
-  const railT = tex(256, 288, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#242625'; const yT = 50, yM = 156, yB = h - 6;
-    g.fillRect(0, yT, w, 7); g.fillRect(0, yM, w, 6); g.fillRect(0, yB - 8, w, 8);
-    for (let i = 0; i < 10; i++){ const x = i * w / 10 + w / 20, top = i % 2 ? 112 : 26;
-      g.fillRect(x - 3, top, 6, yB - top); g.beginPath(); g.moveTo(x, top - 24); g.quadraticCurveTo(x + 10, top - 6, x + 3.5, top + 3); g.lineTo(x - 3.5, top + 3); g.quadraticCurveTo(x - 10, top - 6, x, top - 24); g.fill();
-      g.fillRect(x - 5.5, top + 5, 11, 4); } }, { srgb: true });
+  // the railing's picture, for far off (1 m by 2.15 from the coping, 120 px to the metre): bars every 0.125, short and long by turns, legs
+  // into the coping under every other long one; three rails; the frieze of scrolls and fleurs-de-lis under the top one; the spears
+  const railT = tex(120, 258, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = g.strokeStyle = '#232524'; const Y = (m) => h - m * 120;
+    for (const [m0, m1] of [[0.2, 0.225], [0.99, 1.01], [1.77, 1.8]]) g.fillRect(0, Y(m1), w, (m1 - m0) * 120);
+    for (let i = 0; i < 8; i++){ const x = (i + 0.5) * 15, long = i % 2 === 1, leg = i % 4 === 1, top = long ? 1.95 : 1.16, foot = leg ? 0 : 0.11;
+      g.fillRect(x - 1.5, Y(top), 3, (top - foot) * 120); g.beginPath(); g.moveTo(x, Y(top + 0.14)); g.lineTo(x + 3, Y(top + 0.06)); g.lineTo(x, Y(top)); g.lineTo(x - 3, Y(top + 0.06)); g.closePath(); g.fill();
+      if (!long){ g.lineWidth = 1.2; g.beginPath(); g.arc(x, Y(1.66), 11, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); g.beginPath(); g.arc(x, Y(1.63), 2.5, 0, TAU); g.fill(); } } }, { srgb: true });
+  // the wall's stone: rock-faced blocks a course high (0.65 m) and 1.06 m long, dark and broken, the edges of their faces pitched and paler
+  const rockT = tex(256, 160, (g, w, h) => { g.fillStyle = '#4a4034'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++){ const x = wr_() * w, y = wr_() * h, r = wn_(6, 20), q = wr_(); g.fillStyle = q < 0.45 ? `rgba(26,22,18,${wn_(0.3, 0.6)})` : q < 0.75 ? `rgba(112,96,74,${wn_(0.3, 0.55)})` : `rgba(176,156,120,${wn_(0.3, 0.55)})`;
+      g.beginPath(); for (let k = 0; k < 6; k++){ const a = k * TAU / 6 + wr_() * 0.6, rr = r * wn_(0.6, 1.1); k ? g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); }
+    for (let i = 0; i < 140; i++){ g.strokeStyle = `rgba(196,176,138,${wn_(0.25, 0.55)})`; g.lineWidth = wn_(0.6, 1.6); g.beginPath(); let x = wr_() * w, y = wr_() * h; g.moveTo(x, y); for (let k = 0; k < 4; k++){ x += wn_(-14, 14); y += wn_(-10, 10); g.lineTo(x, y); } g.stroke(); }   // (the pitched ridges, catching the light)
+    const gr = (x0, y0, x1, y1, c) => { const q = g.createLinearGradient(x0, y0, x1, y1); q.addColorStop(0, c); q.addColorStop(1, 'rgba(0,0,0,0)'); return q; };
+    g.fillStyle = gr(0, 0, 0, 14, 'rgba(196,176,140,.55)'); g.fillRect(0, 0, w, 14); g.fillStyle = gr(0, 0, 12, 0, 'rgba(196,176,140,.45)'); g.fillRect(0, 0, 12, h);   // (the face's edges, dressed, paler)
+    g.fillStyle = gr(0, h, 0, h - 12, 'rgba(10,8,6,.6)'); g.fillRect(0, h - 12, w, 12); g.fillStyle = gr(w, 0, w - 10, 0, 'rgba(10,8,6,.5)'); g.fillRect(w - 10, 0, 10, h);
+    g.fillStyle = '#16130f'; g.fillRect(0, 0, w, 2); g.fillRect(0, 0, 2, h); }, { repeat: [1 / 1.06, 1 / 0.65] });
   // the sheet: W2 a window of two lights (the long sides'), W3 of three (the back's side bays'), WP a pointed one, W4 of four (the middle
   // ones); B a cellar window; O a round window, a star in it; G a garland
   const AW = 2048, AH = 1024, R_ = { W2: [0, 0, 256, 1024], W3: [256, 0, 384, 1024], WP: [640, 0, 384, 1024], W4: [1024, 0, 384, 1024], B: [1408, 512, 256, 256], O: [1664, 0, 256, 256], G: [1664, 256, 384, 192], W5: [1664, 448, 384, 576] };
@@ -7790,41 +7799,52 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       for (const [u, v, hu, hv, ol] of HOLES) if (hu * nu + hv * nv > 0.9 && Math.abs((u - mu) * nu + (v - mv) * nv) < 0.05){ const t = (u - mu) * nv - (v - mv) * nu; if (Math.abs(t) < L / 2) sh.holes.push(new THREE.Path(ol.map(([x, y]) => V2(t + x, y)).reverse())); }
       f.geo(WL, new THREE.ShapeGeometry(sh), 0, 0, 0); } }
 
-  // ---- its yard: paved, an iron railing round it on a low wall between stone posts, along the pavement
+  // ---- its yard, paved; round it, after the drawing of such a railing, measured (at its scale a bar every 0.125 m, as before): a wall of
+  // rock-faced blocks 0.65 m high under a sandstone coping 0.1 m; on it sandstone posts every 2.2 m and between them the railing; along the
+  // front, opposite the steps, the gate: nine posts out, the railing and the wall between them gone
   { const u0 = SY.x0 - CX, u1 = SY.x1 - CX, v0 = SY.z0 - CZ, v1 = SY.z1 - CZ, y = KERB_H + 0.012;
     poly(PV, [P(u0, y, v0), P(u1, y, v0), P(u1, y, v1), P(u0, y, v1)], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], 1);
-    const runs = [[[u0, v0], [u1, v0]], [[u1, v0], [u1, v1]], [[u1, v1], [u0, v1]], [[u0, v1], [u0, v0]]], tp = 0.21, yb = KERB_H, yw = yb + 0.38, yr = yw + 1.35;
-    // a post, after the photograph, of the steps' sandstone: a plinth, a sloping skirt up to the shaft; the shaft square, a sunk panel with a
-    // round head in each of its faces; at its top a band, a cavetto flaring out under a thick projecting slab, a fillet; on that a short block
-    // and a truncated pyramid, flat on top
-    const post = (pu, pv) => { const B = STP, yS = yr + 0.05, y0 = yb + 0.2, sq = (h) => rect(pu - h, pu + h, pv - h, pv + h);
-      const frust = (h0, h1, ya, yc) => { const a = sq(h0), c = sq(h1); for (let k = 0; k < 4; k++){ const p = a[k], q = a[(k + 1) % 4], r = c[(k + 1) % 4], t = c[k]; poly(B, [P(p[0], ya, p[1]), P(q[0], ya, q[1]), P(r[0], yc, r[1]), P(t[0], yc, t[1])], [[0, 0], [1, 0], [1, 1], [0, 1]], h1 < h0 ? 1 : -1); } };
-      prism(B, sq(0.27), yb, yb + 0.1, false); frust(0.27, 0.245, yb + 0.1, yb + 0.14); prism(B, sq(0.245), yb + 0.14, yb + 0.155, false); frust(0.245, 0.212, yb + 0.155, y0);   // (the plinth, the skirt)
-      prism(B, sq(0.188), y0, yS, false);   // (the panels' face, sunk)
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]){ const a0 = pu + sx * 0.14, a1 = pu + sx * 0.21, b0 = pv + sz * 0.14, b1 = pv + sz * 0.21; prism(B, rect(Math.min(a0, a1), Math.max(a0, a1), Math.min(b0, b1), Math.max(b0, b1)), y0, yS, false); }   // (its corners)
-      for (const [nu, nv] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ const f = face(pu + nu * 0.188, pv + nv * 0.188, nu, nv), pb = y0 + 0.09, sp = yS - 0.09 - 0.14;   // (round each panel)
-        f.box(B, -0.14, 0.14, y0, pb, 0, 0.022, true, false);
-        const sh = new THREE.Shape(); sh.moveTo(-0.14, yS); sh.lineTo(-0.14, sp); sh.absarc(0, sp, 0.14, Math.PI, 0, true); sh.lineTo(0.14, yS); sh.lineTo(-0.14, yS); f.ext(B, sh, 0, 0, 0, 0.022, 10); }
-      prism(B, sq(0.225), yS, yS + 0.05, false); frust(0.225, 0.282, yS + 0.05, yS + 0.12); prism(B, sq(0.292), yS + 0.12, yS + 0.22, true, true); prism(B, sq(0.27), yS + 0.22, yS + 0.25, true);   // (the band, the cavetto, the slab, the fillet)
-      prism(B, sq(0.235), yS + 0.25, yS + 0.34, false); frust(0.235, 0.15, yS + 0.34, yS + 0.56); poly(B, sq(0.15).map(([u, v]) => P(u, yS + 0.56, v)), sq(0.15), 1); };   // (the block, the pyramid, flat on top)
-    for (const [a, b] of runs){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]), du = (b[0] - a[0]) / L, dv = (b[1] - a[1]) / L, front = a[0] === u1 && b[0] === u1, n = front ? 16 : Math.ceil(L / 3.1), st = L / n;
-      const g0 = front ? 5 : Infinity, g1 = front ? 11 : -Infinity;   // (along the front, opposite the steps, the gate: seven posts out, the railing between them gone)
-      if (front) SYN.gate = [CZ + a[1] + dv * st * (g0 - 1) + tp, CZ + a[1] + dv * st * (g1 + 1) - tp].sort((p, q) => p - q);
-      for (let k = 0; k <= n; k++){ const pu = a[0] + du * st * k, pv = a[1] + dv * st * k; if (k >= g0 && k <= g1) continue;
-        post(pu, pv);
-        if (k < n && !(k >= g0 - 1 && k <= g1)){ const qa = [pu + du * tp, pv + dv * tp], qb = [pu + du * (st - tp), pv + dv * (st - tp)], nu = -dv * 0.17, nv = du * 0.17, ea = [qa[0] - du * 0.05, qa[1] - dv * 0.05], eb = [qb[0] + du * 0.05, qb[1] + dv * 0.05];   // (ea, eb: run on into the posts, their ends hidden in them)
-          prism(STP, [[ea[0] + nu, ea[1] + nv], [eb[0] + nu, eb[1] + nv], [eb[0] - nu, eb[1] - nv], [ea[0] - nu, ea[1] - nv]], yb, yw, true);
-          const l = st - 2 * tp; poly(RL, [P(qa[0], yw, qa[1]), P(qb[0], yw, qb[1]), P(qb[0], yr, qb[1]), P(qa[0], yr, qa[1])], [[0, 0], [l / 1.2, 0], [l / 1.2, 1], [0, 1]]); FENCE.panels.push([qa, qb]); } } }
+    const runs = [[[u0, v0], [u1, v0]], [[u1, v0], [u1, v1]], [[u1, v1], [u0, v1]], [[u0, v1], [u0, v0]]], yb = KERB_H, yc = yb + 0.65, yw = yc + 0.1, WH = 0.22, CH = 0.25, K = 0.85, SH = 0.165 * K, PH = 0.231 * K;   // (K: the posts slimmer than the drawing's, so that the railing meets them cleanly)   // (the wall's top, the coping's; their half-thicknesses; the posts' shaft's, plinth's)
+    const band = (B, a, b, h, y0, y1, top = true) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), du = (b[0] - a[0]) / L, dv = (b[1] - a[1]) / L, nu = -dv * h, nv = du * h;
+      prism(B, [[a[0] + nu, a[1] + nv], [b[0] + nu, b[1] + nv], [b[0] - nu, b[1] - nv], [a[0] - nu, a[1] - nv]], y0, y1, top); };
+    // a post, after the drawing, of the steps' sandstone: a plinth on the coping, a skirt sloping in to the shaft; the shaft square, a sunk
+    // panel in each face, square-headed; a band at its top; a cavetto flaring out under the thick projecting slab; over it a cavetto drawing
+    // in, a block, and the cap, a truncated pyramid with its top flat
+    const post = (pu, pv) => { const B = STP, y0 = yw, sq = (hh) => rect(pu - hh * K, pu + hh * K, pv - hh * K, pv + hh * K), Y = (m) => y0 + m;   // (its widths the drawing's, times K)
+      const frust = (h0, h1, ya, yz) => { const a = sq(h0), c = sq(h1); for (let k = 0; k < 4; k++){ const p = a[k], q = a[(k + 1) % 4], r = c[(k + 1) % 4], t = c[k]; poly(B, [P(p[0], ya, p[1]), P(q[0], ya, q[1]), P(r[0], yz, r[1]), P(t[0], yz, t[1])], [[0, 0], [1, 0], [1, 1], [0, 1]], h1 < h0 ? 1 : -1); } };
+      prism(B, sq(0.231), Y(0), Y(0.086), true); frust(0.231, 0.2, Y(0.086), Y(0.118)); frust(0.2, 0.168, Y(0.118), Y(0.154));   // (the plinth, the skirt)
+      prism(B, sq(0.149), Y(0.154), Y(1.969), false);   // (the panels' faces, sunk)
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]){ const a0 = pu + sx * 0.123 * K, a1 = pu + sx * SH, b0 = pv + sz * 0.123 * K, b1 = pv + sz * SH; prism(B, rect(Math.min(a0, a1), Math.max(a0, a1), Math.min(b0, b1), Math.max(b0, b1)), Y(0.154), Y(1.969), false); }   // (its corners)
+      for (const [nu, nv] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ const f = face(pu + nu * 0.149 * K, pv + nv * 0.149 * K, nu, nv), e = 0.123 * K, bd = 0.106 * K;
+        f.box(B, -e, e, Y(0.154), Y(0.216), 0, 0.016 * K, true, false); f.box(B, -e, e, Y(1.95), Y(1.969), 0, 0.016 * K, false, true);   // (the panels' foot and head)
+        for (const sd of [-1, 1]) f.box(B, sd > 0 ? bd : -e, sd > 0 ? e : -bd, Y(0.216), Y(1.95), 0, 0.008, false, false); f.box(B, -bd, bd, Y(0.216), Y(0.233), 0, 0.008, true, false); f.box(B, -bd, bd, Y(1.933), Y(1.95), 0, 0.008, false, true); }   // (a bead round each panel)
+      prism(B, sq(0.168), Y(1.969), Y(2.086), false); prism(B, sq(0.158), Y(2.086), Y(2.113), false);   // (the band; the neck under the slab)
+      frust(0.158, 0.215, Y(2.113), Y(2.154)); prism(B, sq(0.245), Y(2.154), Y(2.223), true, true);   // (the cavetto, the slab)
+      frust(0.235, 0.168, Y(2.223), Y(2.25)); prism(B, sq(0.168), Y(2.25), Y(2.29), true);   // (the cavetto drawing in, the block)
+      frust(0.146, 0.098, Y(2.29), Y(2.476)); poly(B, sq(0.098).map(([u, v]) => P(u, Y(2.476), v)), sq(0.098), 1); };   // (the cap, flat on top)
+    for (const [a, b] of runs){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]), du = (b[0] - a[0]) / L, dv = (b[1] - a[1]) / L, front = a[0] === u1 && b[0] === u1, n = Math.round(L / 2.2), st = L / n;
+      const g0 = front ? 6 : Infinity, g1 = front ? 14 : -Infinity, at = (d) => [a[0] + du * d, a[1] + dv * d];   // (the gate: posts g0 to g1 out, the railing and the wall from post g0 - 1 to post g1 + 1)
+      if (front) SYN.gate = [CZ + a[1] + dv * st * (g0 - 1) + PH, CZ + a[1] + dv * st * (g1 + 1) - PH].sort((p, q) => p - q);
+      const spans = front ? [[-CH, st * (g0 - 1) + 0.26], [st * (g1 + 1) - 0.26, L - CH]] : [[-CH, L - CH]];   // (each run's wall from the corner behind it to the one before it: they meet without a face in a face)
+      for (const [d0, d1] of spans){ band(RK, at(d0 + CH - WH), at(d1 + CH - WH), WH, yb, yc, false); band(STP, at(d0), at(d1), CH, yc, yc + 0.07, true); band(STP, at(d0 + 0.03), at(d1 - 0.03), CH - 0.03, yc + 0.07, yw, true); }   // (the wall; its coping, its top edges eased)
+      for (let k = 0; k < n; k++){ if (k >= g0 && k <= g1) continue; const [pu, pv] = at(st * k); post(pu, pv);
+        if (!(k >= g0 - 1 && k <= g1)){ const qa = at(st * k + SH), qb = at(st * (k + 1) - SH); FENCE.panels.push([qa, qb]);
+          const l = st - 2 * SH; poly(RL, [P(qa[0], yw, qa[1]), P(qb[0], yw, qb[1]), P(qb[0], yw + 2.15, qb[1]), P(qa[0], yw + 2.15, qa[1])], [[0, 0], [l, 0], [l, 1], [0, 1]]); } } }
     FENCE.yw = yw;
-    // the railing itself, of wrought iron, after the old photograph and the manner of such railings: square bars every 0.12 m in three flat
-    // rails, long and short by turns; the long ones through the top rail, each ending in a cast fleur-de-lis (a turned knuckle, two leaves
-    // curling out and down to balls at their tips, a band, a faceted spear); the short ones ending in a smaller one between the middle rail and
-    // the top, a turned collar low on each (near to; further off, its picture: see the yard's railing, into the scene)
-    for (const [qa, qb] of FENCE.panels){ const L = Math.hypot(qb[0] - qa[0], qb[1] - qa[1]), du = (qb[0] - qa[0]) / L, dv = (qb[1] - qa[1]) / L, nu = -dv, nv = du, n = Math.max(2, Math.round(L / 0.12)), sp = L / n, ang = Math.atan2(-dv, du);
-      for (let i = 0; i < n; i++){ const d = (i + 0.5) * sp; (i % 2 ? FENCE.shorts : FENCE.longs).push([CX + qa[0] + du * d, yw, CZ + qa[1] + dv * d, ang]); }
+    // the railing, of wrought iron, after the drawing: round bars every 0.125 m, short and long by turns, the end ones by the posts short;
+    // below the bottom rail they stop short of the coping, but for every other long one, which goes down into it as a leg (the short ones
+    // all alike, those by the posts too); the short ones' spears at 1.16-1.30 m over the coping, between the middle rail and the frieze; the long ones' through the top rail,
+    // their spears at 1.95-2.09, a collar on each under the frieze; a stile by each post; under the top rail the frieze: over each short bar a
+    // scroll hanging from the rail like a horseshoe, its feet curling in and up, a fleur-de-lis in it
+    for (const [qa, qb] of FENCE.panels){ const L = Math.hypot(qb[0] - qa[0], qb[1] - qa[1]), du = (qb[0] - qa[0]) / L, dv = (qb[1] - qa[1]) / L, nu = -dv, nv = du, ang = Math.atan2(-dv, du);
+      // (laid out to fit its bay: a stile against each post, standing for a bar of the rhythm; between them an odd number of bars, short at both
+      // ends, all evenly spaced at as near 0.125 m as fits; the scrolls drawn in or out to their spacing)
+      const e0 = 0.022, LL = L - 2 * e0, gaps = 2 * Math.round((LL / 0.125 - 2) / 2) + 2, sp = LL / gaps, n = gaps - 1, kx = sp / 0.125;
+      for (let i = 0; i < n; i++){ const d = e0 + (i + 1) * sp, long = i % 2 === 1, leg = long && i % 4 === 1, x = CX + qa[0] + du * d, z = CZ + qa[1] + dv * d;
+        (long ? FENCE.longs : FENCE.shorts).push([x, yw, z, ang]); if (leg) FENCE.legs.push([x, yw, z, ang]); if (!long) FENCE.scrolls.push([x, yw, z, ang, kx]); }
+      for (const d of [e0, L - e0]) FENCE.stiles.push([CX + qa[0] + du * d, yw, CZ + qa[1] + dv * d, ang]);
       const ea = [qa[0] - du * 0.05, qa[1] - dv * 0.05], eb = [qb[0] + du * 0.05, qb[1] + dv * 0.05];   // (the rails let into the posts, their ends hidden in them)
-      for (const [y0, y1, w] of [[0.05, 0.076, 0.016], [0.6, 0.62, 0.012], [1.084, 1.11, 0.018]]){ prism(FN, [[ea[0] + nu * w, ea[1] + nv * w], [eb[0] + nu * w, eb[1] + nv * w], [eb[0] - nu * w, eb[1] - nv * w], [ea[0] - nu * w, ea[1] - nv * w]], yw + y0, yw + y1, true, true);
-        for (const [q, sd] of [[qa, 1], [qb, -1]]){ const g = new THREE.CylinderGeometry(0.034, 0.034, 0.02, 12); g.scale(1, 1, 1.35); g.rotateZ(-Math.PI / 2); g.rotateY(-Math.atan2(dv, du)); g.translate(CX + q[0] - du * sd * 0.014, yw + (y0 + y1) / 2, CZ + q[1] - dv * sd * 0.014); addGeo(FN, g); } } } }   // (an iron lug on the post where each rail meets it)
+      for (const [y0, y1, w] of [[0.2, 0.225, 0.011], [0.99, 1.01, 0.01], [1.77, 1.8, 0.012]]) prism(FN, [[ea[0] + nu * w, ea[1] + nv * w], [eb[0] + nu * w, eb[1] + nv * w], [eb[0] - nu * w, eb[1] - nv * w], [ea[0] - nu * w, ea[1] - nv * w]], yw + y0, yw + y1, true, true); } }
 
   // ---- the lindens' planters, one along each long side, of the steps' stone: their corners rounded; a plinth; the walls, a sunk panel
   // framed in each bay of them; a bead and a coping over them, rounded as they are; earth inside, the trees standing in it
@@ -7880,26 +7900,38 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   { const glM = new THREE.MeshStandardMaterial({ color: 0xf4ecda, roughness: 0.25, emissive: 0xffc27a, emissiveIntensity: 0 }), gm = mk(GLB, glM, false);   // (the door lamps' globes: lit as the street lamps are)
     gm.onBeforeRender = () => { glM.emissiveIntensity = 1.6 * LAMP.k.value * LAMP.b.value; }; }
   mk(STP, lampLit(soak(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: stepT, roughness: 0.9, side: THREE.DoubleSide }), 1), 1, false), 0.3)));   // (the steps and the planters: wet in the rain)
+  { const rockB = rockT.clone(); rockB.colorSpace = THREE.NoColorSpace; rockT.offset.y = rockB.offset.y = -KERB_H / 0.65;   // (the blocks' courses from the pavement)
+    mk(RK, lampLit(soak(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: rockT, bumpMap: rockB, bumpScale: 0.8, roughness: 0.95, side: THREE.DoubleSide }), 0.5), 0.8, false), 0.2))); }   // (the wall, rock-faced)
   mk(SOIL, lampLit(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: soilT, roughness: 1 }), 1.2), 0.7, false)), false);
   mk(IR, lampLit(new THREE.MeshStandardMaterial({ color: 0x4a5052, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide })));
-  { const ironM = lampLit(new THREE.MeshStandardMaterial({ color: 0x1c1d1d, metalness: 0.55, roughness: 0.42, envMap: synEnv, envMapIntensity: 0.8 }));
+  { const ironM = lampLit(new THREE.MeshStandardMaterial({ color: 0x232525, metalness: 0.55, roughness: 0.42, envMap: synEnv, envMapIntensity: 0.8 }));
     const toGeo = (B) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setIndex(B.i); return g; };
-    const at = (g, x, y, z = 0) => g.translate(x, y, z);
-    const finial = (B, y0, k) => { const lathe = (prof, seg) => new THREE.LatheGeometry(prof.map(([r, y]) => V2(r * k, y * k)), seg);
-      addGeo(B, at(lathe([[0, 0], [0.012, 0], [0.017, 0.01], [0.017, 0.018], [0.011, 0.028], [0.009, 0.04], [0.014, 0.05], [0, 0.058]], 6), 0, y0));   // (the knuckle)
-      addGeo(B, at(new THREE.BoxGeometry(0.012 * k, 0.045 * k, 0.012 * k), 0, y0 + 0.072 * k));
-      for (const sd of [-1, 1]){ const cx = sd * 0.031 * k, cy = y0 + 0.062 * k, R = 0.021 * k, t = new THREE.TorusGeometry(R, 0.0072 * k, 4, 9, 1.6 * Math.PI), a1 = sd > 0 ? -0.6 * Math.PI : 1.6 * Math.PI;   // (a leaf, curling out and down)
-        if (sd > 0) t.rotateZ(-0.6 * Math.PI); addGeo(B, at(t, cx, cy)); addGeo(B, at(new THREE.SphereGeometry(0.0105 * k, 6, 4), cx + Math.cos(a1) * R, cy + Math.sin(a1) * R)); }
-      addGeo(B, at(new THREE.BoxGeometry(0.034 * k, 0.008 * k, 0.022 * k), 0, y0 + 0.086 * k));   // (the band)
-      addGeo(B, at(lathe([[0, 0.088], [0.011, 0.09], [0.025, 0.13], [0.02, 0.16], [0, 0.212]], 4), 0, y0)); };   // (the spear, faceted)
-    const collar = (B, y0) => addGeo(B, at(new THREE.LatheGeometry([[0.011, 0], [0.017, 0.008], [0.017, 0.018], [0.012, 0.026], [0.017, 0.034], [0.017, 0.044], [0.011, 0.052]].map(([r, y]) => V2(r, y)), 6), 0, y0));
-    const LG = acc(), SG_ = acc(); addGeo(LG, at(new THREE.BoxGeometry(0.018, 1.1, 0.018), 0, 0.55)); finial(LG, 1.1, 1);
-    addGeo(SG_, at(new THREE.BoxGeometry(0.018, 0.8, 0.018), 0, 0.4)); collar(SG_, 0.2); finial(SG_, 0.8, 0.9);
+    const at = (g, x, y, z = 0) => g.translate(x, y, z), lathe = (prof, seg = 8) => new THREE.LatheGeometry([[0, prof[0][1]], ...prof, ...(prof[prof.length - 1][0] > 0 ? [[0, prof[prof.length - 1][1]]] : [])].map(([r, y]) => V2(r, y)), seg);   // (closed at both ends, so nothing shows through from below)
+    const rod = (B, y0, y1, r = 0.0125) => addGeo(B, at(new THREE.CylinderGeometry(r, r, y1 - y0, 8, 1, true), 0, (y0 + y1) / 2));
+    const spear = (B, y0) => addGeo(B, at(lathe([[0.0135, 0], [0.019, 0.006], [0.019, 0.016], [0.012, 0.022], [0.01, 0.03], [0.024, 0.062], [0.02, 0.088], [0.008, 0.122], [0, 0.142]]), 0, y0));   // (a cast lance-head on its collar)
+    const collar = (B, y0) => addGeo(B, at(lathe([[0.0125, 0], [0.019, 0.006], [0.019, 0.024], [0.0125, 0.03]]), 0, y0));
+    // the frieze's scroll (0.21 m across, from its feet 1.58 m over the coping up to the top rail): a horseshoe, its feet curling in and up;
+    // and the tuft of leaves in it
+    const scroll = (B) => { for (const sd of [-1, 1]){ const pts = [], R = 0.098, cy = 1.675;
+        for (let i = 0; i <= 10; i++){ const a = Math.PI / 2 - (Math.PI / 2 + 0.25) * i / 10; pts.push(new V3(sd * Math.cos(a) * R, cy + Math.sin(a) * R, 0)); }   // (from the top down its side)
+        const fx = sd * 0.062, fy = 1.618, r0 = 0.038; for (let i = 1; i <= 14; i++){ const t = i / 14, a = -0.25 - t * 1.55 * Math.PI, r = r0 * (1 - 0.55 * t); pts.push(new V3(fx + sd * Math.cos(a) * r, fy + Math.sin(a) * r, 0)); }   // (its foot, curling in and up)
+        addGeo(B, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 28, 0.0055, 5)); const e = pts[pts.length - 1]; addGeo(B, at(new THREE.SphereGeometry(0.009, 6, 4), e.x, e.y, e.z)); }
+      // the tuft of leaves in it, after those on the building, in the round: a tall middle leaf, two curving out, two small ones at its foot,
+      // a bud between them
+      const k_ = 0.055, yc = 1.635;
+      for (const [x, y, a, k] of [[0, 0.5, 0, 1], [-0.5, 0.18, 0.75, 0.85], [0.5, 0.18, -0.75, 0.85], [-0.28, -0.3, 0.45, 0.65], [0.28, -0.3, -0.45, 0.65], [0, 0, 0, 0.7]]){
+        const g = new THREE.SphereGeometry(1, 8, 6); g.scale(k_ * 0.42 * k, k_ * 0.8 * k, k_ * 0.32 * k); g.rotateZ(a); addGeo(B, at(g, x * k_, yc + y * k_, 0)); } };
+    const LG = acc(), SG_ = acc(), LEG = acc(), STL = acc(), SCR = acc();
+    rod(LG, 0.113, 1.95); collar(LG, 1.53); spear(LG, 1.95);   // (a long bar)
+    rod(SG_, 0.113, 1.16); spear(SG_, 1.16);   // (a short one)
+    rod(LEG, 0, 0.113);   // (a leg, from the bar's foot down into the coping)
+    rod(STL, 0.2, 1.8); collar(STL, 0.18); collar(STL, 0.97); collar(STL, 1.75); { const g = new THREE.SphereGeometry(0.018, 8, 6); at(g, 0, 1.82); addGeo(STL, g); }   // (a stile by a post: collars at the rails, a knob on top)
+    scroll(SCR);
     const c = new V3(SYN.x0 + BLOCK / 2, 0, SYN.z0 + BLOCK / 2), lod = new THREE.LOD(), near = new THREE.Group(); lod.position.copy(c); near.position.copy(c).negate();
     const rails = new THREE.Mesh(toGeo(FN), ironM); rails.castShadow = rails.receiveShadow = true; near.add(rails);
     const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Vp = new V3(), S1 = new V3(1, 1, 1);
-    for (const [geo, list] of [[toGeo(LG), FENCE.longs], [toGeo(SG_), FENCE.shorts]]){ const im = new THREE.InstancedMesh(geo, ironM, list.length);
-      list.forEach(([x, y, z, a], k) => im.setMatrixAt(k, M.compose(Vp.set(x, y, z), Q.setFromAxisAngle(UPS, a), S1))); im.castShadow = im.receiveShadow = true; near.add(im); }   // (their shadows steady: the near shadow map moves by whole texels only)
+    for (const [geo, list] of [[toGeo(LG), FENCE.longs], [toGeo(SG_), FENCE.shorts], [toGeo(LEG), FENCE.legs], [toGeo(STL), FENCE.stiles], [toGeo(SCR), FENCE.scrolls]]){ if (!list.length) continue; const im = new THREE.InstancedMesh(geo, ironM, list.length);
+      list.forEach(([x, y, z, a, kx = 1], k) => im.setMatrixAt(k, M.compose(Vp.set(x, y, z), Q.setFromAxisAngle(UPS, a), S1.set(kx, 1, 1)))); im.castShadow = im.receiveShadow = true; near.add(im); }   // (their shadows steady: the near shadow map moves by whole texels only)
     const far = mk(RL, lampLit(keepAlpha(new THREE.MeshStandardMaterial({ map: railT, alphaTest: 0.5, metalness: 0.4, roughness: 0.55, side: THREE.DoubleSide })))); scene.remove(far); far.position.copy(c).negate();
     lod.addLevel(near, 0); lod.addLevel(far, 70); scene.add(lod); }   // (the iron near to; its picture from 70 m off)
   mk(PV, lampLit(soak(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: paveT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1), 1, true), 0.3)), false);   // (the yard: wet in the rain, shallow puddles on it)
