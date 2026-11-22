@@ -652,15 +652,32 @@ const CHURCH_SQ = { gx: -3, x0: bx0(-3), x1: bx0(-3) + BLOCK, z0: bz0(-4), z1: b
 const churchCell = (gx, gz) => gx === -3 && (gz === -4 || gz === -3);
 // the Great Choral Synagogue: the block three south of the tall house across Stabu given over to it and its yard (its houses built all the
 // same and taken away, as the church's are: see buildBlock; its pavements, kerbs and lamps round it as any block's); cx, cz: its middle
-const SYN = { gx: 0, gz: 3, x0: bx0(0), x1: bx0(0) + BLOCK, z0: bz0(3), z1: bz0(3) + BLOCK, cx: bx0(0) + BLOCK - 23, cz: bz0(3) + 15.5 };
+// (in the middle of it: across, exactly; along, the building with its front steps, a metre and a half clear of the railing either end)
+const SYN = { gx: 0, gz: 3, x0: bx0(0), x1: bx0(0) + BLOCK, z0: bz0(3), z1: bz0(3) + BLOCK, cx: bx0(0) + 20.4, cz: bz0(3) + BLOCK / 2, portals: [], gate: [0, 0], trees: [] };
 const synCell = (gx, gz) => gx === SYN.gx && gz === SYN.gz;
+for (const s of [-1, 1]) for (const u of [-14, -4.7, 4.7, 14]) SYN.trees.push([SYN.cx + u, SYN.cz + s * 17.1]);   // (its lindens: four in a straight row along each long side, midway between the wall and the railing)
+// how high its front steps are at (x, z) (0 off them); and whether one may stand at (x, z), m clear of things, in its yard: in through the
+// gate in the railing, round the building, up the steps and into the doorways (see the synagogue's portals, which fill SYN.portals)
+const synStepY = (x, z) => { const u = x - SYN.cx, v = z - SYN.cz; let h = 0;
+  for (const Q of SYN.portals){ const d = u - Q.u0, dv = Math.abs(v - Q.v); if (d < Q.d0 - 0.02 || d > Q.L1 + 7 * Q.td) continue;
+    for (let q = 0; q <= 7; q++) if (dv <= Q.hw + 0.12 * q && d <= Q.L1 + Q.td * q){ h = Math.max(h, Q.y0 - Q.rs * q); break; } }
+  return h; };
+const synWalk = (x, z, m) => { const lx = x - SYN.x0, lz = z - SYN.z0, inside = lx > 0 && lx < BLOCK && lz > 0 && lz < BLOCK;
+  const dE = inside ? Math.min(lx, BLOCK - lx, lz, BLOCK - lz) : Math.hypot(Math.max(0, -lx, lx - BLOCK), Math.max(0, -lz, lz - BLOCK));
+  if (dE < m + 0.25 && !(Math.abs(x - SYN.x1) < m + 0.3 && z > SYN.gate[0] + m && z < SYN.gate[1] - m)) return false;   // (the railing, but for its gate)
+  const u = x - SYN.cx, v = z - SYN.cz, av = Math.abs(v);
+  if (av < 12.25 + m && (Math.abs(u) < 18 + m || (av < 4.5 + m && Math.abs(u) < 18.8 + m))) return false;   // (the building)
+  for (const Q of SYN.portals){ const d = u - Q.u0, dv = Math.abs(v - Q.v);   // (its portals' blocks of stone, but for their doorways)
+    if (dv < Q.px + m && d > -0.1 && d < Q.d0 + Q.D + 0.06 + m && !(dv < Q.r - m && d > Q.d0 + 0.2 + m)) return false; }
+  for (const [tx, tz] of SYN.trees) if (Math.hypot(x - tx, z - tz) < 0.4 + m) return false;   // (the lindens' trunks)
+  return true; };
 const inChurch = (x, z, m = 0) => { const u = x - CHURCH_SQ.cx, v = Math.abs(z - CHURCH_SQ.cz);   // (its footprint, roughly, for walking round it)
   return (u > -17.7 - m && u < 18.2 + m && v < 12.6 + m) || (u > -9.4 - m && u < 5.4 + m && v < 19.2 + m) || (u > -28.6 - m && u < -17 && v < 8.4 + m) || (u > 17.5 && u < 28.4 + m && v < 7.8 + m); };
 const blockOn = (gx, gz) => gx >= -7 && gx <= 7 && gz >= -9 && gz <= 8 && !homeCell(gx, gz) && !churchCell(gx, gz) && (gx * gx + gz * gz <= 57 || gz <= 5);   // (out to 440 m on the old grid; the same blocks)
 const TOWN = { x0: bx0(-6) - STREET, x1: bx0(6) + BLOCK + STREET, z0: bz0(-8) - STREET, z1: bz0(4) + BLOCK + STREET };
 const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TOWN.z0 + m || z > TOWN.z1 - m || inHome(x, z, m) || inChurch(x, z, m)) return false;
   const ax = Math.floor((x - TX0) / CELL), u = x - TX0 - ax * CELL, az = Math.floor((z - TZ0) / CELL), v = z - TZ0 - az * CELL;   // (not into a block, nor within m of its fronts)
-  for (const a of [u <= BLOCK + m ? ax : null, u >= CELL - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= blockD(az) + m ? az : null, v >= CELL - m ? az + 1 : null]) if (b !== null && blockOn(a, b)) return false;
+  for (const a of [u <= BLOCK + m ? ax : null, u >= CELL - m ? ax + 1 : null]) if (a !== null) for (const b of [v <= blockD(az) + m ? az : null, v >= CELL - m ? az + 1 : null]) if (b !== null && blockOn(a, b) && !(synCell(a, b) && synWalk(x, z, m))) return false;
   return true; };
 // within o of the rectangle, its corners rounded to r (the kerb's line round a block)
 const inRound = (x, z, x0, x1, z0, z1, o, r) => { const dx = Math.abs(x - (x0 + x1) / 2), dz = Math.abs(z - (z0 + z1) / 2), hx = (x1 - x0) / 2 + o, hz = (z1 - z0) / 2 + o;
@@ -693,6 +710,7 @@ function lampLit(mat){ return shaderChain(mat, 'lampLit', (sh) => {
         if (L < 2 && abs(w.y - ${f(bz0(WIDE.gz) + BLOCK + STREET / 2)}) < 0.5) w.y = ${f((bz1(WIDE.gz) + bz0(WIDE.gz + 1)) / 2)};   // (the wide street's, over its middle)
         if (w.x > -76.0 && w.x < 86.0 && w.y > -207.0 && w.y < -45.0) continue;   // (none in our yard)
         if (w.x > ${f(CHURCH_SQ.x0)} && w.x < ${f(CHURCH_SQ.x1)} && w.y > ${f(CHURCH_SQ.z0)} && w.y < ${f(CHURCH_SQ.z1)}) continue;   // (nor in the church's square)
+        if (L > 0 && length(w - vec2(${f(SYN.x0 + BLOCK / 2)}, ${f(SYN.z0 + BLOCK / 2)})) < 31.0) continue;   // (nor halfway along the synagogue's sides)
         if (w.x < ${f(TOWN.x0 - m)} || w.x > ${f(TOWN.x1 + m)} || w.y < ${f(TOWN.z0 - m)} || w.y > ${f(TOWN.z1 + m)}) continue;
         vec3 dw = vec3(w.x, ${f(LAMP.y)}, w.y) - vLampWP; float d2 = dot(dw, dw); if (d2 > 1024.0) continue;
         float on = lampOn(id, float(L), uLampT); if (on <= 0.0) continue;
@@ -844,7 +862,7 @@ const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandar
     mesh(ZB, lampLit(wetRoof(snowify(new THREE.MeshStandardMaterial({ color: '#dcd9d0', alphaMap: T.zebra, transparent: true, opacity: 0.78, depthWrite: false, roughness: 0.75 }), 1), 0.9, false)), 0.02); }
   { // the street lamps (see LAMP): a dark dished shade over an opal glass globe, its neck up to where the wires meet; the wires out to the house
     // fronts across the street (at a crossing, to its corners), and the feeder along the street from lamp to lamp; and a glow round each lit one
-    const cellK = (gx, gz) => homeCell(gx, gz) ? 2 : blockOn(gx, gz) ? 1 : 0, LS = [], lr = mkRng(19840905);
+    const cellK = (gx, gz) => homeCell(gx, gz) ? 2 : blockOn(gx, gz) && !synCell(gx, gz) ? 1 : 0, LS = [], lr = mkRng(19840905);   // (no wires to the synagogue's yard)
     const homeFront = x => x < GATE_X0 || x > WOOD.x1 + 0.4;   // (our side of Stabu has no wall to take a wire at the gateway, nor at the wooden house, set back)
     const add = (L, x, z, A) => { const i = Math.round((x - LAMP.O[L][0]) / CELL), j = Math.round((z - LAMP.O[L][1]) / CELL); LS.push({ L, x, z, A, i, j, dead: LAMP.dead(i, j, L) }); };
     for (let gx = -8; gx <= 7; gx++) for (let gz = -10; gz <= 7; gz++){
@@ -3842,6 +3860,7 @@ function surf(x, z){
   for (const I of INDS){ if (Math.abs(x - I.cx) < I.hw && z > I.z0 - 0.35 && z < I.z1 + 0.35){ const y = I.H + I.peak * (1 - Math.abs(x - I.cx) / I.hw); if (y > h){ h = y; surfKind = 'tin'; } } }
   for (const s of SHEDS){ if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1){ const y = 2.25 - (z - s.zc) * 0.12; if (y > h){ h = y; surfKind = 'tar'; } } }
   if (Math.hypot(x + 27, z + 98) < 1.35){ h = 24; surfKind = 'tin'; }
+  if (x > SYN.x1 - 9 && x < SYN.x1 && z > SYN.z0 && z < SYN.z1){ const y = synStepY(x, z); if (y > h) h = y; }   // (the synagogue's front steps)
   if (z > LANE_END - 0.3 && z < STABU_FRONT + 0.3 && x > -76.3 && x < 86.3 && (x < GATE_X0 + 0.3 || x > GATE_X1 - 0.3) && !(x > WOOD.x0 - 0.3 && x < WOOD.x1 + 0.3 && (z < WOOD.zb - 0.3 || z > WOOD.zf + 0.3))){ h = 40; surfKind = 'tin'; }   // the houses on Stabu iela
   return h;
 }
@@ -7111,7 +7130,8 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   // Their leaves heart-shaped, finely toothed, out in May, going yellow in October; bare in winter
   { const lr = mkRng(18640602), ln = (a, b) => a + (b - a) * lr(), up = new V3(0, 1, 0), segs = [], spots = [];
     const places = []; for (const [z0, z1] of [[SQ.z1 - 19, SQ.z1 - 6], [SQ.z0 + 6, SQ.z0 + 19]]) for (let x = SQ.x0 + 5; x <= SQ.x1 - 5; x += ln(9.5, 12)){ let z = ln(z0, z1); const j = ln(-1, 1), e = 32.5 * Math.sqrt(Math.max(0, 1 - ((x - CX) / 43) ** 2)) + 0.1; if (Math.abs(z - CZ) < e) z = z < CZ ? CZ - e : CZ + e; places.push([x + j, z]); }   // (clear of the pavement round the ring)
-    for (const [x, z] of places){ const H = ln(11.5, 14), R = ln(3.6, 4.4), hc = H * 0.6, hh = H * 0.42, env = h => R * Math.sqrt(Math.max(0, 1 - ((h - hc) / hh) ** 2)), tips = [];
+    for (const [x, z] of SYN.trees) places.push([x, z, 0.8]);   // (and the synagogue's, in their rows: after these, so these are as they were)
+    for (const [x, z, kR = 1] of places){ const H = ln(11.5, 14), R = ln(3.6, 4.4) * kR, hc = H * 0.6, hh = H * 0.42, env = h => R * Math.sqrt(Math.max(0, 1 - ((h - hc) / hh) ** 2)), tips = [];
       const seg = (a, b, r0, r1) => segs.push({ a: a.clone(), b: b.clone(), r0, r1 });
       let p = new V3(x, 0, z), d = new V3(ln(-0.04, 0.04), 1, ln(-0.04, 0.04)).normalize(); const nodes = [];   // the trunk and its leader, wandering a little as it rises
       for (let i = 0, n = 10; i < n; i++){ const t0 = i / n, t1 = (i + 1) / n, nx = p.clone().addScaledVector(d, H * 0.88 / n);
@@ -7706,7 +7726,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
       for (const e of [lo, hi]) f.geo(TM, new THREE.CylinderGeometry(0.07, 0.07, 0.22, 10).rotateX(Math.PI / 2), e, ys - 0.12, df + 0.1);
       const o = new THREE.TorusGeometry(0.1 * k, 0.025, 5, 16); o.scale(0.8, 1.25, 1); f.geo(TM, o, m, (ys + yE) / 2, df + 0.08); }
     // (the landing, and seven steps down from it, each wider and further out than the one over it, their ends rounded, as the model's are)
-    const hw = PX + 0.3, L1 = df + 0.35, rs = y0 / 8, td = 0.31;
+    const hw = PX + 0.3, L1 = df + 0.35, rs = y0 / 8, td = 0.31; SYN.portals.push({ u0: f.L(c, 0)[0], v: f.L(c, 0)[1], d0, D, px: PX + 0.14, r, hw, y0, L1, td, rs });   // (for walking up them: see synWalk)
     for (let q = 0; q <= 7; q++){ const hq = hw + 0.12 * q, Lq = L1 + td * q, rq = Math.min(0.3 + 0.12 * q, Lq - d0 - 0.1), pts = [[c - hq, d0 - 0.02]];
       for (let i = 0; i <= 8; i++){ const a = Math.PI - Math.PI / 2 * i / 8; pts.push([c - hq + rq + rq * Math.cos(a), Lq - rq + rq * Math.sin(a)]); }
       for (let i = 0; i <= 8; i++){ const a = Math.PI / 2 - Math.PI / 2 * i / 8; pts.push([c + hq - rq + rq * Math.cos(a), Lq - rq + rq * Math.sin(a)]); }
@@ -7767,12 +7787,14 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   { const u0 = SY.x0 - CX, u1 = SY.x1 - CX, v0 = SY.z0 - CZ, v1 = SY.z1 - CZ, y = KERB_H + 0.012;
     poly(PV, [P(u0, y, v0), P(u1, y, v0), P(u1, y, v1), P(u0, y, v1)], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], 1);
     const runs = [[[u0, v0], [u1, v0]], [[u1, v0], [u1, v1]], [[u1, v1], [u0, v1]], [[u0, v1], [u0, v0]]], tp = 0.21, yb = KERB_H, yw = yb + 0.38, yr = yw + 1.35;
-    for (const [a, b] of runs){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]), du = (b[0] - a[0]) / L, dv = (b[1] - a[1]) / L, n = Math.ceil(L / 3.1), st = L / n;
-      for (let k = 0; k <= n; k++){ const pu = a[0] + du * st * k, pv = a[1] + dv * st * k;
+    for (const [a, b] of runs){ const L = Math.hypot(b[0] - a[0], b[1] - a[1]), du = (b[0] - a[0]) / L, dv = (b[1] - a[1]) / L, front = a[0] === u1 && b[0] === u1, n = front ? 16 : Math.ceil(L / 3.1), st = L / n;
+      const g0 = front ? 5 : Infinity, g1 = front ? 11 : -Infinity;   // (along the front, opposite the steps, the gate: seven posts out, the railing between them gone)
+      if (front) SYN.gate = [CZ + a[1] + dv * st * (g0 - 1) + tp, CZ + a[1] + dv * st * (g1 + 1) - tp].sort((p, q) => p - q);
+      for (let k = 0; k <= n; k++){ const pu = a[0] + du * st * k, pv = a[1] + dv * st * k; if (k >= g0 && k <= g1) continue;
         prism(TM, rect(pu - tp, pu + tp, pv - tp, pv + tp), yb, yr + 0.3, false); prism(TM, rect(pu - tp - 0.05, pu + tp + 0.05, pv - tp - 0.05, pv + tp + 0.05), yr + 0.3, yr + 0.42, true);
         poly(TM, [P(pu - tp, yr + 0.42, pv - tp), P(pu + tp, yr + 0.42, pv - tp), P(pu, yr + 0.68, pv)], [[0, 0], [1, 0], [0.5, 1]]); poly(TM, [P(pu + tp, yr + 0.42, pv - tp), P(pu + tp, yr + 0.42, pv + tp), P(pu, yr + 0.68, pv)], [[0, 0], [1, 0], [0.5, 1]]);
         poly(TM, [P(pu + tp, yr + 0.42, pv + tp), P(pu - tp, yr + 0.42, pv + tp), P(pu, yr + 0.68, pv)], [[0, 0], [1, 0], [0.5, 1]]); poly(TM, [P(pu - tp, yr + 0.42, pv + tp), P(pu - tp, yr + 0.42, pv - tp), P(pu, yr + 0.68, pv)], [[0, 0], [1, 0], [0.5, 1]]);
-        if (k < n){ const qa = [pu + du * tp, pv + dv * tp], qb = [pu + du * (st - tp), pv + dv * (st - tp)], nu = -dv * 0.17, nv = du * 0.17;
+        if (k < n && !(k >= g0 - 1 && k <= g1)){ const qa = [pu + du * tp, pv + dv * tp], qb = [pu + du * (st - tp), pv + dv * (st - tp)], nu = -dv * 0.17, nv = du * 0.17;
           prism(TM, [[qa[0] + nu, qa[1] + nv], [qb[0] + nu, qb[1] + nv], [qb[0] - nu, qb[1] - nv], [qa[0] - nu, qa[1] - nv]], yb, yw, true);
           const l = st - 2 * tp; poly(RL, [P(qa[0], yw, qa[1]), P(qb[0], yw, qb[1]), P(qb[0], yr, qb[1]), P(qa[0], yr, qa[1])], [[0, 0], [l / 1.2, 0], [l / 1.2, 1], [0, 1]]); } } } }
 
@@ -9464,7 +9486,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     if (Math.abs(x) < 17.9) box(-17.9, 17.9, BZ - 12, BZ + 0.015, 'wall');
     for (const I of INDS) box(I.x0, I.x1, I.z0, I.z1, 'workshop');
     if (!inHome(x, z) || z > STABU_FRONT - 3){ box(-76, GATE_X0, LANE_END, STABU_FRONT, 'house'); box(-76, -63, -194, LANE_END, 'house'); box(73, 86, -194, LANE_END, 'house'); box(-76, 86, -207, -194, 'house'); box(WOOD.x1, 86, LANE_END, STABU_FRONT, 'house'); box(WOOD.x0, WOOD.x1, WOOD.zb, WOOD.zf, 'house');   // the houses in the town
-      const ax = Math.floor((x - TX0 + STREET / 2) / CELL), az = Math.floor((z - TZ0 + STREET / 2) / CELL); for (let gx = ax - 1; gx <= ax + 1; gx++) for (let gz = az - 1; gz <= az + 1; gz++) if (blockOn(gx, gz)) box(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz1(gz), 'house'); }
+      const ax = Math.floor((x - TX0 + STREET / 2) / CELL), az = Math.floor((z - TZ0 + STREET / 2) / CELL); for (let gx = ax - 1; gx <= ax + 1; gx++) for (let gz = az - 1; gz <= az + 1; gz++) if (blockOn(gx, gz)){ if (synCell(gx, gz)) box(SYN.cx - 18, SYN.cx + 18, SYN.cz - 12.25, SYN.cz + 12.25, 'wall'); else box(bx0(gx), bx0(gx) + BLOCK, bz0(gz), bz1(gz), 'house'); } }
     return out.filter(c => !lilacData.some(L => Math.hypot(c.w.x - L.p.x, c.w.z - L.p.z) < 0.95 * L.s + 0.8)); };   // (not into a lilac)
   const PARKSAY = { chestnut: 'I leaned my bike against the chestnut.', rowan: 'I leaned my bike against the rowan.', fence: 'I leaned my bike against the garden fence.', garages: 'I leaned my bike against the garages.',
     wall: 'I leaned my bike against the wall.', house: 'I leaned my bike against the house.', workshop: 'I leaned my bike against the workshop wall.' };
