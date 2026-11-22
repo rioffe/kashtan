@@ -653,7 +653,7 @@ const churchCell = (gx, gz) => gx === -3 && (gz === -4 || gz === -3);
 // the Great Choral Synagogue: the block three south of the tall house across Stabu given over to it and its yard (its houses built all the
 // same and taken away, as the church's are: see buildBlock; its pavements, kerbs and lamps round it as any block's); cx, cz: its middle
 // (in the middle of it: across, exactly; along, the building with its front steps, a metre and a half clear of the railing either end)
-const SYN = { gx: 0, gz: 3, x0: bx0(0), x1: bx0(0) + BLOCK, z0: bz0(3), z1: bz0(3) + BLOCK, cx: bx0(0) + 20.4, cz: bz0(3) + BLOCK / 2, portals: [], gate: [0, 0], trees: [] };
+const SYN = { gx: 0, gz: 3, x0: bx0(0), x1: bx0(0) + BLOCK, z0: bz0(3), z1: bz0(3) + BLOCK, cx: bx0(0) + 20.4, cz: bz0(3) + BLOCK / 2, portals: [], gate: [0, 0], trees: [], pl: { hu: 16.2, hv: 1.3, vc: 17.1, r: 0.6 } };   // (pl: the planters the lindens stand in, along each long side)
 const synCell = (gx, gz) => gx === SYN.gx && gz === SYN.gz;
 for (const s of [-1, 1]) for (const u of [-14, -4.7, 4.7, 14]) SYN.trees.push([SYN.cx + u, SYN.cz + s * 17.1]);   // (its lindens: four in a straight row along each long side, midway between the wall and the railing)
 // how high its front steps are at (x, z) (0 off them); and whether one may stand at (x, z), m clear of things, in its yard: in through the
@@ -669,7 +669,7 @@ const synWalk = (x, z, m) => { const lx = x - SYN.x0, lz = z - SYN.z0, inside = 
   if (av < 12.25 + m && (Math.abs(u) < 18 + m || (av < 4.5 + m && Math.abs(u) < 18.8 + m))) return false;   // (the building)
   for (const Q of SYN.portals){ const d = u - Q.u0, dv = Math.abs(v - Q.v);   // (its portals' blocks of stone, but for their doorways)
     if (dv < Q.px + m && d > -0.1 && d < Q.d0 + Q.D + 0.06 + m && !(dv < Q.r - m && d > Q.d0 + 0.2 + m)) return false; }
-  for (const [tx, tz] of SYN.trees) if (Math.hypot(x - tx, z - tz) < 0.4 + m) return false;   // (the lindens' trunks)
+  if (Math.abs(u) < SYN.pl.hu + m && Math.abs(av - SYN.pl.vc) < SYN.pl.hv + m) return false;   // (the planters the lindens stand in)
   return true; };
 const inChurch = (x, z, m = 0) => { const u = x - CHURCH_SQ.cx, v = Math.abs(z - CHURCH_SQ.cz);   // (its footprint, roughly, for walking round it)
   return (u > -17.7 - m && u < 18.2 + m && v < 12.6 + m) || (u > -9.4 - m && u < 5.4 + m && v < 19.2 + m) || (u > -28.6 - m && u < -17 && v < 8.4 + m) || (u > 17.5 && u < 28.4 + m && v < 7.8 + m); };
@@ -7229,7 +7229,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
    proportions: 36 m by 24.5, the middle gable 23.5 m to its top. The yard paved, an iron railing on stone posts round it. Local u along it
    (its front at +u, to the east), v across it (its north side at -v) ---------- */
 { const SY = SYN, CX = SY.cx, CZ = SY.cz, UPS = new V3(0, 1, 0);
-  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc(), DWD = acc(), DWK = acc(), IRN = acc(), KH = acc(), STP = acc(), GLB = acc();
+  const acc = () => ({ p: [], n: [], uv: [], i: [] }), WL = acc(), TM = acc(), PB = acc(), RF = acc(), WN = acc(), GD = acc(), IR = acc(), RL = acc(), PV = acc(), DWD = acc(), DWK = acc(), IRN = acc(), KH = acc(), STP = acc(), GLB = acc(), SOIL = acc();
   const P = (u, y, v) => [CX + u, y, CZ + v];
   // a flat polygon, its corners in order; its normal from them (up 1: turned to face the sky, -1: the ground); uv per corner
   const poly = (B, pts, uvs, up = 0) => { const a = pts[0], b = pts[1], c = pts[pts.length - 1];
@@ -7287,6 +7287,13 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   const synEnv = tex(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6d9ad0'); gr.addColorStop(0.42, '#d8e4ee'); gr.addColorStop(0.5, '#c9bba0'); gr.addColorStop(0.62, '#8f8672'); gr.addColorStop(0.7, '#5d5a54'); gr.addColorStop(1, '#3a3936'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += wn_(10, 26)){ const bh = wn_(6, 16), t = wn_(0.85, 1.1); g.fillStyle = `rgb(${200 * t | 0},${186 * t | 0},${160 * t | 0})`; g.fillRect(x, h / 2 - bh, wn_(8, 24), bh + 6); g.fillStyle = 'rgba(40,46,54,.6)'; for (let y = h / 2 - bh + 2; y < h / 2 + 4; y += 4) for (let xx = x + 2; xx < x + 20; xx += 5) g.fillRect(xx, y, 2, 2); } }, { srgb: true });
   synEnv.mapping = THREE.EquirectangularReflectionMapping;
+  const soilT = tex(256, 256, (g, w, h) => { g.fillStyle = '#3a2a1f'; g.fillRect(0, 0, w, h);   // the planters' bed: dark earth under periwinkle, evergreen, its little leaves in pairs, blue flowers here and there (tile 0.8 m)
+    for (let i = 0; i < 400; i++){ g.fillStyle = wr_() < 0.5 ? `rgba(20,14,9,${wn_(0.3, 0.6)})` : `rgba(96,72,50,${wn_(0.2, 0.5)})`; g.beginPath(); g.ellipse(wr_() * w, wr_() * h, wn_(0.6, 2.4), wn_(0.5, 1.6), wr_() * 3, 0, TAU); g.fill(); }
+    for (let i = 0; i < 2600; i++){ const x = wr_() * w, y = wr_() * h, a = wr_() * TAU, L = wn_(3.5, 6.5), t = wn_(0.7, 1.15);
+      for (const sd of [-1, 1]){ const lx = x + Math.cos(a + sd * 0.35) * L * 0.55, ly = y + Math.sin(a + sd * 0.35) * L * 0.55;
+        g.fillStyle = `rgb(${62 * t | 0},${118 * t | 0},${52 * t | 0})`; g.beginPath(); g.ellipse(lx, ly, L * 0.55, L * 0.27, a + sd * 0.35, 0, TAU); g.fill();
+        g.fillStyle = `rgba(160,200,140,${wn_(0.12, 0.3)})`; g.beginPath(); g.ellipse(lx - 0.6, ly - 0.6, L * 0.3, L * 0.1, a + sd * 0.35, 0, TAU); g.fill(); } }
+    for (let i = 0; i < 40; i++){ const x = wr_() * w, y = wr_() * h; for (let q = 0; q < 5; q++){ const a = q * TAU / 5; g.fillStyle = '#6f78c8'; g.beginPath(); g.ellipse(x + Math.cos(a) * 1.8, y + Math.sin(a) * 1.8, 1.7, 1.1, a, 0, TAU); g.fill(); } g.fillStyle = '#e8e4f4'; g.beginPath(); g.arc(x, y, 0.8, 0, TAU); g.fill(); } }, { repeat: [1 / 0.8, 1 / 0.8] });
   const stepT = tex(256, 256, (g, w, h) => { g.fillStyle = '#cfc6b3'; g.fillRect(0, 0, w, h);   // plain sandstone, worn (tile 1.2 m)
     for (let i = 0; i < 900; i++){ g.fillStyle = wr_() < 0.55 ? `rgba(110,100,82,${wn_(0.04, 0.12)})` : `rgba(240,234,220,${wn_(0.04, 0.1)})`; g.fillRect(wr_() * w, wr_() * h, wn_(1, 8), wn_(1, 5)); }
     g.fillStyle = 'rgba(90,82,68,.35)'; g.fillRect(0, 0, w, 2); g.fillRect(0, 0, 2, h); g.fillRect(w / 2, 0, 2, h); }, { repeat: [1 / 1.2, 1 / 1.2] });
@@ -7798,6 +7805,25 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
           prism(TM, [[qa[0] + nu, qa[1] + nv], [qb[0] + nu, qb[1] + nv], [qb[0] - nu, qb[1] - nv], [qa[0] - nu, qa[1] - nv]], yb, yw, true);
           const l = st - 2 * tp; poly(RL, [P(qa[0], yw, qa[1]), P(qb[0], yw, qb[1]), P(qb[0], yr, qb[1]), P(qa[0], yr, qa[1])], [[0, 0], [l / 1.2, 0], [l / 1.2, 1], [0, 1]]); } } } }
 
+  // ---- the lindens' planters, one along each long side, of the steps' stone: their corners rounded; a plinth; the walls, a sunk panel
+  // framed in each bay of them; a bead and a coping over them, rounded as they are; earth inside, the trees standing in it
+  { const { hu, hv, vc, r } = SYN.pl, yb = KERB_H;
+    const rr = (P_, uc, vv, a, b, rad) => { const x0 = uc - a, x1 = uc + a, y0 = -(vv + b), y1 = -(vv - b); P_.moveTo(x0 + rad, y0); P_.lineTo(x1 - rad, y0); P_.absarc(x1 - rad, y0 + rad, rad, -Math.PI / 2, 0, false);
+      P_.lineTo(x1, y1 - rad); P_.absarc(x1 - rad, y1 - rad, rad, 0, Math.PI / 2, false); P_.lineTo(x0 + rad, y1); P_.absarc(x0 + rad, y1 - rad, rad, Math.PI / 2, Math.PI, false); P_.lineTo(x0, y0 + rad); P_.absarc(x0 + rad, y0 + rad, rad, Math.PI, 1.5 * Math.PI, false); return P_; };
+    const slab = (B, vv, g, gi, y0, y1) => { const sh = rr(new THREE.Shape(), 0, vv, hu + g, hv + g, r + g); if (gi !== null) sh.holes.push(rr(new THREE.Path(), 0, vv, hu - gi, hv - gi, Math.max(0.05, r - gi)));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: y1 - y0, bevelEnabled: false, curveSegments: 10 }); geo.rotateX(-Math.PI / 2); geo.translate(CX, y0, CZ); addGeo(B, geo); };
+    for (const s of [-1, 1]){ const vv = s * vc;
+      slab(STP, vv, 0.09, null, yb - 0.01, yb + 0.14); slab(STP, vv, 0.04, null, yb + 0.14, yb + 0.2);   // (the plinth, in two)
+      slab(STP, vv, 0, 0.26, yb + 0.2, yb + 0.62); slab(STP, vv, 0.03, 0.26, yb + 0.62, yb + 0.66); slab(STP, vv, 0.08, 0.3, yb + 0.66, yb + 0.78);   // (the walls, the bead, the coping)
+      slab(SOIL, vv, -0.26, null, yb + 0.56, yb + 0.63);   // (the bed, under its periwinkle)
+      for (const side of [-1, 1]){ const f = face(0, vv + side * hv, 0, side), n = 8, w = (2 * (hu - r) - (n + 1) * 0.3) / n;   // (the sunk panels: their frames, along the long walls)
+        for (let k = 0; k < n; k++){ const t0 = -(hu - r) + 0.3 + k * (w + 0.3), t1 = t0 + w, y0 = yb + 0.28, y1 = yb + 0.54, q = 0.045;
+          f.box(STP, t0, t1, y0, y0 + q, 0, 0.03); f.box(STP, t0, t1, y1 - q, y1, 0, 0.03); f.box(STP, t0, t0 + q, y0 + q, y1 - q, 0, 0.03, false, false); f.box(STP, t1 - q, t1, y0 + q, y1 - q, 0, 0.03, false, false); } }
+      for (const end of [-1, 1]){ const f = face(end * hu, vv, end, 0), w = 2 * (hv - r) - 0.2, y0 = yb + 0.28, y1 = yb + 0.54, q = 0.045;   // (and one at each end)
+        f.box(STP, -w / 2, w / 2, y0, y0 + q, 0, 0.03); f.box(STP, -w / 2, w / 2, y1 - q, y1, 0, 0.03); f.box(STP, -w / 2, -w / 2 + q, y0 + q, y1 - q, 0, 0.03, false, false); f.box(STP, w / 2 - q, w / 2, y0 + q, y1 - q, 0, 0.03, false, false); } } }
+
+  const soak = (mat, k) => shaderChain(mat, 'soak' + k, (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  diffuseColor.rgb *= 1.0 - ${k.toFixed(2)} * rw;`); });   // (stone soaks up the rain and goes darker than a roof does)
   // ---- into the scene
   const mk = (B, mat, cast = true) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2)); g.setIndex(B.i);
     const m = new THREE.Mesh(g, mat); m.castShadow = cast; m.receiveShadow = true; scene.add(m); return m; };
@@ -7832,10 +7858,11 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
   mk(KH, new THREE.MeshStandardMaterial({ color: 0x0b0a09, roughness: 0.9, side: THREE.DoubleSide }), false);
   { const glM = new THREE.MeshStandardMaterial({ color: 0xf4ecda, roughness: 0.25, emissive: 0xffc27a, emissiveIntensity: 0 }), gm = mk(GLB, glM, false);   // (the door lamps' globes: lit as the street lamps are)
     gm.onBeforeRender = () => { glM.emissiveIntensity = 1.6 * LAMP.k.value * LAMP.b.value; }; }
-  mk(STP, lampLit(snowify(new THREE.MeshStandardMaterial({ map: stepT, roughness: 0.9, side: THREE.DoubleSide }), 1)));
+  mk(STP, lampLit(soak(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: stepT, roughness: 0.9, side: THREE.DoubleSide }), 1), 1, false), 0.3)));   // (the steps and the planters: wet in the rain)
+  mk(SOIL, lampLit(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: soilT, roughness: 1 }), 1.2), 0.7, false)), false);
   mk(IR, lampLit(new THREE.MeshStandardMaterial({ color: 0x4a5052, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide })));
   mk(RL, lampLit(keepAlpha(new THREE.MeshStandardMaterial({ map: railT, alphaTest: 0.5, metalness: 0.4, roughness: 0.55, side: THREE.DoubleSide }))));
-  mk(PV, lampLit(snowify(new THREE.MeshStandardMaterial({ map: paveT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1)), false);
+  mk(PV, lampLit(soak(wetRoof(snowify(new THREE.MeshStandardMaterial({ map: paveT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), 1), 1, true), 0.3)), false);   // (the yard: wet in the rain, shallow puddles on it)
   // the cornice's consoles, after the photographs: scrolled, a flat top under the corona, a little volute at the front, a hollow under it
   // sweeping back to a big volute against the wall
   const consoleGeo = (() => { const pts = [[-0.26, 0.15], [0.26, 0.15], [0.27, 0.03]];
