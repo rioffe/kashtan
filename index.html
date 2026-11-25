@@ -601,8 +601,11 @@ function drawStucco(g, w, h, ppm){
   for (let i = 0; i < w * h / 500; i++){ const l = rnd(-1, 1); blot(g, rng() * w, rng() * h, rnd(6, 40),
     l > 0 ? `rgba(255,252,240,${l * 0.07})` : `rgba(40,38,32,${-l * 0.09})`); }
   speckle(g, w, h, w * h / 60, ['rgba(60,58,50,.25)', 'rgba(240,238,230,.25)'], 0.5, 1.4);
-  for (let i = 0; i < w / 28; i++){ const x = rng() * w, len = rnd(0.15, 0.85) * h, ww = rnd(6, 60);
-    const gr = g.createLinearGradient(0, 0, 0, len); gr.addColorStop(0, 'rgba(72,62,48,.42)'); gr.addColorStop(1, 'rgba(72,62,48,0)'); g.fillStyle = gr; g.fillRect(x, 0, ww, len); }
+  // rain run down from the eaves: each streak soft at its edges and tapering (laid narrower and longer over itself), some faint, a few dark.
+  // (How dark from where it is, so the world's draws stay as they were)
+  for (let i = 0; i < w / 28; i++){ const x = rng() * w, len = rnd(0.15, 0.85) * h, ww = rnd(6, 60), k = (x * 0.618034) % 1, a = (0.09 + 0.3 * k * k) / 2.5;
+    for (let s = 1; s <= 4; s++){ const sw = ww * s / 4, sl = len * (1.1 - 0.1 * s), gr = g.createLinearGradient(0, 0, 0, sl);
+      gr.addColorStop(0, `rgba(72,62,48,${a})`); gr.addColorStop(1, 'rgba(72,62,48,0)'); g.fillStyle = gr; g.fillRect(x + (ww - sw) / 2, 0, sw, sl); } }
   const dh = 2.2 * ppm, gb = g.createLinearGradient(0, h, 0, h - dh);
   gb.addColorStop(0, 'rgba(58,54,44,.55)'); gb.addColorStop(1, 'rgba(58,54,44,0)'); g.fillStyle = gb; g.fillRect(0, h - dh, w, dh);
   g.fillStyle = '#6c6860'; g.fillRect(0, h - 0.6 * ppm, w, 0.6 * ppm);
@@ -1088,11 +1091,10 @@ const sideTex = tex(768, 672, (g, w, h) => {
   drawStucco(g, w, h, w / BD);
   g.fillStyle = '#5c5f62'; g.fillRect(w * 0.08, 0, 7, h); g.fillRect(w * 0.9, 0, 7, h);
 });
-const roofTex = tex(512, 512, (g, w, h) => {
+const roofTex = tex(512, 512, (g, w, h) => {   // (just the standing seams: the rust comes from tinRust, from where the roof is)
   g.fillStyle = '#55585a'; g.fillRect(0, 0, w, h);
   for (let x = 0; x < w; x += 32){ g.fillStyle = 'rgba(200,200,200,.18)'; g.fillRect(x, 0, 3, h); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 3, 0, 2, h); }
-  for (let i = 0; i < 40; i++){ const x = rng() * w, y = rng() * h; const gr = g.createLinearGradient(0, y, 0, y + 160);
-    gr.addColorStop(0, 'rgba(130,70,30,.5)'); gr.addColorStop(1, 'rgba(130,70,30,0)'); g.fillStyle = gr; g.fillRect(x, y, rnd(8, 40), 160); }
+  for (let i = 0; i < 120; i++) rng();   // (the 40 stains it once drew still take their draws, so the rest of the world stays as it was)
 }, { repeat: [0.25, 0.25] });
 {
   const front = winLit(snowify(new THREE.MeshStandardMaterial({ map: facadeTex, emissiveMap: facadeEm, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.95 })), 4.5);
@@ -1103,9 +1105,13 @@ const roofTex = tex(512, 512, (g, w, h) => {
   const b = new THREE.Mesh(new THREE.BoxGeometry(BW, BH, BD), [side, side, plain, plain, front, back]);
   b.position.set(0, BH / 2, BZ - BD / 2); b.castShadow = b.receiveShadow = true; scene.add(b);
   const shape = new THREE.Shape([new THREE.Vector2(-BD / 2 - 0.4, 0), new THREE.Vector2(BD / 2 + 0.4, 0), new THREE.Vector2(0, 2.4)]);
-  const rg = new THREE.ExtrudeGeometry(shape, { depth: BW + 0.8, bevelEnabled: false }); rg.rotateY(Math.PI / 2);
-  const roof = new THREE.Mesh(rg, wetRoof(snowify(new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.7, metalness: 0.3 }), 1.2)));
+  const rg = new THREE.ExtrudeGeometry(shape, { depth: BW + 0.8, bevelEnabled: false });
+  { const p = rg.attributes.position, uv = rg.attributes.uv, S = rg.groups[1];   // the slopes: the seams (roofTex's stripes, across u) down the slope, so u along the building
+    for (let i = S.start; i < S.start + S.count; i++) uv.setXY(i, p.getZ(i), p.getX(i)); }
+  rg.rotateY(Math.PI / 2);
+  const roof = new THREE.Mesh(rg, wetRoof(tinRust(snowify(new THREE.MeshStandardMaterial({ map: roofTex, roughness: 0.7, metalness: 0.3 }), 1.2)), 1.2));
   roof.position.set(-BW / 2 - 0.4, BH, BZ - BD / 2); roof.castShadow = roof.receiveShadow = true; scene.add(roof);
+  roof.material.shadowSide = THREE.FrontSide;   // (its shadow cast from the slopes: from its underside, flush with the walls' tops, the bias let a jagged strip of sun in along the top of the wall)
   { const K = { p: [], n: [], uv: [], c: [], i: [] };   // the chimneys, brick like the town's, half a metre over the ridge
     for (const x of [-12, -3, 6.5, 14]){ const z = BZ - BD / 2 + rnd(-1.5, 1.5), a = Math.abs(z - (BZ - BD / 2)) + 0.35, yT = Math.round((BH + 2.4 + 0.55) * 14) / 14;
       chimneyInto(K, ID3, ID3, x, z, BH + 2.4 * (1 - a / (BD / 2 + 0.4)) - 0.2, yT, [0.92, 0.86, 0.8], true, 0.35, 0.35); CHIMNEYS.push(new V3(x, yT + 0.1, z)); }
@@ -3805,9 +3811,29 @@ function updateOrchard(){
 function boxUV(w, h, d, uScale){ const g = new THREE.BoxGeometry(w, h, d), uv = g.attributes.uv, widths = [d, d, w, w, w, w];
   for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++){ const i = f * 4 + k; uv.setX(i, uv.getX(i) * widths[f] / uScale); } return g; }
 function colorize(g, col){ const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++){ a[i * 3] = col.r; a[i * 3 + 1] = col.g; a[i * 3 + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; }
-const tinTex = tex(256, 256, (g, w, h) => { g.fillStyle = '#6e6a64'; g.fillRect(0, 0, w, h);
+const tinTex = tex(256, 256, (g, w, h) => { g.fillStyle = '#6e6a64'; g.fillRect(0, 0, w, h);   // (just the ribs: the rust comes from tinRust, from where the roof is)
   for (let x = 0; x < w; x += 10){ g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, 0, 3, h); g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(x + 5, 0, 3, h); }
-  for (let i = 0; i < 45; i++) blot(g, rng() * w, rng() * h, rnd(6, 34), `rgba(${130 + rng() * 30 | 0},${62 + rng() * 20 | 0},25,${rnd(0.25, 0.6)})`); }, { repeat: [0.35, 0.35] });
+  for (let i = 0; i < 270; i++) rng(); }, { repeat: [0.35, 0.35] });   // (the 45 blots it once drew still take their draws, so the rest of the world stays as it was)
+// the tin roofs gone to rust (the workshops', ours), as the garages' tin: rust spreading in patches and run down the slope in streaks, whole roofs
+// older or newer than the next; all of it from where the roof is in the world (along each slope's level and up it, in metres), so nothing
+// repeats. The rust rough and dull. Chain over snowify, under wetRoof
+function tinRust(mat){ return shaderChain(mat, 'tinRust', sh => {
+  sh.vertexShader = 'varying vec3 vTrP;\nvarying vec3 vTrN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vTrP = (modelMatrix * vec4(transformed, 1.0)).xyz; vTrN = normalize(mat3(modelMatrix) * objectNormal);');
+  sh.fragmentShader = 'varying vec3 vTrP; varying vec3 vTrN;\n' + RW_NOISE + sh.fragmentShader
+    .replace('#include <color_fragment>', `#include <color_fragment>
+      float trRust = 0.0, trUnder = 0.0;
+      { vec3 rn = normalize(vTrN); float hl = length(rn.xz);
+        vec3 ra = hl > 0.02 ? vec3(-rn.z, 0.0, rn.x) / hl : vec3(1.0, 0.0, 0.0), ta = cross(rn, ra); if (ta.y < 0.0) ta = -ta;
+        vec2 q = vec2(dot(vTrP, ra), dot(vTrP, ta));
+        float nr = 1.0 - smoothstep(45.0, 170.0, length(vViewPosition)), age = rwN(vTrP.xz * 0.035 + 11.0);
+        float tone = rwN(q * 0.25 + 5.0);   // (the tin weathered unevenly, in soft broad areas)
+        trRust = smoothstep(0.4, 0.82, 0.55 * rwN(q * 0.6 + 13.0) + 0.45 * rwN(vec2(q.x * 2.4, q.y * 0.45) + 7.0) + 0.35 * age - 0.15);   // patches, and streaks run down the slope
+        vec3 rc = vec3(0.19, 0.075, 0.03) * (0.7 + 0.6 * rwN(q * 3.0 + 2.0));
+        diffuseColor.rgb = mix(diffuseColor.rgb * mix(1.0, 0.9 + 0.2 * tone, nr), rc, trRust * (0.65 + 0.35 * nr)) * (1.0 + 0.3 * (rwN(q * 26.0) - 0.5) * nr);
+        trUnder = step(rn.y, -0.5);   // the eaves' underside: not the tin's seams but old boards, grey-brown and dull, in shadow up under the overhang
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.075, 0.066, 0.056) * (0.8 + 0.4 * rwN(q * 1.5 + 9.0)), trUnder); trRust *= 1.0 - trUnder; }`)
+    .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(mix(roughnessFactor, 0.92, trRust), 0.95, trUnder);')
+    .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor *= (1.0 - 0.75 * trRust) * (1.0 - trUnder);'); }); }
 const brickBayTex = tex(1024, 352, (g, w, h) => {
   const ppm = 64; g.fillStyle = '#4a2018'; g.fillRect(0, 0, w, h);
   for (let y = 0, row = 0; y < h; y += 4.4, row++) for (let x = -(row % 2) * 8; x < w; x += 16){ g.fillStyle = `hsl(${8 + rng() * 10},${38 + rng() * 18}%,${25 + rng() * 14}%)`; g.fillRect(x + 0.6, y + 0.6, 14.8, 3.4); }
@@ -3850,13 +3876,16 @@ const brickLowTex = tex(1024, 228, (g, w, h) => {   // the low workshop's wall: 
   const industrial = (x0, x1, z0, z1, H, low = false) => { const w = x1 - x0, d = z1 - z0, g = boxUV(w, H, d, 16); g.translate((x0 + x1) / 2, H / 2, (z0 + z1) / 2); (low ? lowWalls : walls).push(g);
     let peak = rnd(1.2, 1.8); if (low) peak = 0.9; INDS.push({ x0, x1, z0, z1, H, peak, cx: (x0 + x1) / 2, hw: w / 2 + 0.35 });
     const r = new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, peak)]), { depth: d + 0.7, bevelEnabled: false });
-    r.translate((x0 + x1) / 2, H, z0 - 0.35); roofs.push(r); };
+    r.translate((x0 + x1) / 2, H, z0 - 0.35);
+    { const p = r.attributes.position, uv = r.attributes.uv, S = r.groups[1];   // the slopes: the ribs (tinTex's stripes, across u) down the slope, so u along the building
+      for (let i = S.start; i < S.start + S.count; i++) uv.setXY(i, p.getZ(i), p.getX(i)); }
+    roofs.push(r); };
   for (let z = -150; z < LANE_END - 4;){ const len = rnd(20, 42); industrial(-34, -18, z, Math.min(z + len, LANE_END), rnd(5.2, 6.2)); z += len; }
   // the one right next to the house is a low single-storey workshop: its eaves only just clear the top of the ground-floor windows
   for (let z = -150; z < LANE_END - 4;){ const len = rnd(18, 38), H = rnd(5.2, 6.2), low = z === -150; industrial(18, 34, z, Math.min(z + len, LANE_END), low ? 3.55 : H, low); z += len; }
   const wm = new THREE.Mesh(mergeGeometries(walls), snowify(new THREE.MeshStandardMaterial({ map: brickBayTex, roughness: 0.95 })));
-  const rm = new THREE.Mesh(mergeGeometries(roofs), wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2)));
-  wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm);
+  const rm = new THREE.Mesh(mergeGeometries(roofs), wetRoof(tinRust(snowify(new THREE.MeshStandardMaterial({ map: tinTex, roughness: 0.6, metalness: 0.35 }), 1.2)), 1.2));
+  wm.castShadow = wm.receiveShadow = rm.castShadow = rm.receiveShadow = true; scene.add(wm, rm); rm.material.shadowSide = THREE.FrontSide;   // (cast from the slopes, as our house's roof: see there)
   const lm = new THREE.Mesh(mergeGeometries(lowWalls), snowify(new THREE.MeshStandardMaterial({ map: brickLowTex, roughness: 0.95 }))); lm.castShadow = lm.receiveShadow = true; scene.add(lm);
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.2, 24, 16), snowify(new THREE.MeshStandardMaterial({ color: '#6a3426', roughness: 1 }), 0.5));
   stack.position.set(-27, 12, -98); stack.castShadow = true; scene.add(stack);
@@ -5136,7 +5165,7 @@ const AN = (() => {
   const poly = (pts) => { const p = P(); pts.forEach(([x, y], i) => i ? p.L(x, y) : p.M(x, y)); return p.Z(); };
   const lay = (c, p, style, dx = 0, dy = 0, stroke = 0) => { c.save(); c.translate(dx, dy); c.beginPath(); for (const op of p.ops) op(c);
     if (stroke){ c.lineWidth = stroke * PPM; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = style; c.stroke(); } else { c.fillStyle = style; c.fill(); } c.restore(); };
-  let KC = {};
+  let KC = {}, REP = false;   // (REP: the column being drawn repeats along a house, bay after bay: its windows' and its courtyard's, the blind walls)
   const TINT = { wall: 255, trim: 100, orn: 110, stone: 40, brick: 0, glass: 0, frame: 0, metal: 0, door: 0, tile: 0, dark: 80, sign: 0, roof: 0 };
   // lay a part down: in its colour, raised (or sunk) with a rim of light along its top and left and of shade along its bottom and right
   const part = (kind, p, relief = 0, col = null, stroke = 0) => {
@@ -5247,7 +5276,7 @@ const AN = (() => {
     const R = L.slice(0, -1).reverse().map(([x, y]) => [3.6 - x, y]); return L.concat(R); };
 
   // one column of the picture: a bay of one design, of one kind
-  const column = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC;
+  const column = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; REP = type === 'N' || type === 'C';
     const r = mkRng(D.i * 7919 + type.charCodeAt(0) * 131), rr = (a, b) => a + r() * (b - a), st = D.st, g0 = D.g, f = D.f, Hc = D.Hc;
     const rN = mkRng(D.i * 7919 + 78 * 131);   // (the entrance's upper storeys are the windows' own)
     part('wall', P().R(0, 0, 3.6, 28.8)); part('trim', P().R(0, 27.9, 3.6, 0.6));   // (a plain patch of each, for the house's undersides)
@@ -5330,22 +5359,21 @@ const AN = (() => {
       else { for (let i = 0; i < 3; i++) part('orn', P().M(1.8 - 1.2 + i * 0.25, Hc + 0.1).A(1.8, Hc + 0.1, 1.2 - i * 0.25, Math.PI, 0).L(1.8 + 1.2 - i * 0.25 - 0.08, Hc + 0.1).A(1.8, Hc + 0.1, 1.12 - i * 0.25, 0, Math.PI).Z(), 0.6); win(r, 1.8 - 0.3, Hc + 0.15, 0.6, 0.6, { head: 'oval', sill: false }); }
       part('orn', P().R(1.74, H - 0.05, 0.12, 0.35), 0.8); part('orn', P().E(1.8, H + 0.36, 0.09, 0.09), 0.8); }   // a finial
     weather(r, D, 1); };
-  // and over everything, time: soot under the cornice, the sooty plinth, a mottled grime, the odd crack
+  // and over everything, time: soot under the cornice, the sooty plinth, a mottled grime, the odd crack. (Only the soot on the bays that repeat:
+  // drawn into them, the same stain and the same crack would come round again every 3.6 m; theirs come from the walls themselves, in the facades' material)
   const weather = (r, D, k) => { const a = D.age * k, Hc = D.Hc;
     vgrad(0, 3.6, Hc - 0.5, Hc - 3.2, `rgba(36,32,26,${0.35 * a})`, 'rgba(36,32,26,0)');
-    vgrad(0, 3.6, 0, 1.4, `rgba(40,36,30,${0.42 * a})`, 'rgba(40,36,30,0)');
+    vgrad(0, 3.6, 0, 1.4, `rgba(40,36,30,${0.42 * a})`, 'rgba(40,36,30,0)'); if (REP) return;
     for (let i = 0; i < 26 * a; i++){ const x = px(r() * 3.6), y = py(r() * Hc), rx = (0.2 + r() * 0.5) * PPM, k = 1.5 + r() * 2.5, dk = r() < 0.7, al = 0.04 + 0.06 * r();   // damp and dirt, soft-edged, running down
       g.save(); g.translate(x, y); g.scale(1, k); const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx); gr.addColorStop(0, dk ? `rgba(48,42,34,${al})` : `rgba(255,250,240,${al})`); gr.addColorStop(1, 'rgba(48,42,34,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rx, 0, TAU); g.fill(); g.restore(); }
     for (let i = 0; i < 6 * a; i++) vgrad(r() * 3.5, 0.04 + r() * 0.12, Hc - 0.45, Hc - 1.5 - r() * 6, 'rgba(40,36,30,.2)', 'rgba(40,36,30,0)');   // rain run off the cornice
     for (let i = 0; i < 3 * a; i++){ let x = r() * 3.6, y = 1 + r() * (Hc - 2); const p = P().M(x, y); for (let j = 0; j < 5; j++){ x += (r() - 0.5) * 0.25; y -= 0.1 + r() * 0.25; p.L(x, y); } smear(p, 'rgba(50,42,34,.45)', 0.012); } };
 
   for (const D of designs) ['N', 'A', 'E', 'C'].forEach((t, j) => column(D.i * 4 + j, D, t));
-  // two blind walls: the bare sides of houses taller than their neighbours, the plaster coming off them in sheets
-  FIRE.forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const r = mkRng(4242 + j), D = { age: 1, Hc: 26 }; KC = designs[0].KC;
-    part('wall', P().R(0, 0, 3.6, 28.8), 0, '#d8d2c4'); band(15, 0, 28.8);
-    for (let i = 0; i < 4; i++){ const x = px(r() * 3.6), y = py(r() * 26), rx = (0.4 + r() * 0.9) * PPM, gr = g.createRadialGradient(x, y, 0, x, y, rx); gr.addColorStop(0, `rgba(48,42,34,${0.05 + 0.07 * r()})`); gr.addColorStop(1, 'rgba(48,42,34,0)'); g.fillStyle = gr; g.fillRect(x - rx, y - rx, 2 * rx, 2 * rx); }
-    for (let i = 0; i < 5; i++) vgrad(r() * 3.4, 0.1 + r() * 0.3, 26, 26 - 4 - r() * 14, 'rgba(50,42,32,.3)', 'rgba(50,42,32,0)');
-    weather(r, D, 0.45); });
+  // two blind walls: the bare sides of houses taller than their neighbours, the plaster coming off them in sheets. (Bare in the picture: a blind wall
+  // is this one column again and again, so its damp, its streaks and its fallen plaster all come from the wall itself, in the facades' material)
+  FIRE.forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = designs[0].KC;
+    part('wall', P().R(0, 0, 3.6, 28.8), 0, '#d8d2c4'); band(15, 0, 28.8); });
 
   const finish = (S) => { const color = new THREE.CanvasTexture(phoneSized(S.cv)); color.colorSpace = THREE.SRGBColorSpace; color.anisotropy = 8;
     const mcv = mkCv(S.w / 2, S.h / 2), mx = mcv.getContext('2d'), out = mx.createImageData(S.w / 2, S.h / 2), ch = S.m.map(x => x.getImageData(0, 0, S.w / 2, S.h / 2).data);
@@ -5375,7 +5403,7 @@ const AN = (() => {
     D.KC = { wall: '#e2d6c8', trim: pk(['#a29d92', '#b1aa9c', '#958f84']), orn: '#cfc6b0', stone: '#8f8a80', brick: D.bc, frame: pk(['#4a3626', '#3e3428', '#e4e0d6', '#5a4430', '#4a3626']), metal: '#2c2a28',
       door: pk(['#4e3424', '#3e4a3c', '#5a3c2c', '#46423c']), tile: '#4f7d70', tile2: '#d8d2c0', dark: '#3a352e', sign: pk(['#2e3a30', '#2c2e3a', '#3a2a26']), age: D.age };
     bdesigns.push(D); }
-  const bcolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC;
+  const bcolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; REP = type === 'N' || type === 'C';
     const r = mkRng(D.i * 6151 + type.charCodeAt(0) * 37), rN = mkRng(D.i * 6151 + 78 * 37), g0 = D.g, f = D.f, Hc = D.Hc, pat = D.pat, C_ = type === 'C';
     const BR = (p, relief = 0, sh = 0) => { part('brick', p, relief, pat); if (sh) smear(p, sh > 0 ? `rgba(40,24,12,${sh})` : `rgba(255,246,228,${-sh})`); };
     const arch = (x, y, w, h, head) => {   // bricks set on end over an opening: a flat lintel, a segment, or a half-round
@@ -5397,7 +5425,7 @@ const AN = (() => {
       if (D.hood && !C_ && head !== 'round' && !o.surround) hood(x, w, y + h + (head === 'rect' ? 0.2 : 0.2)); };
     const saw = (y) => { BR(P().R(0, y + 0.13, 3.6, 0.07), 0.8, 0.06); for (let x = 0; x < 3.6; x += 0.17) BR(poly([[x, y + 0.13], [x + 0.17, y + 0.13], [x + 0.085, y]]), 0.7, (x / 0.17 | 0) % 2 ? 0.14 : 0.04); BR(P().R(0, y - 0.07, 3.6, 0.07), 0.6, 0.04); };
     BR(P().R(0, 0, 3.6, 28.8)); part('trim', P().R(0, 27.9, 3.6, 0.6));   // (the plain patches: brick for the undersides and backs, grey for the cornice)
-    for (let i = 0; i < 2 + r() * 4; i++) smear(P().R(r() * 3.2, 0.6 + r() * (Hc - 2), 0.2 + r() * 0.5, 0.15 + r() * 0.5), r() < 0.5 ? 'rgba(40,24,12,.12)' : 'rgba(255,246,228,.1)');   // (bricks replaced here and there in another tone: under everything else)
+    for (let i = 0; i < 2 + r() * 4; i++){ const p = P().R(r() * 3.2, 0.6 + r() * (Hc - 2), 0.2 + r() * 0.5, 0.15 + r() * 0.5), s = r() < 0.5 ? 'rgba(40,24,12,.12)' : 'rgba(255,246,228,.1)'; if (!REP) smear(p, s); }   // (bricks replaced here and there in another tone: under everything else. On the bays that repeat, from the wall itself: still the same draws)
     band(0, 0, g0); for (let k = 1; k <= D.n; k++) band(k, g0 + (k - 1) * f, g0 + k * f); band(D.n + 1, g0 + D.n * f, 28.8);
     // the ground floor
     part('stone', P().R(0, 0, 3.6, 0.45), 0.4);
@@ -5439,10 +5467,8 @@ const AN = (() => {
     // time: soot, damp
     weather(r, D, C_ ? 0.75 : 0.6); };
   for (const D of bdesigns){ if (D.i === 4 || D.i === 6) continue; D.pat = brickPat(D.bc, D.mo, 777 + D.i); ['N', 'A', 'E', 'C'].forEach((t, j) => bcolumn(D.i * 4 + j, D, t)); }   // (the two red ones of bare brick never stood: see below)
-  BFIRE.forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const r = mkRng(5151 + j), D = { age: 1, Hc: 26 }, pat = bdesigns[j * 3].pat; KC = bdesigns[j * 3].KC;   // brick blind walls
-    part('brick', P().R(0, 0, 3.6, 28.8), 0, pat); band(15, 0, 28.8);
-    for (let i = 0; i < 5; i++) smear(P().R(r() * 3, 1 + r() * 24, 0.3 + r() * 0.8, 0.3 + r() * 1.2), r() < 0.5 ? 'rgba(40,26,14,.12)' : 'rgba(255,246,228,.1)');
-    weather(r, D, 0.5); });
+  BFIRE.forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = bdesigns[j * 3].KC;   // brick blind walls (bare too: see the plaster ones)
+    part('brick', P().R(0, 0, 3.6, 28.8), 0, bdesigns[j * 3].pat); band(15, 0, 28.8); });
   // ---- and the red brick. No house of those years was bare red brick: red brick was laid as ornament, on fronts of four and five storeys whose
   // lowest storeys were stone. Three families of them, two of each, into the second row of the same picture:
   //  - the castle-like eclectic: a grey stone ground floor (rusticated in bands, or rock-faced over a tall basement painted red; on the first
@@ -5528,7 +5554,7 @@ const AN = (() => {
     const dentils = (y) => { part('trim', P().R(0, y, 3.6, 0.45), 1); for (let x = 0.05; x < 3.6; x += 0.18) smear(P().R(x, y + 0.02, 0.08, 0.1), 'rgba(40,34,28,.45)'); smear(P().R(0, y - 0.05, 3.6, 0.05), 'rgba(40,34,28,.35)'); };
     const finial = (H) => { part('orn', P().R(1.74, H - 0.05, 0.12, 0.35), 0.8); part('orn', P().E(1.8, H + 0.36, 0.09, 0.09), 0.8); };
     return { BR, vRing, rustic, sill, quoins, sWin, multi, doors, plate, consoles, dentils, finial }; };
-  const rcolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; clipCol(() => {
+  const rcolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; REP = type === 'N' || type === 'C'; clipCol(() => {
     const r = mkRng(D.i * 5303 + type.charCodeAt(0) * 59), rN = mkRng(D.i * 5303 + 78 * 59), rr = (a, b) => a + r() * (b - a);
     const g0 = D.g, f = D.f, Hc = D.Hc, n = D.n, v = D.v, pat = D.pat, C_ = type === 'C', A_ = type === 'A', E_ = type === 'E', N_ = type === 'N', castle = D.fam === 'castle', frame = D.fam === 'frame';
     const { BR, vRing, rustic, sill, quoins, sWin, multi, doors, plate, consoles, dentils, finial } = kit(D, r);
@@ -5665,11 +5691,10 @@ const AN = (() => {
       win(r, 1.4, Hc + 0.72, 0.8, 1.25, { grid: 3, sur: 0.05, tr: 0.7 }); }
     weather(r, D, 0.75); }); };
   for (const D of rdesigns){ D.pat = brickPat2(D.bc, D.mo, 919 + D.i, D.fam === 'castle' ? 0.42 : 0.16, D.fam === 'castle' ? 0.13 : 0.02); ['N', 'A', 'E', 'C'].forEach((t, j) => rcolumn(D.i * 4 + j, D, t)); }
-  // their blind walls: bare red brick (two), and plaster (two) for the Jugendstil fronts
-  [56, 57, 58, 59].forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const r = mkRng(6161 + j), D = { age: 1, Hc: 26 }, R0 = rdesigns[j < 2 ? j : 4]; KC = R0.KC;
-    if (j < 2){ part('brick', P().R(0, 0, 3.6, 28.8), 0, R0.pat); for (let i = 0; i < 6; i++) smear(P().R(r() * 3, 1 + r() * 24, 0.3 + r() * 0.8, 0.3 + r() * 1.2), r() < 0.5 ? 'rgba(40,26,14,.14)' : 'rgba(255,246,228,.1)'); }
-    else { part('wall', P().R(0, 0, 3.6, 28.8), 0, '#ddd5c5'); for (let i = 0; i < 5; i++) vgrad(r() * 3.4, 0.1 + r() * 0.3, 26, 26 - 4 - r() * 14, 'rgba(50,42,32,.3)', 'rgba(50,42,32,0)'); }
-    band(15, 0, 28.8); weather(r, D, 0.5); });
+  // their blind walls: bare red brick (two), and plaster (two) for the Jugendstil fronts (bare too: see the first ones)
+  [56, 57, 58, 59].forEach((c, j) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; const R0 = rdesigns[j < 2 ? j : 4]; KC = R0.KC;
+    if (j < 2) part('brick', P().R(0, 0, 3.6, 28.8), 0, R0.pat); else part('wall', P().R(0, 0, 3.6, 28.8), 0, '#ddd5c5');
+    band(15, 0, 28.8); });
   // ---- and more yellow brick, its windows square-headed, into a third row of the picture:
   //  - plain: flat arches of bricks on end, their ends corbelled down the jambs in steps, sills on rows of corbelled blocks, big corbels under
   //    the eaves and an attic band with little vents over them; or plainer still, a dentil band over shop windows, a mansard with stucco
@@ -5699,7 +5724,7 @@ const AN = (() => {
     D.KC = { wall: '#e2d8c6', stuc: fam === 'banded' ? '#f3ebd3' : fam === 'stucco' ? (v ? '#e6e2da' : '#e9e0c9') : '#ebe5d6', trim: fam === 'plain' || fam === 'gable' ? pk(['#a29d92', '#b1aa9c']) : '#ddd6c6', orn: '#ece5d4',
       stone: '#8f8a80', brick: bc, frame: pk(['#4a3626', '#3e3428', '#e4e0d6', '#5a4430']), metal: '#2c2a28', door: pk(['#4e3424', '#3e4a3c', '#5a3c2c']), tile: '#4f7d70', tile2: '#d8d2c0', dark: '#3a352e', sign: '#2e3a30', age: D.age };
     return D; });
-  const ycolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; clipCol(() => {
+  const ycolumn = (c, D, type) => { X0 = (c % NC) * CW; Y0 = Math.floor(c / NC) * CH; KC = D.KC; REP = type === 'N' || type === 'C'; clipCol(() => {
     const r = mkRng(D.i * 4421 + type.charCodeAt(0) * 67), rN = mkRng(D.i * 4421 + 78 * 67), g0 = D.g, f = D.f, Hc = D.Hc, n = D.n, v = D.v, fam = D.fam;
     const C_ = type === 'C', A_ = type === 'A', E_ = type === 'E', N_ = type === 'N';
     const { BR, vRing, rustic, doors, plate, dentils } = kit(D, r);
@@ -6100,7 +6125,7 @@ var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
     const sx = bw / 3.6;
     L.forEach((t, i) => { const c = N0 + (t === 'N' ? 0 : t === 'A' ? 1 : 2), x0 = -w / 2 + i * bw, x1 = x0 + bw, xc = x0 + bw / 2;
       rect4(FX, x0, 0, z, x1, H, z, [0, 0, 1], c, 0, 1, 0, H, i * 0.011);                                           // the front
-      rect4(FX, x1, 0, -z, x0, H, -z, [0, 0, -1], N0 + 3, 0, 1, 0, H, 0.5 + i * 0.011);                             // the courtyard back
+      rect4(FX, x1, 0, -z, x0, H, -z, [0, 0, -1], N0 + 3, 0.03, 0.97, 0, H, 0.5 + i * 0.011);                       // the courtyard back (in from the column's edges: far off, its neighbours' pilasters would bleed in, a pale line between every bay)
       rect4(FX, x0, H - 0.42, z + D.cd, x1, H + 0.06, z + D.cd, [0, 0, 1], c, 0, 1, H - 0.45, H, i * 0.011);         // the cornice's front
       if (t !== 'A') return;
       if (D.gable){ const G = AN.gablePts(D).map(([x, y]) => [x0 + x * sx, H + y]), zf = z + (mansR ? 0.31 : 0.015), zb = zf - 0.35;   // the gable over the eaves (out over a mansard's foot)
@@ -6288,7 +6313,7 @@ var blockMats = [], roadsMat = null;   // (roadsMat: the lots' dirt roads)
     // eaves boarded underneath, a painted board along each eave and up each gable, and a gutter hung along each eave
     { const D = d / 2, ov = 0.4, ox = 0.3, ca = Math.cos(Math.atan2(rise, D)), t = 0.16 / ca, L = Math.hypot(rise, D), U = D + ov, xa = x0 - ox, xb = x1 + ox;
       const yTop = u => H + t + rise * (1 - Math.abs(u) / D), yBot = u => yTop(u) - t;   // (the underside on the walls' tops and the gables' rakes)
-      const tin = wetRoof(snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4));
+      const tin = wetRoof(tinRust(snowify(new THREE.MeshStandardMaterial({ map: tinTex, color: '#8a8e8c', roughness: 0.55, metalness: 0.4 }), 1.4)), 1.4);
       const board = new THREE.MeshStandardMaterial({ color: '#4c1d16', roughness: 0.9 }), under = new THREE.MeshStandardMaterial({ color: '#3a1812', roughness: 0.95 });
       const quads = (Q, uvs) => { const P = [], N = [], T_ = [], I = []; Q.forEach((q, k) => { const [A, B, Cc] = q, e1 = new V3().subVectors(B, A), e2 = new V3().subVectors(Cc, A), n = e1.cross(e2).normalize(), o = P.length / 3;
           q.forEach((v, j) => { P.push(v.x, v.y, v.z); N.push(n.x, n.y, n.z); T_.push(...(uvs ? uvs[k][j] : [0, 0])); }); I.push(o, o + 1, o + 2, o, o + 2, o + 3); });
@@ -6338,7 +6363,16 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
             vec3 brick = mix(vec3(0.5, 0.26, 0.19) * (0.78 + 0.4 * anH3(vec3(floor(bx), row, 1.0))), vec3(0.6, 0.55, 0.47), mortar);
             diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.38 * rim), brick, fall);
             float streak = anN3(vec3(hz * 1.3, wp.y * 0.06, 5.0 + gone * 3.0)), mott = anN3(wp * 0.33 + 11.0), dp = anN3(wp * 0.11 + 23.0);
-            diffuseColor.rgb *= 1.0 - painted * (0.17 * smoothstep(0.58, 0.9, streak) + 0.13 * smoothstep(0.52, 0.85, mott) + 0.1 * smoothstep(0.5, 0.8, dp) * (1.0 - smoothstep(2.0, 6.0, wp.y))); }`)
+            float dirtK = max(painted, 0.55 * wall * (1.0 - step(0.5, anM.r)));   // (the brick dirtied too, a little less; never the glass)
+            diffuseColor.rgb *= 1.0 - dirtK * (0.17 * smoothstep(0.58, 0.9, streak) + 0.13 * smoothstep(0.52, 0.85, mott) + 0.1 * smoothstep(0.5, 0.8, dp) * (1.0 - smoothstep(2.0, 6.0, wp.y)));
+            float bare = wall * (1.0 - step(0.05, anM.b)) * (1.0 - step(0.5, anM.r));   // bricks replaced here and there in another tone (on the bare brick)
+            diffuseColor.rgb *= 1.0 + bare * smoothstep(0.72, 0.8, anN3(wp * vec3(1.1, 1.6, 1.1) + 57.0)) * (anN3(wp * 0.7 + 71.0) < 0.5 ? -0.12 : 0.1);
+            float blind = wall * step(14.5, floor(anM.g * 255.0 / 16.0));   // the blind walls (their storey band): the rain run down them from the top in long streaks, big damp patches
+            diffuseColor.rgb *= 1.0 - blind * (0.24 * smoothstep(0.55, 0.85, anN3(vec3(hz * 2.2, wp.y * 0.08, 77.0))) * smoothstep(4.0, 12.0, wp.y) + 0.1 * smoothstep(0.5, 0.8, anN3(wp * 0.25 + 91.0)));
+            // and cracks: hairlines wandering down the plaster, here and there (a pixel or two wide, fading out before they would shimmer)
+            float ck = anN3(vec3(hz * 1.7, wp.y * 0.5, 31.0)) + 0.1 * anN3(vec3(hz * 11.0, wp.y * 8.0, 13.0)), cw = fwidth(ck);
+            float crack = (1.0 - smoothstep(0.4 * cw, 1.3 * cw, abs(ck - 0.52))) * smoothstep(0.76, 0.84, anN3(wp * vec3(0.9, 0.55, 0.9) + 41.0) + 0.08 * gone);
+            diffuseColor.rgb *= 1.0 - 0.38 * crack * plaster * (1.0 - fall) * (1.0 - smoothstep(20.0, 55.0, length(vViewPosition))); }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           { float row = floor(anM.g * 255.0 / 16.0), sq = mod(anS, 8191.0), h1 = fract(sin(sq * 12.9898 + row * 78.233) * 43758.5453), h2 = fract(sin(sq * 39.346 + row * 11.135) * 24634.6345);
             vec3 lc = h2 < 0.2 ? vec3(1.0, 0.62, 0.25) : h2 < 0.4 ? vec3(1.0, 0.69, 0.35) : h2 < 0.6 ? vec3(0.92, 0.53, 0.16) : h2 < 0.86 ? vec3(1.0, 0.76, 0.48) : vec3(0.5, 0.58, 1.0);
