@@ -1358,12 +1358,18 @@ function updateTufts(){
     m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true; m.visible = sn < 0.97; }
 }
 
-/* lamp over entry 2 */
-const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: '#fff0c8' }));
-bulb.position.set(9, 2.55, BZ + 0.9); scene.add(bulb);
-const lamp = new THREE.PointLight(0xffc77a, 0, 0, 1.6); lamp.position.copy(bulb.position); scene.add(lamp);
+/* lamp over entry 2: a bare bulb in a bakelite socket screwed to the canopy's underside. By day only frosted glass, grey in the canopy's
+   shade; lit from dusk, its light cut off by the canopy (and the wall over it left dark), the shadows it casts drawn again now and then */
+const bulbM = new THREE.MeshStandardMaterial({ color: '#d9d6cc', roughness: 0.35, emissive: '#ffe0a8', emissiveIntensity: 0 });
+const bulb = new THREE.Group(); bulb.position.set(9, 2.65, BZ + 0.9); scene.add(bulb);   // (at the canopy's underside)
+bulb.add(new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.023, 0.05, 16).translate(0, -0.025, 0), new THREE.MeshStandardMaterial({ color: '#2a1e16', roughness: 0.45 })));   // the socket
+bulb.add(new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.016, 14).translate(0, -0.058, 0), new THREE.MeshStandardMaterial({ color: '#8a8478', roughness: 0.4, metalness: 0.8 })));   // the screw base
+bulb.add(new THREE.Mesh(new THREE.LatheGeometry([[0, -0.165], [0.012, -0.162], [0.024, -0.152], [0.03, -0.138], [0.031, -0.124], [0.027, -0.107], [0.018, -0.088], [0.014, -0.074], [0.013, -0.066]].map(([r, y]) => new THREE.Vector2(r, y)), 20), bulbM));   // the glass, pear-shaped
+const lamp = new THREE.PointLight(0xffc77a, 0, 12, 1.6); lamp.position.set(9, 2.52, BZ + 0.9); scene.add(lamp);
+lamp.castShadow = true; lamp.shadow.mapSize.set(256, 256); lamp.shadow.camera.near = 0.04; lamp.shadow.camera.far = 12; lamp.shadow.bias = -0.003; lamp.shadow.autoUpdate = false; lamp.shadow.needsUpdate = true;
+let lampShadowT = 0;   // (when its shadows were last drawn: a cube of six, so only every so often, and only while it is lit)
 const lampGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffd090, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
-lampGlow.position.copy(bulb.position); lampGlow.scale.set(1.6, 1.6, 1); scene.add(lampGlow);
+lampGlow.position.copy(lamp.position); lampGlow.scale.set(0.7, 0.7, 1); scene.add(lampGlow);
 
 /* ---------- my room (for the window view): 2 m wide, 5 m deep ---------- */
 const room = new THREE.Group(); scene.add(room);
@@ -9978,7 +9984,8 @@ function updateEnv(sp){
   for (const s of stars) s.material.opacity = env.night * (1 - over * 0.6) * (1 - W.cloud * 0.9);
   const lit = 1 - env.day; WINLIT.value = winShare(TOD * 24, e, Math.max(over, W.cloud));   // (how many windows are lit: the hour, and the dark)
   buildingFront.emissiveIntensity = buildingBack.emissiveIntensity = lit * 1.6; for (const m of blockMats) m.emissiveIntensity = lit * 1.2;
-  lamp.intensity = lit * 14; lampGlow.material.opacity = lit * 0.9;
+  lamp.intensity = lit * 14; lampGlow.material.opacity = lit * 0.9; bulbM.emissiveIntensity = lit * 3;
+  if (lit > 0.01 && performance.now() - lampShadowT > 1000){ lamp.shadow.needsUpdate = true; lampShadowT = performance.now(); }
   const lampOn = mode === 'window' && deskLamp.on;
   roomLight.intensity = lampOn ? 0.5 + lit * 2.2 : 0; deskLamp.spot.intensity = lampOn ? 1.2 + lit * 3.5 : 0;
   deskLamp.bulbM.emissiveIntensity = deskLamp.on ? 2.2 : 0; deskLamp.inner.emissiveIntensity = deskLamp.on ? 0.35 : 0;
