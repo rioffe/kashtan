@@ -1820,7 +1820,8 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
     const occ = new Set(); for (const [kind, a, b, c, d, l] of PIECES) if (kind !== 'cslope') for (let x = a; x < b; x++)   // (the studs under a clear piece show through it)
       for (let z = c; z < d; z++) occ.add(x + ',' + z + ',' + l);
     // a sloped brick as they were, red or clear: walls a millimetre and a half thick round a hollow, open underneath (pts: its profile, along and up, anticlockwise from (0,0) along the bottom)
-    const shell = (pts, xA, xB, zA, t) => { const n = pts.length, E = i => [pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]];
+    // (rim false: no faces underneath, where it sits on a brick: drawn on both sides, as the clear one is, they would fight the brick's top)
+    const shell = (pts, xA, xB, zA, t, rim = true) => { const n = pts.length, E = i => [pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]];
       const M = pts.map((_, i) => { const [dx, dy] = E(i), l = Math.hypot(dx, dy); return [-dy / l, dx / l]; });                                  // each side's inward normal
       const Q = pts.map((_, j) => { const i = (j - 1 + n) % n, oi = i ? t : 0, oj = j ? t : 0, a = [pts[i][0] + M[i][0] * oi, pts[i][1] + M[i][1] * oi], b = [pts[j][0] + M[j][0] * oj, pts[j][1] + M[j][1] * oj];
         const da = E(i), db = E(j), s = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / (da[0] * db[1] - da[1] * db[0]); return [a[0] + da[0] * s, a[1] + da[1] * s]; });   // the hollow (the bottom stays open)
@@ -1832,16 +1833,16 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
       for (let i = 1; i < n - 1; i++){ tri(V(xA, pts[0]), V(xA, pts[i]), V(xA, pts[i + 1]), Xn); tri(V(xB, pts[0]), V(xB, pts[i]), V(xB, pts[i + 1]), X);                   // the ends, outside
         tri(V(xA + t, Q[0]), V(xA + t, Q[i]), V(xA + t, Q[i + 1]), X); tri(V(xB - t, Q[0]), V(xB - t, Q[i]), V(xB - t, Q[i + 1]), Xn); }                                   // and in
       const [u0, u1, q0, q1] = [pts[0][0], pts[1][0], Q[0][0], Q[1][0]];                                                                                                // the rim underneath
-      quad(V(xA, [u0, 0]), V(xB, [u0, 0]), V(xB, [q0, 0]), V(xA, [q0, 0]), Dn); quad(V(xA, [q1, 0]), V(xB, [q1, 0]), V(xB, [u1, 0]), V(xA, [u1, 0]), Dn);
-      quad(V(xA, [q0, 0]), V(xA + t, [q0, 0]), V(xA + t, [q1, 0]), V(xA, [q1, 0]), Dn); quad(V(xB - t, [q0, 0]), V(xB, [q0, 0]), V(xB, [q1, 0]), V(xB - t, [q1, 0]), Dn);
+      if (rim){ quad(V(xA, [u0, 0]), V(xB, [u0, 0]), V(xB, [q0, 0]), V(xA, [q0, 0]), Dn); quad(V(xA, [q1, 0]), V(xB, [q1, 0]), V(xB, [u1, 0]), V(xA, [u1, 0]), Dn);
+      quad(V(xA, [q0, 0]), V(xA + t, [q0, 0]), V(xA + t, [q1, 0]), V(xA, [q1, 0]), Dn); quad(V(xB - t, [q0, 0]), V(xB, [q0, 0]), V(xB, [q1, 0]), V(xB - t, [q1, 0]), Dn); }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(PP, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(PP.length / 3 * 2), 2)); return g; };
     for (const [kind, a, b, c, d, l, end] of PIECES){ const y0 = B0 + l * H, X0 = a * P + G, X1 = b * P - G, Z0 = (c - ZC) * P + G, Z1 = (d - ZC) * P - G, k = kind === 'cslope' ? 'clear' : 'red';
       let studs = [];
       if (kind === 'brick' || kind === 'axle'){ L.red.push(rbox3(X1 - X0, H, Z1 - Z0, 0.0004).translate((X0 + X1) / 2, y0 + H / 2, (Z0 + Z1) / 2)); for (let x = a; x < b; x++) for (let z = c; z < d; z++) studs.push([x, z]); }
       else { const D = 2 * P - 2 * G, W = ((end === '+z' || end === '-z') ? b - a : d - c) * P - 2 * G, t = 0.0013, rh = H - t - 0.0005;   // a sloped brick, built facing +z, then turned
-        const parts = [shell([[0, 0], [D, 0], [D, 0.0016], [P - G, H], [0, H]], -W / 2, W / 2, -D / 2, t)];                                     // (45°, down to a thin lip)
-        for (const sx of [-1, 1]) for (const du of [-0.0008, 0.0008]) parts.push(new THREE.BoxGeometry(0.0008, rh, 0.0006).toNonIndexed().translate(sx * (W / 2 - t - 0.0004), rh / 2, -D / 2 + P / 2 + du));   // two little ribs inside each end
+        const parts = [shell([[0, 0], [D, 0], [D, 0.0016], [P - G, H], [0, H]], -W / 2, W / 2, -D / 2, t, k !== 'clear')];                                     // (45°, down to a thin lip)
+        for (const sx of [-1, 1]) for (const du of [-0.0008, 0.0008]) parts.push(new THREE.BoxGeometry(0.0008, rh - 0.0002, 0.0006).toNonIndexed().translate(sx * (W / 2 - t - 0.0004), rh / 2 + 0.0001, -D / 2 + P / 2 + du));   // (their feet a hair off the brick below)   // two little ribs inside each end
         const g = mergeGeometries(parts); g.rotateY({ '+z': 0, '-z': Math.PI, '+x': Math.PI / 2, '-x': -Math.PI / 2 }[end]); L[k].push(g.translate((a + b) / 2 * P, y0, ((c + d) / 2 - ZC) * P));
         const [xs, zs] = end === '+z' ? [[a, b], [c, c + 1]] : end === '-z' ? [[a, b], [d - 1, d]] : end === '+x' ? [[a, a + 1], [c, d]] : [[b - 1, b], [c, d]];   // the studs, on the row behind the slope
         for (let x = xs[0]; x < xs[1]; x++) for (let z = zs[0]; z < zs[1]; z++) studs.push([x, z]); }
