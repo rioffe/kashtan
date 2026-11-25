@@ -1217,24 +1217,36 @@ const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' roun
     g.globalCompositeOperation = 'destination-out';                                               // ragged edges where the grass has crept in
     for (let y = 0; y < h; y += 3) for (const side of [0, 1]){ const d = (0.02 + 0.07 * pr() * pr()) * w; g.fillStyle = '#000'; g.fillRect(side ? w - d : 0, y, d, 4); }
     g.globalCompositeOperation = 'source-over'; });
+  // the asphalt's picture: only its grain, its moss along the edges and its ragged edge (it repeats every two metres along a path: what would
+  // show the repeat, the wear and the cracks, comes from where the path is, in asphaltWear)
   const asphalt = surfaceTex('#76736c', (g, w, h) => {
-    for (let i = 0; i < 60; i++){ pr(); pr(); pr(); pr(); }   // (the round blots once here: their draws still taken, so the cracks and the edges stay as they were)
-    stains(g, 0, 0, w, h, 1193, [   // worn pale where the stone shows through, darker where it was patched or the damp sits, and mottled finer (seamless down: it repeats along the path)
-      { col: [150, 146, 138], a: 0.2, size: 70, lo: 0.55, hi: 0.75, wrapY: true },
-      { col: [40, 40, 38], a: 0.24, size: 90, lo: 0.58, hi: 0.72, stretch: 1.5, wrapY: true },
-      { col: [60, 58, 55], a: 0.12, size: 14, lo: 0.5, hi: 0.75, wrapY: true }], 2);
+    for (let i = 0; i < 60; i++){ pr(); pr(); pr(); pr(); }   // (the round blots once here: their draws still taken, so the edges stay as they were)
     for (let i = 0; i < 9000; i++){ const v = pr(); g.fillStyle = v < 0.4 ? 'rgba(40,38,36,.45)' : v < 0.8 ? 'rgba(170,166,158,.45)' : 'rgba(120,104,90,.5)'; g.fillRect(pr() * w, pr() * h, rn(0.6, 2.2), rn(0.6, 2.2)); }
-    g.strokeStyle = 'rgba(28,26,24,.85)'; g.lineCap = 'round';
-    for (let c = 0; c < 7; c++){ let x = pr() * w, y = pr() * h, a = pr() < 0.5 ? rn(-0.4, 0.4) : Math.PI / 2 + rn(-0.4, 0.4); g.lineWidth = rn(1, 2.6); g.beginPath(); g.moveTo(x, y);
-      for (let k = 0; k < 14; k++){ a += rn(-0.6, 0.6); x += Math.cos(a) * 12; y += Math.sin(a) * 12; g.lineTo(x, y); } g.stroke();
-      g.strokeStyle = 'rgba(70,95,40,.35)'; g.lineWidth = 3; g.stroke(); g.strokeStyle = 'rgba(28,26,24,.85)'; }   // moss in the cracks
+    for (let c = 0; c < 7; c++){ pr(); pr(); pr(); pr(); rn(); for (let k = 0; k < 14; k++) rn(); }   // (the cracks it once drew: their draws still taken)
     for (const side of [0, 1]) for (let y = 0; y < h; y += 4){ const d = rn(0.08, 0.3) * w, gr = g.createLinearGradient(side ? w : 0, 0, side ? w - d : d, 0);   // moss along the edges
       gr.addColorStop(0, 'rgba(78,104,40,.75)'); gr.addColorStop(1, 'rgba(78,104,40,0)'); g.fillStyle = gr; g.fillRect(side ? w - d : 0, y, d, 5); } });
+  // the paths' wear, from where they lie (so nothing comes round again): worn pale where the stone shows, darker where it was patched or the
+  // damp sits, a finer mottle; cracks wandering across it, here and there, a hair wide (their width from the screen, so they never shimmer),
+  // moss and grass in them; and the moss along the edges reaching in further in some stretches than in others
+  const asphaltWear = mat => shaderChain(mat, 'asphaltWear', sh => {
+    sh.vertexShader = 'varying vec3 vAwP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vAwP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vAwP;\n' + RW_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec2 p = vAwP.xz; vec3 c = diffuseColor.rgb;
+        float pale = smoothstep(0.55, 0.78, rwN(p * 0.9 + 3.0) * 0.7 + rwN(p * 3.1 + 9.0) * 0.3), dark = smoothstep(0.58, 0.76, rwN(p * vec2(0.55, 0.4) + 17.0) * 0.75 + rwN(p * 2.6 + 5.0) * 0.25);
+        c = mix(c, vec3(0.34, 0.33, 0.31), 0.32 * pale); c *= 1.0 - 0.38 * dark; c *= 0.86 + 0.28 * rwN(p * 9.0 + 1.0);
+        float ck = rwN(p * 0.8 + 41.0) + 0.14 * rwN(p * 6.5 + 13.0) + 0.05 * rwN(p * 23.0 + 2.0), cw = max(fwidth(ck), 1e-4);
+        float where = smoothstep(0.52, 0.62, rwN(p * 0.35 + 61.0)), line = (1.0 - smoothstep(0.6 * cw, 1.6 * cw, abs(ck - 0.5))) * where;
+        float near = (1.0 - smoothstep(0.0, 0.012, abs(ck - 0.5))) * where;   // (the moss either side of a crack, a centimetre or so)
+        c = mix(c, vec3(0.06, 0.075, 0.03), 0.45 * near * smoothstep(0.4, 0.7, rwN(p * 4.0 + 7.0)));
+        c = mix(c, vec3(0.025, 0.024, 0.022), 0.85 * line);
+        float edge = 1.0 - smoothstep(0.0, 0.5, min(vMapUv.x, 1.0 - vMapUv.x) * 2.0), reach = rwN(p * 0.7 + 29.0);
+        c = mix(c, vec3(0.1, 0.13, 0.05), 0.55 * smoothstep(0.55 - 0.4 * reach, 0.95 - 0.2 * reach, edge) * smoothstep(0.35, 0.65, rwN(p * 5.0 + 3.0)));
+        diffuseColor.rgb = c; }`); });
   const earth = surfaceTex('#6e5d48', (g, w, h) => {
     for (let i = 0; i < 6000; i++){ const v = pr(); g.fillStyle = v < 0.5 ? 'rgba(50,40,30,.4)' : 'rgba(160,145,120,.35)'; g.fillRect(pr() * w, pr() * h, rn(0.8, 2.5), rn(0.8, 2.5)); }
     for (const side of [0, 1]) for (let y = 0; y < h; y += 4){ const d = rn(0.15, 0.4) * w, gr = g.createLinearGradient(side ? w : 0, 0, side ? w - d : d, 0);
       gr.addColorStop(0, 'rgba(90,120,50,.8)'); gr.addColorStop(1, 'rgba(90,120,50,0)'); g.fillStyle = gr; g.fillRect(side ? w - d : 0, y, d, 5); } });
-  const pathMat = map => { const m = flatMat(map, '#ffffff', 0.95, -2); m.alphaTest = 0.5; m.roughness = 0.95; return m; };
+  const pathMat = map => { const m = flatMat(map, '#ffffff', 0.95, -2); m.alphaTest = 0.5; m.roughness = 0.95; return map === asphalt ? asphaltWear(m) : m; };
   const edges = [];   // sampled edge points of every path, for the grass
   const ribbon = (pts, w, map, y = 0.016) => {
     const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new V3(x, 0, z))), L = curve.getLength(), N = Math.max(4, Math.ceil(L / 0.2)), A = 5, pos = [], uv = [], idx = [];
@@ -2814,7 +2826,32 @@ const FLOWER_KINDS = [ // bloom windows on the season axis (0 = Dec … 4), so s
 const SHEDS = [], INDS = [], EAVES = [], SHEDLOG = [], BIC = [];
 const shrubData = [], vegData = [], flowerData = [], sunData = [], lilacData = [], fruitSpots = [];
 {
-  const woodMat = snowify(new THREE.MeshStandardMaterial({ color: '#8a7a62', roughness: 1 }), 1.2);
+  // the lane's fence, its gates and the plots' posts: painted the benches' green, as the benches are: the paint laid along the grain, darker
+  // streaks in it, pale chips where it has flaked to the wood, worn through along the edges, dirtier towards the ground. The grain runs along
+  // each piece's length (up a picket, along a rail: the longer side of each face, from its uv); all of it from where the piece stands, so no
+  // two pickets alike
+  const woodMat = shaderChain(snowify(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.75 }), 1.2), 'fencePaint', sh => {
+    sh.vertexShader = 'varying vec3 vFpP;\nvarying vec2 vFpUv;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+      { vec4 fp = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+        fp = instanceMatrix * fp;
+        #endif
+        vFpP = (modelMatrix * fp).xyz; vFpUv = uv; }`);
+    sh.fragmentShader = 'varying vec3 vFpP;\nvarying vec2 vFpUv;\n' + RW_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec3 p = vFpP, px = dFdx(p), py = dFdy(p); vec2 ux = dFdx(vFpUv), uy = dFdy(vFpUv); float det = ux.x * uy.y - ux.y * uy.x;
+        vec3 dU = (px * uy.y - py * ux.y) / det, dV = (py * ux.x - px * uy.x) / det;   // (the face's sides in metres per uv)
+        bool uLong = length(dU) > length(dV); vec3 ga = normalize(uLong ? dU : dV), gb = normalize(uLong ? dV : dU);
+        float a = dot(p, ga), b = dot(p, gb), ac = uLong ? vFpUv.y : vFpUv.x, seed = floor(p.x * 7.0) + floor(p.z * 6.25) * 13.0;
+        vec3 c = vec3(0.07, 0.15, 0.09) * (0.9 + 0.2 * rwN(vec2(a * 2.0, seed)));   // the benches' green (a shade lighter: the fence stands in the weather)
+        c *= 1.0 - 0.28 * smoothstep(0.45, 0.8, rwN(vec2(a * 5.0, b * 140.0) + seed));   // darker streaks along the grain
+        c *= 1.0 + 0.18 * smoothstep(0.5, 0.85, rwN(vec2(a * 3.0, b * 90.0) + 7.0 + seed));   // and paler ones
+        vec2 cs = vec2(a, b) / vec2(0.09, 0.045), ci = floor(cs), cf = fract(cs) - 0.5 - (vec2(rwH(ci + seed), rwH(ci + 3.1 + seed)) - 0.5) * 0.5;
+        float chip = step(rwH(ci + 9.7 + seed), 0.35) * (1.0 - smoothstep(0.16, 0.22 + 0.14 * rwH(ci + 5.3), length(cf * vec2(1.0, 1.4))));   // the chips: flakes a centimetre or two, drawn out along the grain
+        float edge = 1.0 - smoothstep(0.04, 0.14, min(ac, 1.0 - ac)), worn = edge * step(0.55, rwN(vec2(a * 9.0, seed)));   // worn through along the edges, in dashes
+        vec3 wood = mix(vec3(0.47, 0.42, 0.3), vec3(0.2, 0.15, 0.09), step(0.6, rwH(ci + 1.7)));   // pale wood under it, now and then darker
+        c = mix(c, wood, max(chip, worn * 0.85));
+        c = mix(c, vec3(0.1, 0.11, 0.07), 0.3 * smoothstep(0.62, 0.78, rwN(vec2(a, b) * 5.0 + 31.0)) * (1.0 - smoothstep(0.0, 0.5, p.y)));   // mould and splashed earth near the ground
+        diffuseColor.rgb = c * (0.78 + 0.22 * smoothstep(0.0, 0.35, p.y)); }`); });
   const soilMat = snowify(new THREE.MeshStandardMaterial({ map: makeSoilTex(), normalMap: makeSoilNrm(), roughness: 1 })); SOIL.mat = soilMat;
   // picket fence along the road
   const pick_ = []; for (let z = -126; z < LANE_END; z += 0.16){ if (((z + 126) % PL) > PL - 1.8) continue; pick_.push(z); }
