@@ -182,18 +182,19 @@ function blot(g, x, y, r, col){ g.fillStyle = col; g.beginPath(); g.arc(x, y, r,
 function speckle(g, w, h, n, cols, r0 = 0.5, r1 = 1.6){ for (let i = 0; i < n; i++) blot(g, rng() * w, rng() * h, rnd(r0, r1), pick(cols)); }
 // stains that grow as stains do, not as circles: fractal value noise (its own hash, so the world's sequence is untouched), laid at a quarter
 // of the picture's resolution and drawn up smooth. layers: { col: [r, g, b], a (at most), size (px a cell), lo, hi (soft threshold),
-// stretch (cells so much taller: run down), fall (more of it towards the bottom), wrap (seamless across: for a picture tiled along a wall) },
-// each over the ones before
-function stainNoise(seed, period = 0){   // (period: cells across before it comes round again; 0, never)
+// stretch (cells so much taller: run down), fall (more of it towards the bottom), wrap / wrapY (seamless across / down: for a picture tiled
+// along a wall / a path) }, each over the ones before
+function stainNoise(seed, period = 0, periodY = 0){   // (period, periodY: cells across and down before it comes round again; 0, never)
   const H = (x, y) => { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1103515245) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; };
-  const N = (x, y, p) => { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), W = i => p ? ((i % p) + p) % p : i;
-    const a = H(W(ix), iy), b = H(W(ix + 1), iy), c = H(W(ix), iy + 1), d = H(W(ix + 1), iy + 1); return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
-  const f = period ? [2, 4, 8] : [2.03, 4.1, 8.3];   // (whole octaves when it must come round)
-  return (x, y) => N(x, y, period) * 0.5 + N(x * f[0] + 17.1, y * f[0] + 3.7, period * 2) * 0.27 + N(x * f[1] + 5.3, y * f[1] + 11.9, period * 4) * 0.15 + N(x * f[2] + 1.1, y * f[2] + 7.7, period * 8) * 0.08; }
+  const N = (x, y, p, q) => { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), W = (i, m) => m ? ((i % m) + m) % m : i;
+    const a = H(W(ix, p), W(iy, q)), b = H(W(ix + 1, p), W(iy, q)), c = H(W(ix, p), W(iy + 1, q)), d = H(W(ix + 1, p), W(iy + 1, q)); return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
+  const f = period || periodY ? [2, 4, 8] : [2.03, 4.1, 8.3];   // (whole octaves when it must come round)
+  return (x, y) => N(x, y, period, periodY) * 0.5 + N(x * f[0] + 17.1, y * f[0] + 3.7, period * 2, periodY * 2) * 0.27 + N(x * f[1] + 5.3, y * f[1] + 11.9, period * 4, periodY * 4) * 0.15 + N(x * f[2] + 1.1, y * f[2] + 7.7, period * 8, periodY * 8) * 0.08; }
 function stains(g, x0, y0, w, h, seed, layers, k = 4){
   const cw = Math.max(1, Math.ceil(w / k)), ch = Math.max(1, Math.ceil(h / k)), c = document.createElement('canvas'); c.width = cw; c.height = ch;
   const cx = c.getContext('2d'), img = cx.createImageData(cw, ch), d = img.data;
-  layers.forEach((L, li) => { const P = L.wrap ? Math.max(1, Math.round(w / L.size)) : 0, n = stainNoise(seed * 31 + li * 7 + 1, P), sx = P ? P / cw : k / L.size, sy = k / (L.size * (L.stretch || 1)), f = L.fall || 0;
+  layers.forEach((L, li) => { const P = L.wrap ? Math.max(1, Math.round(w / L.size)) : 0, Q = L.wrapY ? Math.max(1, Math.round(h / (L.size * (L.stretch || 1)))) : 0, n = stainNoise(seed * 31 + li * 7 + 1, P, Q);
+    const sx = P ? P / cw : k / L.size, sy = Q ? Q / ch : k / (L.size * (L.stretch || 1)), f = L.fall || 0;
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++){ const t = Math.min(1, Math.max(0, (n(x * sx, y * sy) + f * (y / ch - 0.5) - L.lo) / (L.hi - L.lo))), a = t * t * (3 - 2 * t) * L.a;
       if (a <= 0) continue; const i = (y * cw + x) * 4, A = d[i + 3] / 255, oa = a + A * (1 - a);
       for (let j = 0; j < 3; j++) d[i + j] = (L.col[j] * a + d[i + j] * A * (1 - a)) / oa; d[i + 3] = oa * 255; } });
@@ -630,7 +631,13 @@ function drawStucco(g, w, h, ppm, seed){
     { col: [40, 38, 32], a: 0.24, size: 1.6 * ppm, lo: 0.45, hi: 0.8, stretch: 1.4 },
     { col: [255, 252, 240], a: 0.13, size: 1.1 * ppm, lo: 0.52, hi: 0.82 },
     { col: [58, 54, 46], a: 0.15, size: 0.35 * ppm, lo: 0.58, hi: 0.78, stretch: 1.8 }]);
-  speckle(g, w, h, w * h / 60, ['rgba(60,58,50,.25)', 'rgba(240,238,230,.25)'], 0.5, 1.4);
+  // the grit in the roughcast: each grain a small chip of its own shape (three to five corners), drawn out and turned its own way, some
+  // catching the light, some in shadow, each its own depth. (The four draws a round speck once took, in the same order; its shape from where it lies)
+  const fr = v => v - Math.floor(v), hs = (x, y, k) => fr(Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453);
+  for (let i = 0; i < w * h / 60; i++){ const x = rng() * w, y = rng() * h, r = rnd(0.5, 1.4), dark = rng() < 0.5, n = 3 + (hs(x, y, 1) * 3 | 0), a0 = hs(x, y, 2) * TAU, el = 0.45 + 0.9 * hs(x, y, 3);
+    g.fillStyle = dark ? `rgba(60,58,50,${0.12 + 0.18 * hs(x, y, 4)})` : `rgba(240,238,230,${0.1 + 0.18 * hs(x, y, 5)})`; g.beginPath();
+    for (let k = 0; k < n; k++){ const a = a0 + k / n * TAU, rr = r * (0.55 + 0.9 * hs(x, y, 6 + k)), qx = x + Math.cos(a) * rr, qy = y + Math.sin(a) * rr * el; k ? g.lineTo(qx, qy) : g.moveTo(qx, qy); }
+    g.fill(); }
   // rain run down from the eaves: each streak soft at its edges and tapering (laid narrower and longer over itself), some faint, a few dark.
   // (How dark from where it is, so the world's draws stay as they were)
   for (let i = 0; i < w / 28; i++){ const x = rng() * w, len = rnd(0.15, 0.85) * h, ww = rnd(6, 60), k = (x * 0.618034) % 1, a = (0.09 + 0.3 * k * k) / 2.5;
@@ -1020,14 +1027,23 @@ function drawDoor(g, w, X, Y, S){
     const kp = S(0.21), ky = yb - kp;                                                                              // galvanised kick plate
     const kg = g.createLinearGradient(0, ky, 0, yb); kg.addColorStop(0, '#9aa2a6'); kg.addColorStop(1, '#7c8488'); g.fillStyle = kg; g.fillRect(lx + S(0.02), ky, lw - S(0.04), kp);
     g.fillStyle = 'rgba(50,55,58,.6)'; for (let i = 0; i < 5; i++) blot(g, lx + S(0.05) + i * (lw - S(0.1)) / 4, ky + S(0.025), 0.8, 'rgba(50,55,58,.6)');
-    for (let i = 0; i < 6; i++) blot(g, lx + r() * lw, ky + r() * kp, r() * 3 + 1, 'rgba(90,70,50,.25)');
+    for (let i = 0; i < 6; i++){ r(); r(); r(); }   // (the round blots once here: their draws still taken, so the scratches stay as they were)
+    stains(g, lx + S(0.02), ky, lw - S(0.04), kp, 1023 + k + Math.round(w.cx), [   // the kick plate: dulled, dirt kicked up against it, a little rust
+      { col: [70, 66, 58], a: 0.35, size: S(0.05), lo: 0.5, hi: 0.72, fall: 0.6 },
+      { col: [110, 72, 44], a: 0.3, size: S(0.025), lo: 0.64, hi: 0.76, fall: 0.4 }], 2);
     g.fillStyle = 'rgba(20,6,4,.35)'; g.fillRect(lx, ly, S(0.012), lh); g.fillRect(lx + lw - S(0.012), ly, S(0.012), lh); }
   g.fillStyle = '#26090a'; g.fillRect(x0 + lw, ly, gap, lh);                                                     // the meeting stile
   g.fillStyle = '#5a1a12'; g.fillRect(x0 + lw - S(0.01), ly, S(0.02), lh);
   g.fillStyle = '#b08a3a'; g.fillRect(x0 + lw - S(0.07), Y(1.25), S(0.022), S(0.17)); blot(g, x0 + lw - S(0.059), Y(1.25), S(0.016), '#c8a050');   // brass handle
   g.fillStyle = '#2a2a2a'; blot(g, x0 + lw - S(0.059), Y(1.4), S(0.012), '#2a2a2a');                                // keyhole
-  for (let i = 0; i < 26; i++){ const x = x0 + r() * dw, y = yt + r() * (yb - yt), rr = r() * 2.6 + 0.6;            // worn paint, scuffs, the odd scratch
-    blot(g, x, y, rr, r() < 0.6 ? 'rgba(150,90,70,.28)' : 'rgba(30,10,6,.35)'); }
+  for (let i = 0; i < 26; i++){ r(); r(); r(); r(); }   // (the round scuffs once here: their draws still taken)
+  stains(g, x0, yt, dw, yb - yt, 1029 + Math.round(w.cx), [{ col: [30, 10, 6], a: 0.16, size: S(0.25), lo: 0.5, hi: 0.8, fall: 0.5 }], 4);   // a faint grime all over, more of it lower down
+  stains(g, x0 + lw - S(0.32), Y(1.55), S(0.64), S(0.6), 1030 + Math.round(w.cx), [   // the paint worn through round the handle, where the hands push
+    { col: [150, 90, 70], a: 0.34, size: S(0.06), lo: 0.52, hi: 0.66 },
+    { col: [40, 16, 10], a: 0.25, size: S(0.03), lo: 0.6, hi: 0.72 }], 2);
+  stains(g, x0, yb - S(0.55), dw, S(0.55), 1031 + Math.round(w.cx), [   // and along the bottom, kicked and splashed
+    { col: [150, 90, 70], a: 0.28, size: S(0.05), lo: 0.6, hi: 0.72, fall: 0.5 },
+    { col: [36, 26, 18], a: 0.4, size: S(0.08), lo: 0.5, hi: 0.72, fall: 0.9 }], 2);
   g.strokeStyle = 'rgba(170,120,95,.25)'; g.lineWidth = 0.6; for (let i = 0; i < 6; i++){ const x = x0 + r() * dw, y = Y(0.6) + r() * S(1.2); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y + r() * 14); g.stroke(); }
 }
 // a staircase window as they all were: weathered dark wood deep in the wall, a transom of two small panes over two tall lights, a plaster ledge
@@ -1148,7 +1164,19 @@ const roofTex = tex(512, 512, (g, w, h) => {   // (just the standing seams: the 
     for (const x of [-12, -3, 6.5, 14]){ const z = BZ - BD / 2 + rnd(-1.5, 1.5), a = Math.abs(z - (BZ - BD / 2)) + 0.35, yT = Math.round((BH + 2.4 + 0.55) * 14) / 14;
       chimneyInto(K, ID3, ID3, x, z, BH + 2.4 * (1 - a / (BD / 2 + 0.4)) - 0.2, yT, [0.92, 0.86, 0.8], true, 0.35, 0.35); CHIMNEYS.push(new V3(x, yT + 0.1, z)); }
     scene.add(chimneyMesh(K)); }
-  const concrete = snowify(new THREE.MeshStandardMaterial({ color: '#8c8a84', roughness: 1 }));
+  // the entrances' concrete, weathered from where it is (the slabs are plain boxes, a picture would stretch on their edges): blotched and
+  // grimed, the aggregate pitting it, water run down its edges, splashed dark near the ground, and moss in the damp, more of it lower down
+  const concreteWear = mat => shaderChain(mat, 'concreteWear', sh => {
+    sh.vertexShader = 'varying vec3 vCwP;\nvarying vec3 vCwN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vCwP = (modelMatrix * vec4(transformed, 1.0)).xyz; vCwN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = 'varying vec3 vCwP; varying vec3 vCwN;\n' + RW_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec3 n = normalize(vCwN), p = vCwP; vec2 q = abs(n.y) > 0.5 ? p.xz : abs(n.x) > 0.5 ? p.zy : p.xy;
+        float big = rwN(q * 1.4 + 3.0), mid = rwN(q * 5.0 + 7.0), fine = rwN(q * 26.0 + 1.0), pit = smoothstep(0.8, 0.86, rwN(q * 70.0 + 5.0));
+        float streak = (1.0 - step(0.5, abs(n.y))) * smoothstep(0.55, 0.85, rwN(vec2((abs(n.x) > 0.5 ? p.z : p.x) * 9.0, p.y * 0.7) + 13.0));
+        float low = 1.0 - smoothstep(0.05, 0.45, p.y), grime = smoothstep(0.42, 0.8, 0.55 * big + 0.45 * mid);
+        float moss = smoothstep(0.62, 0.78, rwN(q * 3.2 + 21.0) + 0.25 * low) * (0.4 + 0.6 * low);
+        vec3 c = diffuseColor.rgb * (0.86 + 0.24 * mid) * (0.92 + 0.16 * fine) * (1.0 - 0.32 * grime) * (1.0 - 0.3 * pit) * (1.0 - 0.28 * streak) * (1.0 - 0.3 * low);
+        diffuseColor.rgb = mix(c, vec3(0.06, 0.075, 0.035), 0.55 * moss); }`); });
+  const concrete = concreteWear(snowify(new THREE.MeshStandardMaterial({ color: '#8c8a84', roughness: 1 })));
   concrete.shadowSide = THREE.FrontSide;   // (the canopies' shadows cast from their tops, as the roof's: from their undersides, flush with where they meet the wall, the bias let a jagged strip of sun in under them)
   for (const x of [-9, 9]){
     const cn = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.14, 1.1), concrete); cn.position.set(x, 2.72, BZ + 0.55); cn.castShadow = true; scene.add(cn);
@@ -1190,7 +1218,11 @@ const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' roun
     for (let y = 0; y < h; y += 3) for (const side of [0, 1]){ const d = (0.02 + 0.07 * pr() * pr()) * w; g.fillStyle = '#000'; g.fillRect(side ? w - d : 0, y, d, 4); }
     g.globalCompositeOperation = 'source-over'; });
   const asphalt = surfaceTex('#76736c', (g, w, h) => {
-    for (let i = 0; i < 60; i++) blot(g, pr() * w, pr() * h, rn(10, 50), pr() < 0.5 ? 'rgba(40,40,38,.10)' : 'rgba(200,196,186,.08)');   // patching, wear
+    for (let i = 0; i < 60; i++){ pr(); pr(); pr(); pr(); }   // (the round blots once here: their draws still taken, so the cracks and the edges stay as they were)
+    stains(g, 0, 0, w, h, 1193, [   // worn pale where the stone shows through, darker where it was patched or the damp sits, and mottled finer (seamless down: it repeats along the path)
+      { col: [150, 146, 138], a: 0.2, size: 70, lo: 0.55, hi: 0.75, wrapY: true },
+      { col: [40, 40, 38], a: 0.24, size: 90, lo: 0.58, hi: 0.72, stretch: 1.5, wrapY: true },
+      { col: [60, 58, 55], a: 0.12, size: 14, lo: 0.5, hi: 0.75, wrapY: true }], 2);
     for (let i = 0; i < 9000; i++){ const v = pr(); g.fillStyle = v < 0.4 ? 'rgba(40,38,36,.45)' : v < 0.8 ? 'rgba(170,166,158,.45)' : 'rgba(120,104,90,.5)'; g.fillRect(pr() * w, pr() * h, rn(0.6, 2.2), rn(0.6, 2.2)); }
     g.strokeStyle = 'rgba(28,26,24,.85)'; g.lineCap = 'round';
     for (let c = 0; c < 7; c++){ let x = pr() * w, y = pr() * h, a = pr() < 0.5 ? rn(-0.4, 0.4) : Math.PI / 2 + rn(-0.4, 0.4); g.lineWidth = rn(1, 2.6); g.beginPath(); g.moveTo(x, y);
