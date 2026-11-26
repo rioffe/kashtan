@@ -69,8 +69,12 @@ def plan_edit(duration, fps, only=None):
     else:
         shots = list(EDIT)
     fade = lambda e: TIMING.get(e[0], {}).get('fade', XF)                                    # (into the next shot)
-    fixed = lambda e: TIMING.get(e[0], {}).get('hold', 0) + TIMING.get(e[0], {}).get('fade', 0)   # (seconds not stretched)
-    total = lambda sh, k: sum(e[1] * k + fixed(e) for e in sh) - sum(fade(e) for e in sh[:-1])
+    own = lambda e: TIMING.get(e[0], {}).get('hold', 0) + TIMING.get(e[0], {}).get('fade', 0)   # (its hold and slow fade out)
+    # a shot after a slow fade is longer by what that fade takes beyond the usual one, so it keeps its own time on screen
+    # (and its caption): seconds not stretched with the rest, over which its camera keeps moving
+    after = lambda sh: [0.0] + [max(0.0, fade(p) - XF) for p in sh[:-1]]
+    fixed = lambda sh: [own(e) + x for e, x in zip(sh, after(sh))]
+    total = lambda sh, k: sum(e[1] * k for e in sh) + sum(fixed(sh)) - sum(fade(e) for e in sh[:-1])
     extended = {e[0] for e in EDIT if e[3]}
     dropped = []
     if not only:
@@ -81,14 +85,15 @@ def plan_edit(duration, fps, only=None):
                 break
             shots = [e for e in shots if e[0] != name]
             dropped.append(name)
-    k = (duration - sum(fixed(e) for e in shots) + sum(fade(e) for e in shots[:-1])) / sum(e[1] for e in shots)
-    plan, t, xf_in = [], 0.0, 0.0
-    for e in shots:
+    k = (duration - sum(fixed(shots)) + sum(fade(e) for e in shots[:-1])) / sum(e[1] for e in shots)
+    plan, t, xf_in, carry = [], 0.0, 0.0, 0.0
+    for e, fx, extra in zip(shots, fixed(shots), after(shots)):
         name, d, card = e[0], e[1], e[2]
-        frames = max(2, round((d * k + fixed(e)) * fps))
+        want = (d * k + fx) * fps + carry   # (frames, with what the shots before lost or gained to rounding)
+        frames = max(2, round(want)); carry = want - frames
         dur = frames / fps
         # xf: the crossfade in from the shot before; move: the part of the shot over which its camera moves (then it holds)
-        plan.append({'name': name, 'dur': dur, 'frames': frames, 'start': t, 'card': card, 'xf': xf_in, 'move': min(1.0, d * k / dur)})
+        plan.append({'name': name, 'dur': dur, 'frames': frames, 'start': t, 'card': card, 'xf': xf_in, 'move': min(1.0, (d * k + extra) / dur)})
         xf_in = fade(e)
         t += dur - xf_in
     end = plan[-1]['start'] + plan[-1]['dur']
@@ -166,7 +171,7 @@ def contact_sheets(work, plan):
         print('  ' + out)
 
 
-def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False):
+def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False, codec='h264'):
     args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-stats', '-y']
     for s in plan:
         args += ['-i', os.path.join(work, 'clips', s['name'] + '.mp4')]
@@ -188,16 +193,22 @@ def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False):
         g.append(f"[{prev}][c{j}]overlay=enable='between(t,{a:.3f},{b:.3f})':format=auto[o{j}]")
         prev = f'o{j}'
     vf = min(1.6, total * 0.05)
-    g.append(f'[{prev}]fade=t=in:st=0:d=1.0,fade=t=out:st={total - vf:.3f}:d={vf:.2f},format=yuv420p[vout]')
+    pix = 'yuv420p10le' if codec == 'hevc' else 'yuv420p'
+    g.append(f'[{prev}]fade=t=in:st=0:d=1.0,fade=t=out:st={total - vf:.3f}:d={vf:.2f},format={pix}[vout]')
     maps = ['-map', '[vout]']
     if not silent:
         af = min(2.5, total * 0.08)
         g.append(f'[{A}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,acompressor=threshold=0.05:ratio=2.5:attack=20:release=400,'
                  f'loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.8,afade=t=out:st={total - af:.3f}:d={af:.2f},aresample=48000[aout]')
         maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '320k' if best else '256k']
-    args += ['-filter_complex', ';'.join(g), *maps, '-c:v', 'libx264', '-preset', 'slower' if best else 'slow', *(['-tune', 'film'] if best else []),
-             '-crf', str(crf), '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
-             '-pix_fmt', 'yuv420p', '-r', str(fps), '-g', str(2 * fps), '-movflags', '+faststart', '-t', f'{total:.3f}', out]
+    if codec == 'hevc':   # (10-bit HEVC, tagged hvc1 so QuickTime and Apple's decoders take it; any size up to 8K)
+        venc = ['-c:v', 'libx265', '-preset', 'slow', '-crf', str(crf), '-profile:v', 'main10', '-tag:v', 'hvc1',
+                '-x265-params', f'keyint={2 * fps}:min-keyint={fps}:colorprim=bt709:transfer=bt709:colormatrix=bt709:log-level=error']
+    else:
+        venc = ['-c:v', 'libx264', '-preset', 'slower' if best else 'slow', *(['-tune', 'film'] if best else []), '-crf', str(crf), '-profile:v', 'high',
+                '-g', str(2 * fps)]
+    args += ['-filter_complex', ';'.join(g), *maps, *venc, '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
+             '-pix_fmt', pix, '-r', str(fps), '-movflags', '+faststart', '-t', f'{total:.3f}', out]
     subprocess.run(args, check=True)
 
 
@@ -211,6 +222,8 @@ def main():
                     '(sharper leaves; default 2 up to 1440p, 1 above)')
     ap.add_argument('--best', action='store_true', help='highest quality: supersample 2 at any size, CRF 12 with x264 preset slower and '
                     'film tuning, 320 kbit/s audio (for a master; slow, and a big file)')
+    ap.add_argument('--codec', choices=['h264', 'hevc'], help='h264 (plays everywhere) or hevc (10-bit, for frames larger than 4096x2304; '
+                    'default: h264, or hevc for frames too large for H.264 to play on most machines)')
     ap.add_argument('--crf', type=int, default=16, help='x264 quality: lower is better and bigger (16 is near transparent, 20 is lighter)')
     ap.add_argument('--shots', help='only these shots, comma-separated, in the usual order (default: chosen to fit the duration)')
     ap.add_argument('--silent', action='store_true', help='no soundtrack (skips the real-time sound pass)')
@@ -232,7 +245,10 @@ def main():
     if a.duration < 8:
         die('--duration: at least 8 seconds')
     ss = a.supersample or (2 if a.best or w * h <= 2560 * 1440 else 1)
-    crf = 12 if a.best and a.crf == 16 else a.crf
+    codec = a.codec or ('hevc' if w > 4096 or h > 2304 or w * h > 4096 * 2304 else 'h264')
+    if codec == 'hevc' and not a.codec:
+        print(f'note: {w}x{h} is larger than H.264 plays on most machines (4096x2304); encoding HEVC (10-bit) instead')
+    crf = (14 if codec == 'hevc' else 12) if a.best and a.crf == 16 else a.crf   # (x265 CRF 14 is about x264's 12)
     if abs(w / h - 16 / 9) > 0.02:
         print(f'note: the shots are framed for 16:9; at {w}x{h} the same views are cropped or widened')
     for tool in ('node', 'ffmpeg'):
@@ -279,7 +295,7 @@ def main():
         print('\nwords')
         node('cards.mjs', work)
         print('\ntogether')
-        assemble(work, plan, cards, total, w, h, a.fps, crf, out, a.silent, a.best)
+        assemble(work, plan, cards, total, w, h, a.fps, crf, out, a.silent, a.best, codec)
     finally:
         srv.terminate()
     mb = os.path.getsize(out) / 1e6
