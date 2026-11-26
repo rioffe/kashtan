@@ -10880,7 +10880,8 @@ function frame(){
 
 { const q = new URLSearchParams(location.search);
   if (q.has('s')){ started = true; $('intro').classList.add('gone'); $('ui').classList.remove('hidden'); mode = 'walk';
-    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); if (q.has('cactus')) PLANT_A = +q.get('cactus');   // (debug: the cactus's age, in seasons) place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
+    S = +q.get('s'); TOD = +(q.get('tod') ?? 0.5); if (q.has('cactus')) PLANT_A = +q.get('cactus');   // (debug: the cactus's age, in seasons)
+    place(new V3(+(q.get('x') ?? ROAD_X), 1.6, +(q.get('z') ?? -110)), +(q.get('yaw') ?? 0.15), +(q.get('pitch') ?? 0.12));
     if (q.get('bushat')){ const [k, i] = q.get('bushat').split(','), b = ({ lilac: lilacData, ...WILD, ...BERRYB, ...Object.fromEntries(['apple', 'pear', 'plum'].map(t => [t, fruitSpots.filter(f => f.type === t).map(f => ({ p: new V3(f.x, 2.2, f.z) }))])) })[k][+i || 0], d = +(q.get('bushd') || 4), az = +(q.get('bushaz') || 0);   // debug: look at a bush
       const e = new V3(b.p.x + Math.cos(az) * d, 1.6, b.p.z + Math.sin(az) * d); place(e, yawTo(e, b.p), -0.08); }
     if (q.get('vegat')){ const [k, i] = q.get('vegat').split(','), it = VEG.items[k][+i || 0], d = +(q.get('vegd') || 1.4), e = new V3(it.p.x + d, 1.6, it.p.z + d * 0.45); place(e, yawTo(e, it.p), -+(q.get('vegp') || 0.75)); }   // debug: look at a crop
