@@ -7006,7 +7006,8 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (let k = 0; k < 12; k++){ const [x, y] = pol(0.79 * R, (k + 0.5) * TAU / 12); g.save(); g.translate(x, y); g.rotate((k + 0.5) * TAU / 12 + Math.PI / 4); g.fillStyle = '#121416'; g.fillRect(-9, -9, 18, 18); g.strokeStyle = 'rgba(120,128,132,.5)'; g.lineWidth = 2; g.strokeRect(-9, -9, 18, 18); g.restore(); }   // (the studs)
   }, { srgb: true });
   clockT.wrapS = clockT.wrapT = THREE.ClampToEdgeWrapping;
-  const clockFace = (u, v, nu, nv, w = 2.3, y0 = 24.5, y1 = 26.8) => { const tu = nv, tv = -nu, cu = u + nu * 0.1, cv = v + nv * 0.1;
+  const clockFace = (u, v, nu, nv, w = 2.3, y0 = 24.5, y1 = 26.8) => { const tu = nv, tv = -nu, cu = u + nu * 0.13, cv = v + nv * 0.13;   // (13 cm out: in front of the stone band
+    // round the tower, whose face, 10 cm out, runs behind the top of the dial; the hands stand 2-7 cm in front of it)
     poly(CLK, [P(cu - tu * w / 2, y0, cv - tv * w / 2), P(cu + tu * w / 2, y0, cv + tv * w / 2), P(cu + tu * w / 2, y1, cv + tv * w / 2), P(cu - tu * w / 2, y1, cv - tv * w / 2)], [[0, 0], [1, 0], [1, 1], [0, 1]]); };
   const reg = (k) => { const [x, y, w, h] = R_[k]; return [[x / AW, 1 - (y + h) / AH], [(x + w) / AW, 1 - y / AH]]; };
   // a picture on a wall: centred at (u, v) facing (nu, nv), w wide, from y0 to y1, from the sheet's region k
@@ -7146,7 +7147,7 @@ float anN3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f)
     for (const [u, v, nu, nv] of [[TW.u1 - 0.2, 0, 1, 0], [mu, f1, 0, 1], [mu, -f1, 0, -1]]){ const tu = nv, tv = -nu, at = (t, d = 0) => [u + tu * t + nu * d, v + tv * t + nv * d];
       for (const t of [-3.3, -2.2, -0.9, 0.9, 2.2, 3.3]) prism(ST, [at(t - 0.1, -0.02), at(t + 0.1, -0.02), at(t + 0.1, 0.12), at(t - 0.1, 0.12)], TW.s1 + 0.05, 23.5, false);
       opening('H', u, v, nu, nv, 0.8, 19.3, 22.9, 0.12, 0.14); for (const t of [-1.55, 1.55]){ const [su, sv] = at(t); pic('H', su, sv, nu, nv, 0.28, 19.9, 22.2); }
-      clockFace(u, v, nu, nv); sqFrame(u, v, nu, nv, 2.3, 24.5, 26.8, 0.15, 0.2); setoff(u, v, nu, nv, 3.0, 0.62, 26.95);
+      clockFace(u, v, nu, nv); sqFrame(u, v, nu, nv, 2.3, 24.5, 26.8, 0.15, 0.2); setoff(u, v, nu, nv, 3.0, 0.62, 26.93);   // (the hood's foot 2 cm down into the frame's top, not on it)
       CLOCKS.push([u, 25.65, v, nu, nv]); }
     for (let k = 0; k < 8; k++){ const a = k * TAU / 8, nu = Math.cos(a), nv = Math.sin(a), u = mu + nu * TW.oa, v = nv * TW.oa, hw = TW.oa * Math.tan(Math.PI / 8), straight = k % 2 === 0;   // the octagon's faces
       if (straight){ opening('D', u, v, nu, nv, 2.3, 28.6, 41.3, 0.22, 0.28); const G = gable(u, v, nu, nv, [[-hw, TW.top], [hw, TW.top], [0, 43.2]], 0.5); G.panel('O', 0, 0.6, 41.75, 42.35); G.finAt(0, 43.2, 0.75); }   // the straight ones: the tall arch, louvred, in two tiers, up into the gable
@@ -8453,6 +8454,17 @@ function spawnNut(p, bare = Math.random() < 0.12){ const n = NUTs[nutCur]; nutCu
   // most come down still in the husk; now and then one has already slipped out up in the tree
   n.h = bare ? 0 : 1; n.hc.copy(huskMat.color); n.hq.setFromEuler(new THREE.Euler(rng() * TAU, rng() * TAU, 0)); n.spinAx.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(); n.spin = rnd(2, 7); }
 const nutQ = new THREE.Quaternion(), nutV = new V3(), nutM = new THREE.Matrix4(), nutT = new THREE.Matrix4(), nutC = new THREE.Color(), huskOld = new THREE.Color('#6b5530'), liningOld = new THREE.Color('#b59a6a');
+// room on the ground: a husk's valves lie open round it like petals, and a conker can lie neither among them (its own husk's or
+// another's) nor in another conker. A conker that finds itself there is nudged out and rolls clear; a husk splits where it will
+// not open over another husk or a conker lying there
+const HUSK_OUT = HUSK_R * 1.8, NUT_RAD = 0.045;
+function nutCrowd(x, z, self, husk){ let px = 0, pz = 0, hit = false;
+  const push = (cx, cz, R) => { const dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz); if (d >= R) return; hit = true;
+    if (d > 1e-4){ px += dx / d * (R - d); pz += dz / d * (R - d); } else { const a = rng() * TAU; px += Math.cos(a) * R; pz += Math.sin(a) * R; } };
+  for (const m of NUTs){
+    if (m.h === 2 && !(husk && m === self)) push(m.hp.x, m.hp.z, husk ? HUSK_OUT * 2 : HUSK_OUT + NUT_RAD * 0.8);   // (husk by husk: the valves' tips just meet)
+    if (m !== self && m.on && m.h !== 1 && m.p.y < 0.6) push(m.p.x, m.p.z, husk ? HUSK_OUT + NUT_RAD * 0.8 : NUT_RAD * 2); }
+  return hit ? [px, pz] : null; }
 function updateNuts(dt, canGather){
   for (let i = 0; i < NUT_N; i++){ const n = NUTs[i];
     if (n.on && !n.rest){ n.v.y -= 9.8 * dt; n.p.addScaledVector(n.v, dt);
@@ -8460,21 +8472,24 @@ function updateNuts(dt, canGather){
         const hg = n.p.y < 0.6 ? nutGround(n.p.x, n.p.z, 0.08) : 0;   // (the ground, a stone or a log of the fire's, the leaves lying there)
         if (n.p.y < hg + HUSK_R * 1.1){ // the husk hits the ground (or a stone of the fire's) and splits; the conker hops out
           const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.14 * clamp(1 - dd / 25));
-          n.h = 2; n.ht = 0; n.hp.set(n.p.x, hg, n.p.z); n.hy = rng() * TAU; n.hT = timeU.value; n.covT = 0;
+          let hx = n.p.x, hz = n.p.z; for (let it = 0; it < 6; it++){ const q = nutCrowd(hx, hz, n, true); if (!q) break; hx += q[0]; hz += q[1]; }   // (where there is room for it to open)
+          n.h = 2; n.ht = 0; n.hp.set(hx, hx === n.p.x && hz === n.p.z ? hg : nutGround(hx, hz, 0.08), hz); n.hy = rng() * TAU; n.hT = timeU.value; n.covT = 0;
           for (let k = 0; k < 3; k++) n.ha[k] = rnd(0.7, 1.35);
           if (rng() < 0.4) n.ha[Math.floor(rng() * 3)] = rnd(0.08, 0.35);   // one valve still half shut
           const a = rng() * TAU, sp = rng() < 0.3 ? rnd(0, 0.08) : rnd(0.3, 1.1);
           n.p.set(n.hp.x, hg + 0.07, n.hp.z); n.v.set(Math.cos(a) * sp, rnd(0.4, 1.3), Math.sin(a) * sp); } }
       else {
         const gy = n.p.y < 0.5 ? nutGround(n.p.x, n.p.z, 0.035) : 0;   // (the ground, a stone or a log of the fire's, a leaf lying there)
+        const crowd = n.p.y < gy + 0.06 ? nutCrowd(n.p.x, n.p.z, n, false) : null; if (crowd){ n.v.x += crowd[0] * 60 * dt; n.v.z += crowd[1] * 60 * dt; }   // (out of a husk, off another conker)
         if (n.p.y < gy + 0.045){ n.p.y = gy + 0.045;
           if (n.v.y < -1.2){ if (n.h !== 2 || n.ht > 0.3){ const dd = camera.position.distanceTo(n.p); if (dd < 25) sfx.thunk(0.1 * clamp(1 - dd / 25)); } n.v.y *= -0.3; n.v.x *= 0.6; n.v.z *= 0.6; }
           else { n.v.y = 0; const f = Math.max(0, 1 - dt * 2.6); n.v.x *= f; n.v.z *= f;
             if (gy > 0.012){ const gx = (fire.top(n.p.x + 0.02, n.p.z) - fire.top(n.p.x - 0.02, n.p.z)) / 0.04, gz = (fire.top(n.p.x, n.p.z + 0.02) - fire.top(n.p.x, n.p.z - 0.02)) / 0.04;   // (on a stone's round top it rolls off)
-              n.v.x -= gx * 5 * dt; n.v.z -= gz * 5 * dt; if (Math.hypot(gx, gz) < 0.15 && Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } }
-            else if (Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } } }
+              n.v.x -= gx * 5 * dt; n.v.z -= gz * 5 * dt; if (!crowd && Math.hypot(gx, gz) < 0.15 && Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } }
+            else if (!crowd && Math.hypot(n.v.x, n.v.z) < 0.03){ n.rest = true; n.cT = timeU.value; n.covT = 0; } } }
         const hs = Math.hypot(n.v.x, n.v.z); // roll
         if (n.p.y < gy + 0.05 && hs > 0.01){ nutV.set(n.v.z, 0, -n.v.x).normalize(); n.q.premultiply(nutQ.setFromAxisAngle(nutV, hs * dt / 0.045)); } } }
+    if (n.on && n.rest && n.h !== 1 && nutCrowd(n.p.x, n.p.z, n, false)) n.rest = false;   // (crowded since it came to rest: it rolls clear)
     if (n.h === 2) n.ht += dt;
     if ((n.h === 2 && n.ht > 1.5) || (n.on && n.rest)){ const now = timeU.value; if (now > (n.covT ?? 0)){ n.covT = now + 2 + (i % 7) * 0.13;
       if (n.h === 2 && n.ht > 1.5){ n.hp.y = nutGround(n.hp.x, n.hp.z, 0.08, n.hT); LEAFLAY.disc(n.hp.x, n.hp.z, HUSK_R * 2, n.hp.y + 0.008, now + 8); }   // (the grass under it, while it lies)
@@ -9058,6 +9073,20 @@ const catPose = (pose, dur) => cat.q.push({ type: 'pose', pose, dur });
    trunk belly to the bark, over its shoulder onto the top of the limb, up to the fork, and out along the top of the branch to lie
    where that is flattest. Each point carries the surface's outward normal; worked out once per branch */
 const catTreeRoutes = new Map(), catRC = new THREE.Raycaster();
+// lying or sitting up the tree, the cat settles onto the bark under its paws: the limb it lies on is seldom as straight as the
+// path that brought it there, so (each frame, as the pose eases in) the bark is felt for straight down under its fore paws and
+// under its hind paws, and its height and its slope are eased until both pairs rest on it (not the fore sunk in, the hind afloat)
+let catBark = null;
+const catBarkO = new V3(), catBarkF = new V3(), catBarkH = new V3(), DOWN_ = new V3(0, -1, 0);
+function catOnBark(dt){
+  if (!catBark){ const M = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }); catBark = [...tree.perch.values(), ...tree.perchRoots].map(g => { const m = new THREE.Mesh(g, M); m.position.copy(TREE); m.updateMatrixWorld(); return m; }); }
+  const R = cat.root; R.updateMatrixWorld(true);
+  const avg = (Ls, out) => { out.set(0, 0, 0); for (const L of Ls) out.add(catV.setFromMatrixPosition(L.paw.matrixWorld)); return out.multiplyScalar(1 / Ls.length); };
+  const top = p => { catRC.set(catBarkO.set(p.x, p.y + 0.25, p.z), DOWN_); catRC.far = 0.6; const h = catRC.intersectObjects(catBark, false)[0]; return h ? h.point.y : null; };
+  const pF = avg(cat.F, catBarkF), pH = avg(cat.H, catBarkH), bF = top(pF), bH = top(pH);
+  if (bF === null || bH === null) return;
+  const eF = pF.y - bF - 0.011, eH = pH.y - bH - 0.011, d = Math.max(0.12, Math.hypot(pF.x - pH.x, pF.z - pH.z)), k = Math.min(1, dt * 6);   // (a paw's middle 11 mm over what it stands on)
+  R.position.y -= (eF + eH) / 2 * k; R.rotation.x += Math.atan2(eF - eH, d) * k; }
 function catTreeRoute(limb, g1, g2){
   const id = tree.key(limb[1]) + '|' + tree.key(g1.b); if (catTreeRoutes.has(id)) return catTreeRoutes.get(id); const T0_ = performance.now();
   const geos = [tree.perch.get('trunk'), ...tree.perchRoots, tree.perch.get(tree.key(limb[1])), tree.perch.get(tree.key(g1.b))].filter(Boolean);
@@ -9302,6 +9331,7 @@ function updateCat(dt, t){
   const bodyPitch = cat.body.rotation.x;
   cat.F.forEach(L => L.paw.rotation.x = -(bodyPitch + c.cb + L.s.rotation.x + L.e.rotation.x + L.w.rotation.x) * (1 - 0.6 * c.fix) + L.fold);
   cat.H.forEach(L => L.paw.rotation.x = -(bodyPitch + L.h.rotation.x + L.k.rotation.x + L.a.rotation.x) * (1 - 0.6 * c.fix) + L.fold);
+  if (cat.where === 'tree' && step.type !== 'go' && R.position.y > 1) catOnBark(dt);   // lying or sitting up the tree: down onto the bark under its paws
   const br = 1 + Math.sin(t * (pose === 'lie' ? 1.3 : 2.2)) * 0.012;       // breathing (applied in the skin)
   // head: looks at you when you are near and it is resting; otherwise forward, now and then a glance around
   let hy = 0, hp = c.hx;
