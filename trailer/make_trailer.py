@@ -187,7 +187,7 @@ def main():
     ap.add_argument('--shots', help='only these shots, comma-separated, in the usual order (default: chosen to fit the duration)')
     ap.add_argument('--silent', action='store_true', help='no soundtrack (skips the real-time sound pass)')
     ap.add_argument('--stills', action='store_true', help='only draw the first, middle and last frame of each shot, and tile them')
-    ap.add_argument('--out', help='output file (default: kashtan-trailer-WxH-Ns.mp4 here)')
+    ap.add_argument('--out', help='output file (default: kashtan-trailer-WxH-LAYOUT-Ns.mp4 here)')
     ap.add_argument('--work', default=os.path.join(HERE, 'work'), help='folder for the intermediate files')
     ap.add_argument('--port', type=int, default=0, help='port to serve the game on (default: any free one)')
     a = ap.parse_args()
@@ -214,9 +214,10 @@ def main():
 
     only = [s.strip() for s in a.shots.split(',')] if a.shots else None
     plan, cards, total, k, dropped, skipped = plan_edit(a.duration, a.fps, only)
-    out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-trailer-{w}x{h}-{round(a.duration)}s.mp4'))
+    layout = 'landscape' if w > h else 'square' if w == h else 'portrait'
+    out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-trailer-{w}x{h}-{layout}-{round(a.duration)}s.mp4'))
     work = os.path.abspath(a.work)
-    print(f'{w}x{h} at {a.fps} fps, drawn at {w * ss}x{h * ss}; {total:.1f} s, {len(plan)} shots, each at {k:.2f}x its usual length')
+    print(f'{w}x{h} {layout} at {a.fps} fps, drawn at {w * ss}x{h * ss}; {total:.1f} s, {len(plan)} shots, each at {k:.2f}x its usual length')
     if dropped:
         print('  left out to fit: ' + ', '.join(dropped))
     if skipped:
@@ -231,7 +232,7 @@ def main():
     site = build_site(work)
     srv, port = serve(site, a.port)
     json.dump({'width': w, 'height': h, 'fps': a.fps, 'supersample': ss, 'port': port, 'site': site, 'xf': XF, 'total': total,
-               'shots': plan, 'cards': cards}, open(os.path.join(work, 'plan.json'), 'w'), indent=1)
+               'layout': layout, 'shots': plan, 'cards': cards}, open(os.path.join(work, 'plan.json'), 'w'), indent=1)
     t0 = time.time()
     try:
         if a.stills:

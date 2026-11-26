@@ -16,10 +16,12 @@ var clamp01 = x => Math.max(0, Math.min(1, x)), hdist = (a, b) => Math.hypot(a.x
 var tiltUp = ({ from, to, yawAt, base, top, low }, u) => { const p = vmix(from, to, ease(u)), db = hdist(p, base);
   const lowP = Math.atan2(low - p.y, db), fit = (Math.atan2(top.y - p.y, hdist(p, top)) + Math.atan2(base.y - p.y, db)) / 2;
   return [p, Math.atan2(-(yawAt.x - p.x), -(yawAt.z - p.z)), mix(lowP, fit, ease(clamp01((u - 0.12) / 0.8)))]; };
-function world({ S, tod, weather = 'fair', fov = 50, mode = 'free', lamp = true, cloud }){
+// fov is the lens for a 16:9 frame; a frame taller than it is wide sees far less across at the same lens, so it gets a wider one
+// (tallFov, or 1.3x), seeing more above and below instead of less to the sides
+function world({ S, tod, weather = 'fair', fov = 50, tallFov, mode = 'free', lamp = true, cloud }){
   T.S = S; T.sTarget = null; T.drift = false; T.TOD = tod; T.todTarget = null; T.timeSel = null;
   T.weather = weather; const w = (window.__WO || T.WEATHERS)[weather]; Object.assign(T.W, { cloud: cloud ?? w.cloud, rain: w.rain, wet: w.rain, leafWet: w.rain }); const WS = T.WEATHERS; window.__WO = window.__WO || Object.fromEntries(Object.entries(WS).map(([k, v]) => [k, v])); for (const k in window.__WO) WS[k] = window.__WO[k]; if (cloud != null) WS[weather] = Object.assign({}, window.__WO[weather], { cloud });
-  T.mode = mode; T.camera.fov = fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
+  T.mode = mode; T.camera.fov = T.camera.aspect < 1 ? Math.min(75, tallFov ?? fov * 1.3) : fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
   for (const L of T.FLs) L.on = false; for (const n of T.NUTs) n.on = false; T.lastLeaf = T.SP(S).leaf;
   T.deskLamp.on = lamp; { const F = T.fire; F.lit = false; F.flameK = F.emberK = 0; for (const sp of F.smoke){ sp.userData.life = 0; sp.visible = false; } F.on = true; T.updateFire(0.016, 0, 0); }
   T.keys.clear(); window.__camLock = null;
@@ -62,7 +64,7 @@ var SHOTS = [
   { name: 'room', setup(){ world({ S: 0.45, tod: 0.9, fov: 45 }); near(0.02); T.calc.on = true; T.calc.update && T.calc.update(); },
     cam: u => look(vmix(V(5.3, 8.52, -151.4), V(5.05, 8.35, -151.75), ease(u)), V(4.65, 8.0, -151.95)) },
   // Dad's chess set playing Fischer–Spassky, a winter afternoon
-  { name: 'chess', warm: 150, setup(){ world({ S: 0.5, tod: 0.55, fov: 42 }); near(0.02); T.CHESS.reset(); if (!A()) for (let i = 0; i < 3; i++) T.CHESS.tap(); },
+  { name: 'chess', warm: 150, setup(){ world({ S: 0.5, tod: 0.55, fov: 42, tallFov: 72 }); near(0.02); T.CHESS.reset(); if (!A()) for (let i = 0; i < 3; i++) T.CHESS.tap(); },
     cam: u => { const c = T.desk.views.chess.t; return look(orbit(c, 0.62, mix(1.9, 2.35, ease(u)), c.y + 0.22), c.clone().add(V(0, 0.02, 0))); } },
   // THE TOWN. Out on the Orlyonok, along Stabu
   { name: 'bike', warm: 60, async setup(){ world({ S: 2.0, tod: 0.62, mode: 'walk' }); T.BIKE.mount(); await new Promise(r => setTimeout(r, 1100));
@@ -86,9 +88,9 @@ var SHOTS = [
     cam(u){ const E = this.E, p = T.toWorld(E, mix(-3, 2, ease(u)), 1.2); p.y = T.roofTop(E, 1.2) + 1.6; return look(p, V(T.TREE.x, 6, T.TREE.z)); },
     acam: u => [u < 0.3 ? V(T.SYN.x1 + 6, 1.7, T.SYN.cz) : V(T.TREE.x - 8, 1.7, T.TREE.z + 8), 0, 0] },
   // FINALE. The year turning round the tree, coming to rest in May
-  { name: 'year', setup(){ world({ S: 1.9, tod: 0.5, fov: 45 }); this.cleared = false; },
+  { name: 'year', setup(){ world({ S: 1.9, tod: 0.5, fov: 45, tallFov: 66 }); this.cleared = false; },
     cam(u){ if (!A()){ T.S = (1.9 + 3.76 * ease(Math.min(1, u / 0.6))) % 4; T.sTarget = null; if (!this.cleared && T.S > 0.85 && T.S < 1.2){ this.cleared = true; for (const L of T.FLs) L.on = false; } } else T.S = 1.66;
-      return look(V(-13, 5.2, -108), V(9, 6.5, -140)); } },
+      return T.camera.aspect < 1 ? look(V(-13, 5.2, -108), V(T.TREE.x + 0.5, 10, T.TREE.z)) : look(V(-13, 5.2, -108), V(9, 6.5, -140)); } },   // (a tall frame: the tree in the middle, its crown over the title)
 ];
 window.SHOT_BEGIN = async i => { const s = SHOTS[i]; await s.setup(); window.__camLock = A() && s.acam ? () => s.acam(U.u, U.f) : s.cam ? () => s.cam(U.u, U.f) : null; };
 window.SHOT_END = () => { T.keys.clear(); if (T.BIKE.st.riding){ T.BIKE.dismount(false); } T.mode = 'free'; near(0.1); };

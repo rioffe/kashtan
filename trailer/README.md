@@ -22,9 +22,9 @@ The game itself (`../index.html`) is never changed. The scripts work on a copy o
 
 ```sh
 cd trailer
-python3 make_trailer.py --size 1920x1080 --duration 60          # -> kashtan-trailer-1920x1080-60s.mp4
+python3 make_trailer.py --size 1920x1080 --duration 60          # -> kashtan-trailer-1920x1080-landscape-60s.mp4
 python3 make_trailer.py --size 4k --duration 90 --out kashtan-4k.mp4
-python3 make_trailer.py --size 1080x1920 --duration 30          # portrait
+python3 make_trailer.py --size 1080x1920 --duration 30 --crf 18 # an Instagram Reel -> kashtan-trailer-1080x1920-portrait-30s.mp4
 python3 make_trailer.py --size 720p --duration 30 --stills      # look at the shots first (see below)
 ```
 
@@ -38,7 +38,7 @@ python3 make_trailer.py --size 720p --duration 30 --stills      # look at the sh
 | `--shots` | chosen to fit | only these shots, comma-separated, e.g. `--shots gate,candles,cat,year` |
 | `--silent` | | no soundtrack. Skips the real-time sound pass. |
 | `--stills` | | draws only the first, middle and last frame of each shot, then tiles them |
-| `--out` | `kashtan-trailer-WxH-Ns.mp4` | output file |
+| `--out` | `kashtan-trailer-WxH-LAYOUT-Ns.mp4` | output file. The layout is `landscape`, `portrait` or `square`. |
 | `--work` | `work/` | folder for the intermediate files |
 | `--port` | any free one | port the copy of the game is served on (127.0.0.1 only) |
 
@@ -66,8 +66,20 @@ The script prints the plan before it starts: which shots, how long each, what wa
 
 ### Other sizes
 
-Any size works. The shots were framed for 16:9, though. Portrait or square frames show the middle of the same view,
-taller and narrower. The captions are laid out for 1920×1080 and scaled to fit the frame.
+Any size works. The script picks a layout from the shape of the frame and puts it in the file name.
+
+- **Landscape** (wider than tall): the shots as framed, with the captions low in the frame as in the game. The
+  captions are laid out for 1920×1080 and scaled to fit.
+- **Portrait and square** (Instagram Reels, Stories, TikTok, YouTube Shorts): the captions get their own layout.
+  It's 1080 wide with larger type, and lines wrap where they fit. Everything stays clear of the apps' own furniture:
+  the bottom quarter (name, caption, sound), the top tenth, and the buttons down the right.
+  - **A wider lens.** A tall frame sees far less across than a 16:9 one at the same lens, so each shot gets a wider
+    one: its `tallFov`, or 1.3× its `fov`. That shows more sky and ground instead of losing the sides.
+  - **Two shots set it themselves.** The chess close-up uses a much wider lens so the whole board fits. The closing
+    shot centres on the tree so its crown sits over the title.
+
+For Instagram, a Reel at `--size 1080x1920 --duration 30 --crf 18` is about 70 MB. A feed post at `1080x1350` (4:5)
+crops less of each view. Check a new size with `--stills` first.
 
 ### How long it takes
 
@@ -120,7 +132,7 @@ changing a shot, or after changing the game, since a new bush can end up in fron
   - `S` is the season: 0 is December, 1 March, 2 June, 3 September. Mid-winter is about 0.42, May about 1.65.
   - `tod` is the time of day (0.5 is noon).
   - `weather` is `fair`, `cloudy` or `rain` (snow in winter).
-  - `fov` is the lens.
+  - `fov` is the lens for a 16:9 frame; `tallFov` (optional) is the one for portrait and square frames.
 - **Other shot fields:**
   - `warm`: frames (at 30 fps) to run before the shot starts, to let leaves fall, rain soak in or a fire catch.
   - `acam`: where the shot is heard from in the sound pass. The church and synagogue shots use it to carry the
