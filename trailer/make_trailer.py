@@ -34,10 +34,10 @@ EDIT = [
     ('car',       4.0, 'car',     True),   #   my Formula 1 on the table
     ('room',      3.5, None,      False),  # my desk at night
     ('chess',     4.5, 'chess',   False),  # Dad's chess set playing Fischer - Spassky
-    ('bike',      4.0, None,      False),  # the town: on the Orlyonok down Stabu iela
+    ('bike',      6.5, None,      False),  # the town: on the Orlyonok down Stabu iela, looking up at the houses at the end
     ('church',    4.5, None,      False),  # St. Gertrude's, tilting up the tower to the cross
     ('clock',     4.0, None,      True),   #   its clock keeping the hour
-    ('synagogue', 4.5, None,      False),  # the synagogue, tilting up to its gables (its violin carried on under the next shots)
+    ('synagogue', 4.5, None,      False),  # the synagogue, tilting up to its gables; held, then faded slowly (its violin carried on)
     ('roof',      4.5, 'roof',    False),  # the roof of the tall house across Stabu
     ('year',     10.0, 'title',   False),  # the year turning round the tree, the title over May
 ]
@@ -46,6 +46,9 @@ EDIT = [
 # squeezed below MIN_STRETCH. Gate, candles, autumn, winter and year always stay.
 DROP = ['snownight', 'apples', 'clock', 'creeper', 'lilac', 'car', 'window', 'conkers', 'climb',
         'rain', 'room', 'church', 'lie', 'garden', 'fire', 'synagogue', 'bike', 'cat', 'roof', 'chess']
+# Shots that stop on their last view: hold it this many seconds once the camera has done moving (not stretched with the rest),
+# and fade into the next shot this slowly instead of the usual XF.
+TIMING = {'synagogue': {'hold': 2.0, 'fade': 1.8}}
 XF = 0.6             # crossfade between shots, seconds
 MIN_STRETCH = 0.85   # shots are not cut below 85% of their length while there are shots left to drop
 MIN_CAPTION = 2.0    # a caption with less time than this on screen is left out
@@ -65,7 +68,9 @@ def plan_edit(duration, fps, only=None):
         shots = [e for e in EDIT if e[0] in only]
     else:
         shots = list(EDIT)
-    total = lambda sh, k: k * sum(e[1] for e in sh) - (len(sh) - 1) * XF
+    fade = lambda e: TIMING.get(e[0], {}).get('fade', XF)                                    # (into the next shot)
+    fixed = lambda e: TIMING.get(e[0], {}).get('hold', 0) + TIMING.get(e[0], {}).get('fade', 0)   # (seconds not stretched)
+    total = lambda sh, k: sum(e[1] * k + fixed(e) for e in sh) - sum(fade(e) for e in sh[:-1])
     extended = {e[0] for e in EDIT if e[3]}
     dropped = []
     if not only:
@@ -76,12 +81,16 @@ def plan_edit(duration, fps, only=None):
                 break
             shots = [e for e in shots if e[0] != name]
             dropped.append(name)
-    k = (duration + (len(shots) - 1) * XF) / sum(e[1] for e in shots)
-    plan, t = [], 0.0
-    for name, d, card, _ in shots:
-        frames = max(2, round(d * k * fps))
-        plan.append({'name': name, 'dur': frames / fps, 'frames': frames, 'start': t, 'card': card})
-        t += frames / fps - XF
+    k = (duration - sum(fixed(e) for e in shots) + sum(fade(e) for e in shots[:-1])) / sum(e[1] for e in shots)
+    plan, t, xf_in = [], 0.0, 0.0
+    for e in shots:
+        name, d, card = e[0], e[1], e[2]
+        frames = max(2, round((d * k + fixed(e)) * fps))
+        dur = frames / fps
+        # xf: the crossfade in from the shot before; move: the part of the shot over which its camera moves (then it holds)
+        plan.append({'name': name, 'dur': dur, 'frames': frames, 'start': t, 'card': card, 'xf': xf_in, 'move': min(1.0, d * k / dur)})
+        xf_in = fade(e)
+        t += dur - xf_in
     end = plan[-1]['start'] + plan[-1]['dur']
     if min(s['dur'] for s in plan) < 2 * XF + 0.3:
         print(f'note: at {duration:g} s the shortest shot is {min(s["dur"] for s in plan):.1f} s; the crossfades will eat most of it')
@@ -92,7 +101,7 @@ def plan_edit(duration, fps, only=None):
         if s['card'] == 'title':
             a, b, f = s['start'] + 0.43 * s['dur'], end, 1.2
         else:
-            a, b = s['start'] + (0.9 if i == 0 else XF + 0.1), s['start'] + s['dur'] - 0.5
+            a, b = s['start'] + (0.9 if i == 0 else s['xf'] + 0.1), s['start'] + s['dur'] - 0.5
             f = 0.6
             if b - a < MIN_CAPTION:
                 skipped.append(s['card'])
@@ -168,7 +177,7 @@ def assemble(work, plan, cards, total, w, h, fps, crf, out, silent):
     g = [f'[{i}:v]settb=AVTB,fps={fps},format=yuv444p,setpts=PTS-STARTPTS[v{i}]' for i in range(n)]
     prev = 'v0'
     for k in range(1, n):
-        g.append(f"[{prev}][v{k}]xfade=transition=fade:duration={XF}:offset={plan[k]['start']:.3f}[x{k}]")
+        g.append(f"[{prev}][v{k}]xfade=transition=fade:duration={plan[k]['xf']}:offset={plan[k]['start']:.3f}[x{k}]")
         prev = f'x{k}'
     g.append(f'[{prev}]trim=0:{total:.3f},format=yuv444p[base]')
     prev = 'base'

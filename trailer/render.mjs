@@ -15,9 +15,12 @@ const plan = loadPlan(WORK), { width: W, height: H, fps: FPS, supersample: SS } 
 const SHIM = `(() => {
   const rNow = performance.now.bind(performance), rRAF = window.requestAnimationFrame.bind(window);
   let virt = false, base = 0, vt = 0, q = [];
+  const waiting = new Set();
   performance.now = () => virt ? base + vt : rNow();
-  window.requestAnimationFrame = cb => { if (virt){ q.push(cb); return q.length; } return rRAF(cb); };
-  window.__vtOn = () => { base = rNow(); vt = 0; virt = true; };
+  // (each real request runs at most once: those still waiting when the virtual clock takes over are handed to it, so the first step
+  // draws a frame instead of waiting on the browser's own clock, and does not run twice if that fires after all)
+  window.requestAnimationFrame = cb => { if (virt){ q.push(cb); return q.length; } const once = t => { if (waiting.delete(once)) cb(t); }; waiting.add(once); return rRAF(once); };
+  window.__vtOn = () => { base = rNow(); vt = 0; virt = true; q.push(...waiting); };
   window.__step = ms => { vt += ms; const c = q; q = []; const t = base + vt; for (const f of c) f(t); };
 })();`;
 
@@ -57,7 +60,7 @@ for (const [k, s] of plan.shots.entries()){
     put = buf => new Promise(r => ff.stdin.write(buf) ? r() : ff.stdin.once('drain', r));
   }
   const picks = { 0: 'a', [Math.floor((frames - 1) / 2)]: 'b', [frames - 1]: 'c' };
-  for (let f = 0; f < frames; f++){ const u = frames > 1 ? f / (frames - 1) : 0;
+  for (let f = 0; f < frames; f++){ const u = Math.min(1, (frames > 1 ? f / (frames - 1) : 0) / (s.move || 1));   // (the camera done moving at s.move: it holds)
     if (MODE === 'render') await put(Buffer.from(await grab(u, f), 'base64'));
     else if (picks[f]) fs.writeFileSync(path.join(out, `${String(k).padStart(2, '0')}-${s.name}-${picks[f]}.jpg`), Buffer.from(await grab(u, f), 'base64'));
     else await step(u, f); }

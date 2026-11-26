@@ -4,8 +4,8 @@ These scripts make the Kashtan trailer straight from the game: any size, any len
 `make_trailer.py` is the one to run. It renders the shots in headless Chrome, records the soundtrack live, sets
 the captions in the game's type and puts it all together with ffmpeg.
 
-`kashtan-trailer-1080p.mp4` here is the full cut: 1920×1080, 30 fps, 63.5 s. To make it again, run
-`python3 make_trailer.py --size 1080p --duration 63.5 --out kashtan-trailer-1080p.mp4`. The music won't be identical, because it's generative.
+`kashtan-trailer-1080p.mp4` here is an earlier cut of the standard trailer (1920×1080, 30 fps, 63.5 s). The standard
+cut now runs 68.6 s: `python3 make_trailer.py --size 1080p --duration 68.6`. The music won't be identical, because it's generative.
 
 ## What you need
 
@@ -44,8 +44,8 @@ python3 make_trailer.py --size 720p --duration 30 --stills      # look at the sh
 
 ### How it fits the length
 
-There are 25 shots. 16 make the standard cut, which runs 63.5 s. The other 9 belong to the extended cut and run
-about 33 s more:
+There are 25 shots. 16 make the standard cut, which runs 68.6 s. The other 9 belong to the extended cut and bring it
+to about 101 s:
 
 - **Spring:** the lilacs in front of the house; the window swinging open onto the tree.
 - **Summer:** a crane over the gardens to an apple tree; the view from the top of the chestnut.
@@ -57,9 +57,9 @@ about 33 s more:
 Each shot's camera move is defined from start to finish, so a shot can run longer or shorter and the camera just
 moves faster or slower over the same path.
 
-- **Up to 63.5 s you get the standard cut.** An extended shot is only used when every shot can run at its full
-  length, so they come in one by one above 63.5 s. All 25 fit from about 96 s.
-- **Shorter than about 53 s:** standard shots are dropped rather than cut below 85% of their length. They go in the
+- **Up to 68.6 s you get the standard cut.** An extended shot is only used when every shot can run at its full
+  length, so they come in one by one above 68.6 s. All 25 fit from about 101 s.
+- **Shorter than about 57 s:** standard shots are dropped rather than cut below 85% of their length. They go in the
   order of `DROP` in `make_trailer.py`: rain, room, church, lie, garden, fire, synagogue, bike, cat, roof, chess. The
   gateway, candles, autumn, winter and the closing year always stay.
 - **Then the rest are stretched or shrunk** so the total comes out exactly right.
@@ -71,11 +71,11 @@ moves faster or slower over the same path.
 |---|---|
 | 15 s | 5 shots (gateway, candles, autumn, winter, year), title only |
 | 30 s | 7 shots: those plus chess and roof, every caption |
-| 45 s | 13 shots: the standard cut without rain, room and church |
-| 60 s | the standard 16, each at 0.95× |
-| 75 s | 18: the standard cut plus the tree view and the conkers |
-| 90 s | 23: everything but the snowy night and the apples |
-| 97 s | all 25, each at about 1.0× |
+| 45 s | 11 shots: the standard cut without rain, room, church, lie and garden |
+| 60 s | the standard 16, each at 0.89× |
+| 75 s | 17: the standard cut plus the tree view |
+| 90 s | 21: plus the lilacs, the window, the conkers and the Ferrari |
+| 104 s | all 25, each at about 1.0× |
 
 The script prints the plan before it starts: which shots, how long each, what was left out.
 
@@ -131,6 +131,9 @@ changing a shot, or after changing the game, since a new bush can end up in fron
 
 - **A shot's length, the order, or which caption goes where:** edit `EDIT` in `make_trailer.py`.
 - **What's left out of short trailers first:** edit `DROP`.
+- **A shot that should stop and hold its last view:** add it to `TIMING` in `make_trailer.py` with `hold` (seconds to
+  hold once its camera has stopped) and `fade` (how slowly to fade into the next shot). The synagogue holds 2 s and
+  fades over 1.8 s. These seconds aren't stretched or shrunk with the rest.
 - **A caption's wording:** edit `CARDS` in `cards.mjs`. To add a caption, add a card there and name it in `EDIT`.
 - **A camera or the state of the world:** edit the shot in `shots.js`. A shot looks like this:
 

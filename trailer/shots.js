@@ -22,7 +22,7 @@ function world({ S, tod, weather = 'fair', fov = 50, tallFov, mode = 'free', lam
   T.S = S; T.sTarget = null; T.drift = false; T.TOD = tod; T.todTarget = null; T.timeSel = null;
   T.weather = weather; const w = (window.__WO || T.WEATHERS)[weather]; Object.assign(T.W, { cloud: cloud ?? w.cloud, rain: w.rain, wet: w.rain, leafWet: w.rain }); const WS = T.WEATHERS; window.__WO = window.__WO || Object.fromEntries(Object.entries(WS).map(([k, v]) => [k, v])); for (const k in window.__WO) WS[k] = window.__WO[k]; if (cloud != null) WS[weather] = Object.assign({}, window.__WO[weather], { cloud });
   T.mode = mode; T.camera.fov = T.camera.aspect < 1 ? Math.min(75, tallFov ?? fov * 1.3) : fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
-  for (const L of T.FLs) L.on = false; for (const n of T.NUTs) n.on = false; T.lastLeaf = T.SP(S).leaf;
+  for (const L of T.FLs) L.on = false; for (const n of T.NUTs){ n.on = false; n.h = 0; } T.lastLeaf = T.SP(S).leaf;
   T.winOpen.target = T.winOpen.v = 0; T.deskLamp.on = lamp; { const F = T.fire; F.lit = false; F.flameK = F.emberK = 0; for (const sp of F.smoke){ sp.userData.life = 0; sp.visible = false; } F.on = true; T.updateFire(0.016, 0, 0); }
   T.keys.clear(); window.__camLock = null;
   for (const sm of T.SNOWMEN) sm.g.visible = false;
@@ -61,19 +61,21 @@ var SHOTS = [
       if (!this.sm){ this.sm = T.makeSnowman(V(1.8, 0, -140.5), 0.55); } this.sm.g.visible = true; this.sm.build = 1; this.sm.melt = 0; },
     cam: u => look(vmix(V(-1.2, 1.3, -134.2), V(-0.1, 1.35, -135.3), ease(u)), V(2.2, 1.5, -141.5)) },
   // my room on a winter night: the lamp, the calculator, the bather
-  { name: 'room', setup(){ world({ S: 0.45, tod: 0.9, fov: 45 }); near(0.02); T.calc.on = true; T.calc.update && T.calc.update(); },
+  { name: 'room', setup(){ world({ S: 0.45, tod: 0.9, fov: 45, mode: 'window' }); near(0.02); T.calc.on = true; T.calc.update && T.calc.update(); },
     cam: u => look(vmix(V(5.3, 8.52, -151.4), V(5.05, 8.35, -151.75), ease(u)), V(4.65, 8.0, -151.95)) },
   // Dad's chess set playing Fischer–Spassky, a winter afternoon
-  { name: 'chess', warm: 150, setup(){ world({ S: 0.5, tod: 0.55, fov: 42, tallFov: 72 }); near(0.02); T.CHESS.reset(); if (!A()) for (let i = 0; i < 3; i++) T.CHESS.tap(); },
+  { name: 'chess', warm: 150, setup(){ world({ S: 0.5, tod: 0.55, fov: 42, tallFov: 72, mode: 'window' }); near(0.02); T.CHESS.reset(); if (!A()) for (let i = 0; i < 3; i++) T.CHESS.tap(); },
     cam: u => { const c = T.desk.views.chess.t; return look(orbit(c, 0.62, mix(1.9, 2.35, ease(u)), c.y + 0.22), c.clone().add(V(0, 0.02, 0))); } },
   // THE TOWN. Out on the Orlyonok, along Stabu
   { name: 'bike', warm: 60, async setup(){ world({ S: 2.0, tod: 0.62, mode: 'walk' }); T.BIKE.mount(); await new Promise(r => setTimeout(r, 1100));
       const st = T.BIKE.st; st.x = 2; st.z = -41; st.head = T.cam.yaw = Math.PI / 2; st.v = 3.5; T.cam.pitch = -0.28; T.keys.add('KeyW'); if (A()) setTimeout(() => T.BIKE.bell(), 1500); },
-    cam: null },
+    // (the bike steers and carries the eye; for the last third of the ride the eye lifts and turns a little to the right, up the fronts
+    // of the houses on Stabu to their cornices and the sky)
+    cam(u){ const k = ease(clamp01((u - 0.58) / 0.42)); return [T.camera.position.clone(), T.cam.yaw - 0.4 * k, T.cam.pitch + 0.72 * k]; } },
   // St. Gertrude's at the end of the cobbled street behind ours
   // (from the portal up the tower to the cross, 65 m up, backing down the street until the whole of it is in the frame;
   // the tower's front is at x = -145, the spire over its middle at -149.5)
-  { name: 'church', setup(){ world({ S: 2.85, tod: 0.76, fov: 54 }); },
+  { name: 'church', setup(){ world({ S: 2.85, tod: 0.4, fov: 54 }); },   // (a September morning: the sun on its tower's front, to the east)
     cam: u => tiltUp({ from: V(-103, 1.7, -216.6), to: V(-90, 1.7, -216.8), yawAt: V(-149.5, 0, -217), base: V(-145, 0, -217),
       top: V(-149.5, 66.5, -217), low: 7 }, u),
     acam: () => [V(T.SYN.x1 + 8, 1.7, T.SYN.cz), 0, 0] },
@@ -92,7 +94,7 @@ var SHOTS = [
   { name: 'lilac', setup(){ world({ S: 1.7, tod: 0.45, fov: 45 }); },
     cam: u => look(vmix(V(4.2, 1.25, -143.6), V(1.2, 1.25, -144.0), ease(u)), V(mix(1.5, -0.8, ease(u)), 1.5, -148.2)) },
   // my window swinging open onto the chestnut in flower
-  { name: 'window', setup(){ world({ S: 1.66, tod: 0.6, fov: 55, lamp: false }); near(0.03); this.opened = false; },
+  { name: 'window', setup(){ world({ S: 1.66, tod: 0.6, fov: 55, lamp: false, mode: 'window' }); near(0.03); this.opened = false; },
     cam(u){ if (!this.opened && u > 0.18){ this.opened = true; T.winOpen.target = 1; }   // (it swings out as the game swings it)
       return look(vmix(V(5.1, 8.85, -152.6), V(5.2, 8.85, -151.35), ease(u)), V(8.5, 10, T.TREE.z)); } },
   // apples ripening in the old ladies' gardens
@@ -115,10 +117,10 @@ var SHOTS = [
   { name: 'snownight', warm: 90, setup(){ world({ S: 0.45, tod: 0.9, weather: 'rain' }); },
     cam: u => look(vmix(V(T.ROAD_X + 0.4, 1.6, -104), V(T.ROAD_X + 0.4, 1.6, -110), ease(u)), V(T.ROAD_X + 4, 3.5, -150)) },
   // my Formula 1 on the table at night: the Ferrari of 1984 in Salvo bricks
-  { name: 'car', setup(){ world({ S: 0.45, tod: 0.9, fov: 34 }); near(0.01); },
-    cam: u => { const c = T.desk.views.car.t; return look(orbit(c, mix(0.24, 0.2, ease(u)), Math.PI + mix(-0.55, 0.25, ease(u)), c.y + 0.06), c); } },
+  { name: 'car', setup(){ world({ S: 0.45, tod: 0.9, fov: 34, mode: 'window' }); near(0.01); },   // (the desk lamp on: it lights only in the game's window mode)
+    cam: u => { const c = T.desk.views.car.t; return look(orbit(c, mix(0.25, 0.21, ease(u)), Math.PI + mix(-1.0, -0.35, ease(u)), c.y + 0.06), c); } },   // (round its lamp-lit side)
   // St. Gertrude's clock, 25.65 m up the tower's front, keeping the hour
-  { name: 'clock', setup(){ world({ S: 2.85, tod: 0.76, fov: 24 }); },
+  { name: 'clock', setup(){ world({ S: 2.85, tod: 0.4, fov: 24 }); },   // (the morning sun on the dial and its gilt hands)
     cam: u => look(vmix(V(-125, 22.5, -216.2), V(-129, 23.5, -216.6), ease(u)), V(-145.2, 25.65, -217)),
     acam: () => [V(T.SYN.x1 + 7, 1.7, T.SYN.cz), 0, 0] },
   // FINALE. The year turning round the tree, coming to rest in May

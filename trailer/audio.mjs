@@ -13,7 +13,7 @@ const HOOK = `(() => { const oc = AudioNode.prototype.connect;
   AudioNode.prototype.connect = function (d, ...a){ const r = oc.call(this, d, ...a);
     if (d instanceof AudioDestinationNode){ const c = this.context; if (!c.__tap){ c.__tap = c.createMediaStreamDestination(); window.__tapNode = c.__tap; } oc.call(this, c.__tap); }
     return r; }; })();`;
-const timeline = plan.shots.map((s, k) => ({ name: s.name, dur: s.dur, start: s.start, sw: k ? s.start + plan.xf / 2 : 0 }));
+const timeline = plan.shots.map((s, k) => ({ name: s.name, dur: s.dur * (s.move || 1), start: s.start, sw: k ? s.start + (s.xf ?? plan.xf) / 2 : 0 }));   // (dur: while its camera moves)
 
 const puppeteer = await loadPuppeteer();
 const browser = await launch(puppeteer, WORK, 'audio', { width: 960, height: 540 });
