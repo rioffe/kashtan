@@ -23,7 +23,7 @@ The game itself (`../index.html`) is never changed. The scripts work on a copy o
 ```sh
 cd trailer
 python3 make_trailer.py --size 1920x1080 --duration 60          # -> kashtan-trailer-1920x1080-landscape-60s.mp4
-python3 make_trailer.py --size 4k --duration 90 --out kashtan-4k.mp4
+python3 make_trailer.py --size 4k --duration 97 --crf 18      # the extended cut in 4K: all 25 shots
 python3 make_trailer.py --size 1080x1920 --duration 30 --crf 18 # an Instagram Reel -> kashtan-trailer-1080x1920-portrait-30s.mp4
 python3 make_trailer.py --size 720p --duration 30 --stills      # look at the shots first (see below)
 ```
@@ -44,23 +44,38 @@ python3 make_trailer.py --size 720p --duration 30 --stills      # look at the sh
 
 ### How it fits the length
 
-The full cut has 16 shots and runs 63.5 s. Each shot's camera move is defined from start to finish, so a shot can
-run longer or shorter and the camera just moves faster or slower over the same path.
+There are 25 shots. 16 make the standard cut, which runs 63.5 s. The other 9 belong to the extended cut and run
+about 33 s more:
 
-- **Shorter than about 53 s:** shots are dropped rather than cut below 85% of their length. They go in the order
-  of `DROP` in `make_trailer.py`: rain, room, church, lie, garden, fire, synagogue, bike, cat, roof, chess. The
+- **Spring:** the lilacs in front of the house; the window swinging open onto the tree.
+- **Summer:** a crane over the gardens to an apple tree; the view from the top of the chestnut.
+- **Autumn:** the creeper gone crimson; conkers dropping and splitting their husks.
+- **Winter:** the lane on a snowy night.
+- **Room:** the Salvo Ferrari on the desk.
+- **Town:** St. Gertrude's clock.
+
+Each shot's camera move is defined from start to finish, so a shot can run longer or shorter and the camera just
+moves faster or slower over the same path.
+
+- **Up to 63.5 s you get the standard cut.** An extended shot is only used when every shot can run at its full
+  length, so they come in one by one above 63.5 s. All 25 fit from about 96 s.
+- **Shorter than about 53 s:** standard shots are dropped rather than cut below 85% of their length. They go in the
+  order of `DROP` in `make_trailer.py`: rain, room, church, lie, garden, fire, synagogue, bike, cat, roof, chess. The
   gateway, candles, autumn, winter and the closing year always stay.
 - **Then the rest are stretched or shrunk** so the total comes out exactly right.
 - **Captions** sit inside their shot. A caption that would have less than 2 s on screen is left out. The title
-  card always comes in over the last shot.
+  card always comes in over the last shot. The extended cut has three more: over the tree view, the conkers and the
+  Ferrari.
 
 | duration | what you get |
 |---|---|
 | 15 s | 5 shots (gateway, candles, autumn, winter, year), title only |
 | 30 s | 7 shots: those plus chess and roof, every caption |
-| 45 s | 13 shots: everything but rain, room and church |
-| 60 s | all 16, each at 0.95× |
-| 90 s | all 16 at 1.37×, slower moves |
+| 45 s | 13 shots: the standard cut without rain, room and church |
+| 60 s | the standard 16, each at 0.95× |
+| 75 s | 18: the standard cut plus the tree view and the conkers |
+| 90 s | 23: everything but the snowy night and the apples |
+| 97 s | all 25, each at about 1.0× |
 
 The script prints the plan before it starts: which shots, how long each, what was left out.
 
@@ -104,7 +119,7 @@ changing a shot, or after changing the game, since a new bush can end up in fron
 
 | file | what it does |
 |---|---|
-| `make_trailer.py` | The driver. It holds the edit (`EDIT`: the shots in order, their lengths in the full cut and the caption over each) and the drop order (`DROP`). It plans the cut and writes `work/plan.json`. Then it serves the copy of the game, runs the three scripts below, and puts the trailer together with ffmpeg: 0.6 s crossfades, the captions faded in and out, a fade from and to black, and the sound compressed and normalized to −16 LUFS. |
+| `make_trailer.py` | The driver. It holds the edit (`EDIT`: the shots in order, each one's natural length, the caption over it, and whether it belongs to the extended cut only) and the drop order (`DROP`). It plans the cut and writes `work/plan.json`. Then it serves the copy of the game, runs the three scripts below, and puts the trailer together with ffmpeg: 0.6 s crossfades, the captions faded in and out, a fade from and to black, and the sound compressed and normalized to −16 LUFS. |
 | `shots.js` | The shots. Each one sets the world up (season, time of day, weather, the fire, a snowman, the cat…) and gives the camera for each moment of the shot. It runs inside the game's page. |
 | `render.mjs` | The pictures. It steps the game one frame at a time on a virtual clock and pipes each frame to ffmpeg, which scales it down into `work/clips/<shot>.mp4`. |
 | `audio.mjs` | The sound. It plays the same shots through in real time and records the game's audio output into `work/audio.webm`. |
@@ -138,7 +153,8 @@ changing a shot, or after changing the game, since a new bush can end up in fron
   - `acam`: where the shot is heard from in the sound pass. The church and synagogue shots use it to carry the
     synagogue's violin under the town.
   - Anything in the game is reachable through `T`. For example, `T.cat`, `T.fire`, `T.CHESS` and `T.BIKE`.
-- **A new shot:** add it to `SHOTS` in `shots.js` and to `EDIT`.
+- **A new shot:** add it to `SHOTS` in `shots.js` and to `EDIT`. Mark it `True` there if it should only appear in
+  extended cuts, and give it a place in `DROP`.
 
 ## How it works
 

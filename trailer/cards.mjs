@@ -14,6 +14,9 @@ export const CARDS = {
   candles: cap('In May it lit a thousand white candles,<br>and the whole yard smelled of them.'),
   autumn: cap('Chestnuts fell like small brown planets,<br>cracking out of their green shells.'),
   chess: cap('Reykjavík, 1972: Fischer – Spassky, the sixth game.'),
+  climb: cap('So thick with leaves you could hide inside it<br>from the whole world.'),
+  conkers: cap('A chestnut — cool, glossy,<br>the colour of a violin.'),
+  car: cap('My Formula 1: the Ferrari of 1984,<br>built from Salvo bricks.'),
   roof: cap('All of Rīga from the roof of the tall house on Stabu,<br>and our chestnut over the roofs.'),
   title: `<div class="shade"></div><div class="end"><div class="ru">Каштан · Kastaņa</div><h1>Kashtan</h1><div class="tag">A meditation on a chestnut tree · Rīga, 1984</div>
     <div class="url">rioffe.github.io/kashtan</div><div class="langs">Plays in your browser · English · Русский · Latviešu</div></div>`,

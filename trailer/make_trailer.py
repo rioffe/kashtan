@@ -12,28 +12,40 @@ import argparse, json, os, shutil, socket, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                       # the game: ../index.html and ../models/
 
-# The edit: the shots in order (each is defined in shots.js), how long each runs in the full 61.5 s cut,
-# and the card (cards.mjs) shown over it.
+# The edit: the shots in order (each is defined in shots.js), how long each runs at its natural pace, the card (cards.mjs)
+# shown over it, and whether it is one of the extended cut's own shots (True: used only when every shot fits at full length).
 EDIT = [
-    ('gate',      5.5, 'intro'),     # spring: in through the gateway, down the lane
-    ('candles',   4.5, 'candles'),   # the chestnut in flower
-    ('rain',      3.5, None),        # rain and puddles on the lane
-    ('garden',    3.5, None),        # summer: a sunflower in the old ladies' gardens
-    ('cat',       3.5, None),        # the cat dozing on a limb of the chestnut
-    ('lie',       4.0, None),        # lying under the tree at a pink June dusk
-    ('autumn',    4.5, 'autumn'),    # autumn: the leaves coming down
-    ('fire',      4.0, None),        # roasting chestnuts at dusk
-    ('winter',    4.0, None),        # winter: a snowman at dusk, snowing
-    ('room',      3.5, None),        # my desk at night
-    ('chess',     4.5, 'chess'),     # Dad's chess set playing Fischer - Spassky
-    ('bike',      4.0, None),        # the town: on the Orlyonok down Stabu iela
-    ('church',    4.5, None),        # St. Gertrude's, tilting up the tower to the cross
-    ('synagogue', 4.5, None),        # the synagogue, tilting up to its gables (its violin carried on under the next shots)
-    ('roof',      4.5, 'roof'),      # the roof of the tall house across Stabu
-    ('year',     10.0, 'title'),     # the year turning round the tree, the title over May
+    ('gate',      5.5, 'intro',   False),  # spring: in through the gateway, down the lane
+    ('lilac',     4.0, None,      True),   #   the lilacs in front of our house
+    ('candles',   4.5, 'candles', False),  # the chestnut in flower
+    ('window',    5.0, None,      True),   #   my window swinging open onto the tree
+    ('rain',      3.5, None,      False),  # rain and puddles on the lane
+    ('garden',    3.5, None,      False),  # summer: a sunflower in the old ladies' gardens
+    ('apples',    4.0, None,      True),   #   apples ripening
+    ('cat',       3.5, None,      False),  # the cat dozing on a limb of the chestnut
+    ('climb',     4.5, 'climb',   True),   #   up in the chestnut, looking out
+    ('lie',       4.0, None,      False),  # lying under the tree at a pink June dusk
+    ('autumn',    4.5, 'autumn',  False),  # autumn: the leaves coming down
+    ('creeper',   4.0, None,      True),   #   the Virginia creeper gone crimson
+    ('conkers',   4.5, 'conkers', True),   #   conkers dropping and splitting their husks
+    ('fire',      4.0, None,      False),  # roasting chestnuts at dusk
+    ('winter',    4.0, None,      False),  # winter: a snowman at dusk, snowing
+    ('snownight', 4.0, None,      True),   #   the lane on a snowy night
+    ('car',       4.0, 'car',     True),   #   my Formula 1 on the table
+    ('room',      3.5, None,      False),  # my desk at night
+    ('chess',     4.5, 'chess',   False),  # Dad's chess set playing Fischer - Spassky
+    ('bike',      4.0, None,      False),  # the town: on the Orlyonok down Stabu iela
+    ('church',    4.5, None,      False),  # St. Gertrude's, tilting up the tower to the cross
+    ('clock',     4.0, None,      True),   #   its clock keeping the hour
+    ('synagogue', 4.5, None,      False),  # the synagogue, tilting up to its gables (its violin carried on under the next shots)
+    ('roof',      4.5, 'roof',    False),  # the roof of the tall house across Stabu
+    ('year',     10.0, 'title',   False),  # the year turning round the tree, the title over May
 ]
-# For a shorter trailer the shots leave in this order; gate, candles, autumn, winter and year always stay.
-DROP = ['rain', 'room', 'church', 'lie', 'garden', 'fire', 'synagogue', 'bike', 'cat', 'roof', 'chess']
+# Which shots leave first when there is not room for all. The extended cut's own shots go while the rest cannot all run at
+# their full length (so up to about 63 s the cut is the standard one); then the standard shots, while they would have to be
+# squeezed below MIN_STRETCH. Gate, candles, autumn, winter and year always stay.
+DROP = ['snownight', 'apples', 'clock', 'creeper', 'lilac', 'car', 'window', 'conkers', 'climb',
+        'rain', 'room', 'church', 'lie', 'garden', 'fire', 'synagogue', 'bike', 'cat', 'roof', 'chess']
 XF = 0.6             # crossfade between shots, seconds
 MIN_STRETCH = 0.85   # shots are not cut below 85% of their length while there are shots left to drop
 MIN_CAPTION = 2.0    # a caption with less time than this on screen is left out
@@ -53,17 +65,20 @@ def plan_edit(duration, fps, only=None):
         shots = [e for e in EDIT if e[0] in only]
     else:
         shots = list(EDIT)
-    total = lambda sh, k: k * sum(d for _, d, _ in sh) - (len(sh) - 1) * XF
+    total = lambda sh, k: k * sum(e[1] for e in sh) - (len(sh) - 1) * XF
+    extended = {e[0] for e in EDIT if e[3]}
     dropped = []
     if not only:
         for name in DROP:
-            if total(shots, MIN_STRETCH) <= duration:
+            if total(shots, 1.0 if name in extended else MIN_STRETCH) <= duration:
+                if name in extended:
+                    continue   # (the extended shots that fit at full length stay; the standard ones are judged next)
                 break
             shots = [e for e in shots if e[0] != name]
             dropped.append(name)
-    k = (duration + (len(shots) - 1) * XF) / sum(d for _, d, _ in shots)
+    k = (duration + (len(shots) - 1) * XF) / sum(e[1] for e in shots)
     plan, t = [], 0.0
-    for name, d, card in shots:
+    for name, d, card, _ in shots:
         frames = max(2, round(d * k * fps))
         plan.append({'name': name, 'dur': frames / fps, 'frames': frames, 'start': t, 'card': card})
         t += frames / fps - XF

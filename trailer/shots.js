@@ -23,7 +23,7 @@ function world({ S, tod, weather = 'fair', fov = 50, tallFov, mode = 'free', lam
   T.weather = weather; const w = (window.__WO || T.WEATHERS)[weather]; Object.assign(T.W, { cloud: cloud ?? w.cloud, rain: w.rain, wet: w.rain, leafWet: w.rain }); const WS = T.WEATHERS; window.__WO = window.__WO || Object.fromEntries(Object.entries(WS).map(([k, v]) => [k, v])); for (const k in window.__WO) WS[k] = window.__WO[k]; if (cloud != null) WS[weather] = Object.assign({}, window.__WO[weather], { cloud });
   T.mode = mode; T.camera.fov = T.camera.aspect < 1 ? Math.min(75, tallFov ?? fov * 1.3) : fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
   for (const L of T.FLs) L.on = false; for (const n of T.NUTs) n.on = false; T.lastLeaf = T.SP(S).leaf;
-  T.deskLamp.on = lamp; { const F = T.fire; F.lit = false; F.flameK = F.emberK = 0; for (const sp of F.smoke){ sp.userData.life = 0; sp.visible = false; } F.on = true; T.updateFire(0.016, 0, 0); }
+  T.winOpen.target = T.winOpen.v = 0; T.deskLamp.on = lamp; { const F = T.fire; F.lit = false; F.flameK = F.emberK = 0; for (const sp of F.smoke){ sp.userData.life = 0; sp.visible = false; } F.on = true; T.updateFire(0.016, 0, 0); }
   T.keys.clear(); window.__camLock = null;
   for (const sm of T.SNOWMEN) sm.g.visible = false;
   T.cat.root.visible = false; T.cat.q = []; T.cat.state = 'hidden'; T.cat.timer = 9999; T.cat.force = null; }
@@ -87,6 +87,40 @@ var SHOTS = [
   { name: 'roof', setup(){ world({ S: 2.85, tod: 0.74, fov: 36 }); this.E = T.tallHouse(); },
     cam(u){ const E = this.E, p = T.toWorld(E, mix(-3, 2, ease(u)), 1.2); p.y = T.roofTop(E, 1.2) + 1.6; return look(p, V(T.TREE.x, 6, T.TREE.z)); },
     acam: u => [u < 0.3 ? V(T.SYN.x1 + 6, 1.7, T.SYN.cz) : V(T.TREE.x - 8, 1.7, T.TREE.z + 8), 0, 0] },
+  // ---- the extended cut's own shots (make_trailer.py uses them only when there is time for them at their full length) ----
+  // the lilacs in front of our house in May
+  { name: 'lilac', setup(){ world({ S: 1.7, tod: 0.45, fov: 45 }); },
+    cam: u => look(vmix(V(4.2, 1.25, -143.6), V(1.2, 1.25, -144.0), ease(u)), V(mix(1.5, -0.8, ease(u)), 1.5, -148.2)) },
+  // my window swinging open onto the chestnut in flower
+  { name: 'window', setup(){ world({ S: 1.66, tod: 0.6, fov: 55, lamp: false }); near(0.03); this.opened = false; },
+    cam(u){ if (!this.opened && u > 0.18){ this.opened = true; T.winOpen.target = 1; }   // (it swings out as the game swings it)
+      return look(vmix(V(5.1, 8.85, -152.6), V(5.2, 8.85, -151.35), ease(u)), V(8.5, 10, T.TREE.z)); } },
+  // apples ripening in the old ladies' gardens
+  { name: 'apples', setup(){ world({ S: 2.85, tod: 0.62, fov: 40 }); },
+    cam: u => look(vmix(V(-1.5, 4.2, -99), V(0.2, 5.8, -101), ease(u)), V(5.5, 2.4, -107.3)) },   // (rising over the currant bushes that crowd round it)
+  // up in the chestnut, at the top perch, looking out over the yard
+  { name: 'climb', setup(){ world({ S: 2.35, tod: 0.55, fov: 55 }); },
+    cam: u => { const P = T.PERCH[T.PERCH.length - 1]; return [P.p.clone(), P.yaw + mix(-0.25, 0.2, ease(u)), P.pitch]; } },
+  // the Virginia creeper gone crimson on the workshop's yard wall (x = 18)
+  { name: 'creeper', setup(){ world({ S: 3.32, tod: 0.42, fov: 45 }); },
+    cam: u => look(vmix(V(11.0, 1.7, -128.2), V(11.8, 1.8, -131), ease(u)), V(18, 2.4, mix(-132, -135, ease(u)))) },
+  // conkers on the ground under the tree, and a few more dropping and splitting their husks
+  { name: 'conkers', setup(){ world({ S: 3.38, tod: 0.5, fov: 40 }); const G = this.G = V(T.TREE.x - 3.2, 0, T.TREE.z + 3.6);
+      for (let i = 0; i < 14; i++) T.spawnNut(V(G.x + (Math.random() - 0.5) * 2.2, 1.5 + Math.random() * 3, G.z + (Math.random() - 0.5) * 2.2), false);
+      for (let i = 0; i < 240; i++) T.updateNuts(1 / 60, false); this.drops = [0.12, 0.42, 0.66]; },
+    cam(u){ const G = this.G;
+      while (this.drops.length && u >= this.drops[0]){ this.drops.shift(); T.spawnNut(V(G.x + (Math.random() - 0.5) * 1.2, 4.5, G.z + (Math.random() - 0.5) * 1.2), false); }
+      return look(orbit(G, mix(1.7, 1.4, ease(u)), mix(-0.9, -0.6, ease(u)), 0.45), V(G.x, 0.05, G.z)); } },
+  // the lane on a winter night, snowing
+  { name: 'snownight', warm: 90, setup(){ world({ S: 0.45, tod: 0.9, weather: 'rain' }); },
+    cam: u => look(vmix(V(T.ROAD_X + 0.4, 1.6, -104), V(T.ROAD_X + 0.4, 1.6, -110), ease(u)), V(T.ROAD_X + 4, 3.5, -150)) },
+  // my Formula 1 on the table at night: the Ferrari of 1984 in Salvo bricks
+  { name: 'car', setup(){ world({ S: 0.45, tod: 0.9, fov: 34 }); near(0.01); },
+    cam: u => { const c = T.desk.views.car.t; return look(orbit(c, mix(0.24, 0.2, ease(u)), Math.PI + mix(-0.55, 0.25, ease(u)), c.y + 0.06), c); } },
+  // St. Gertrude's clock, 25.65 m up the tower's front, keeping the hour
+  { name: 'clock', setup(){ world({ S: 2.85, tod: 0.76, fov: 24 }); },
+    cam: u => look(vmix(V(-125, 22.5, -216.2), V(-129, 23.5, -216.6), ease(u)), V(-145.2, 25.65, -217)),
+    acam: () => [V(T.SYN.x1 + 7, 1.7, T.SYN.cz), 0, 0] },
   // FINALE. The year turning round the tree, coming to rest in May
   { name: 'year', setup(){ world({ S: 1.9, tod: 0.5, fov: 45, tallFov: 66 }); this.cleared = false; },
     cam(u){ if (!A()){ T.S = (1.9 + 3.76 * ease(Math.min(1, u / 0.6))) % 4; T.sTarget = null; if (!this.cleared && T.S > 0.85 && T.S < 1.2){ this.cleared = true; for (const L of T.FLs) L.on = false; } } else T.S = 1.66;
