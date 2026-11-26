@@ -39,11 +39,11 @@ const names = await page.evaluate(() => SHOTS.map(s => s.name));
 const warmOf = await page.evaluate(() => Object.fromEntries(SHOTS.map(s => [s.name, s.warm ?? 45])));   // (warm-up frames before a shot, counted at 30 fps)
 const ms = 1000 / FPS;
 // a frame, as JPEG; drawn again if it comes back black (once in a while the first frame after the game loads does; no shot is ever black)
-const grab = (u, f) => page.evaluate((u, f, ms) => { const cv = document.querySelector('canvas'), probe = document.createElement('canvas'); probe.width = 32; probe.height = 18;
+const grab = (u, f) => page.evaluate((u, f, ms, q) => { const cv = document.querySelector('canvas'), probe = document.createElement('canvas'); probe.width = 32; probe.height = 18;
   const g = probe.getContext('2d', { willReadFrequently: true });
   for (let tries = 0; ; tries++){ __setU(u, f); __step(ms); g.drawImage(cv, 0, 0, 32, 18);
     const px = g.getImageData(0, 0, 32, 18).data; let sum = 0; for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
-    if (sum > 32 * 18 * 6 || tries >= 3) return cv.toDataURL('image/jpeg', 0.94).slice(23); } }, u, f, ms);
+    if (sum > 32 * 18 * 6 || tries >= 3) return cv.toDataURL('image/jpeg', q).slice(23); } }, u, f, ms, plan.jpegq ?? 0.94);
 const step = (u, f) => page.evaluate((u, f, ms) => { __setU(u, f); __step(ms); }, u, f, ms);
 const out = path.join(WORK, MODE === 'render' ? 'clips' : 'stills'); fs.mkdirSync(out, { recursive: true });
 

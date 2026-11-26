@@ -31,13 +31,13 @@ EDIT = [
     ('fire',      4.0, None,      False),  # roasting chestnuts at dusk
     ('winter',    4.0, None,      False),  # winter: a snowman at dusk, snowing
     ('snownight', 4.0, None,      True),   #   the lane on a snowy night
-    ('car',       4.0, 'car',     True),   #   my Formula 1 on the table
+    ('car',       5.0, 'car',     True),   #   my Formula 1 on the table (long enough to read its caption)
     ('room',      3.5, None,      False),  # my desk at night
     ('chess',     4.5, 'chess',   False),  # Dad's chess set playing Fischer - Spassky
     ('bike',      6.5, None,      False),  # the town: on the Orlyonok down Stabu iela, looking up at the houses at the end
     ('church',    4.5, None,      False),  # St. Gertrude's, tilting up the tower to the cross
     ('clock',     4.0, None,      True),   #   its clock keeping the hour
-    ('synagogue', 4.5, None,      False),  # the synagogue, tilting up to its gables; held, then faded slowly (its violin carried on)
+    ('synagogue', 4.5, 'synagogue', False),  # the synagogue, tilting up to its gables; held, then faded slowly (its violin carried on)
     ('roof',      4.5, 'roof',    False),  # the roof of the tall house across Stabu
     ('year',     10.0, 'title',   False),  # the year turning round the tree, the title over May
 ]
@@ -101,7 +101,8 @@ def plan_edit(duration, fps, only=None):
         if s['card'] == 'title':
             a, b, f = s['start'] + 0.43 * s['dur'], end, 1.2
         else:
-            a, b = s['start'] + (0.9 if i == 0 else s['xf'] + 0.1), s['start'] + s['dur'] - 0.5
+            xf_out = plan[i + 1]['xf'] if i + 1 < len(plan) else XF
+            a, b = s['start'] + (0.9 if i == 0 else s['xf'] + 0.1), s['start'] + s['dur'] - max(0.5, xf_out - 0.1)   # (gone as the next shot fades in)
             f = 0.6
             if b - a < MIN_CAPTION:
                 skipped.append(s['card'])
@@ -165,7 +166,7 @@ def contact_sheets(work, plan):
         print('  ' + out)
 
 
-def assemble(work, plan, cards, total, w, h, fps, crf, out, silent):
+def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False):
     args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-stats', '-y']
     for s in plan:
         args += ['-i', os.path.join(work, 'clips', s['name'] + '.mp4')]
@@ -193,8 +194,9 @@ def assemble(work, plan, cards, total, w, h, fps, crf, out, silent):
         af = min(2.5, total * 0.08)
         g.append(f'[{A}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,acompressor=threshold=0.05:ratio=2.5:attack=20:release=400,'
                  f'loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.8,afade=t=out:st={total - af:.3f}:d={af:.2f},aresample=48000[aout]')
-        maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '256k']
-    args += ['-filter_complex', ';'.join(g), *maps, '-c:v', 'libx264', '-preset', 'slow', '-crf', str(crf), '-profile:v', 'high',
+        maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '320k' if best else '256k']
+    args += ['-filter_complex', ';'.join(g), *maps, '-c:v', 'libx264', '-preset', 'slower' if best else 'slow', *(['-tune', 'film'] if best else []),
+             '-crf', str(crf), '-profile:v', 'high', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
              '-pix_fmt', 'yuv420p', '-r', str(fps), '-g', str(2 * fps), '-movflags', '+faststart', '-t', f'{total:.3f}', out]
     subprocess.run(args, check=True)
 
@@ -207,6 +209,8 @@ def main():
     ap.add_argument('--fps', type=int, default=30, help='frames per second')
     ap.add_argument('--supersample', type=int, choices=[1, 2], help='draw each frame this many times larger and scale it down '
                     '(sharper leaves; default 2 up to 1440p, 1 above)')
+    ap.add_argument('--best', action='store_true', help='highest quality: supersample 2 at any size, CRF 12 with x264 preset slower and '
+                    'film tuning, 320 kbit/s audio (for a master; slow, and a big file)')
     ap.add_argument('--crf', type=int, default=16, help='x264 quality: lower is better and bigger (16 is near transparent, 20 is lighter)')
     ap.add_argument('--shots', help='only these shots, comma-separated, in the usual order (default: chosen to fit the duration)')
     ap.add_argument('--silent', action='store_true', help='no soundtrack (skips the real-time sound pass)')
@@ -227,7 +231,8 @@ def main():
         print(f'note: H.264 wants even sizes; making it {w}x{h}')
     if a.duration < 8:
         die('--duration: at least 8 seconds')
-    ss = a.supersample or (2 if w * h <= 2560 * 1440 else 1)
+    ss = a.supersample or (2 if a.best or w * h <= 2560 * 1440 else 1)
+    crf = 12 if a.best and a.crf == 16 else a.crf
     if abs(w / h - 16 / 9) > 0.02:
         print(f'note: the shots are framed for 16:9; at {w}x{h} the same views are cropped or widened')
     for tool in ('node', 'ffmpeg'):
@@ -238,7 +243,7 @@ def main():
 
     only = [s.strip() for s in a.shots.split(',')] if a.shots else None
     plan, cards, total, k, dropped, skipped = plan_edit(a.duration, a.fps, only)
-    layout = 'landscape' if w > h else 'square' if w == h else 'portrait'
+    layout = 'scope' if w / h > 2.1 else 'landscape' if w > h else 'square' if w == h else 'portrait'
     out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-trailer-{w}x{h}-{layout}-{round(a.duration)}s.mp4'))
     work = os.path.abspath(a.work)
     print(f'{w}x{h} {layout} at {a.fps} fps, drawn at {w * ss}x{h * ss}; {total:.1f} s, {len(plan)} shots, each at {k:.2f}x its usual length')
@@ -256,7 +261,7 @@ def main():
     site = build_site(work)
     srv, port = serve(site, a.port)
     json.dump({'width': w, 'height': h, 'fps': a.fps, 'supersample': ss, 'port': port, 'site': site, 'xf': XF, 'total': total,
-               'layout': layout, 'shots': plan, 'cards': cards}, open(os.path.join(work, 'plan.json'), 'w'), indent=1)
+               'layout': layout, 'jpegq': 0.97 if a.best else 0.94, 'shots': plan, 'cards': cards}, open(os.path.join(work, 'plan.json'), 'w'), indent=1)
     t0 = time.time()
     try:
         if a.stills:
@@ -274,7 +279,7 @@ def main():
         print('\nwords')
         node('cards.mjs', work)
         print('\ntogether')
-        assemble(work, plan, cards, total, w, h, a.fps, a.crf, out, a.silent)
+        assemble(work, plan, cards, total, w, h, a.fps, crf, out, a.silent, a.best)
     finally:
         srv.terminate()
     mb = os.path.getsize(out) / 1e6

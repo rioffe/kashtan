@@ -18,10 +18,13 @@ var tiltUp = ({ from, to, yawAt, base, top, low }, u) => { const p = vmix(from, 
   return [p, Math.atan2(-(yawAt.x - p.x), -(yawAt.z - p.z)), mix(lowP, fit, ease(clamp01((u - 0.12) / 0.8)))]; };
 // fov is the lens for a 16:9 frame; a frame taller than it is wide sees far less across at the same lens, so it gets a wider one
 // (tallFov, or 1.3x), seeing more above and below instead of less to the sides
+// a scope frame (2.39:1) at the same lens would see far round to the sides (a 50° lens: 100° across, stretched at the edges): it gets
+// a longer one, seeing 15% more across than 16:9 does and a little less above and below (as a scope film's crop of the same view)
+var scopeFov = v => 2 * Math.atan(Math.tan(v * Math.PI / 360) * (16 / 9) * 1.15 / T.camera.aspect) * 180 / Math.PI;
 function world({ S, tod, weather = 'fair', fov = 50, tallFov, mode = 'free', lamp = true, cloud }){
   T.S = S; T.sTarget = null; T.drift = false; T.TOD = tod; T.todTarget = null; T.timeSel = null;
   T.weather = weather; const w = (window.__WO || T.WEATHERS)[weather]; Object.assign(T.W, { cloud: cloud ?? w.cloud, rain: w.rain, wet: w.rain, leafWet: w.rain }); const WS = T.WEATHERS; window.__WO = window.__WO || Object.fromEntries(Object.entries(WS).map(([k, v]) => [k, v])); for (const k in window.__WO) WS[k] = window.__WO[k]; if (cloud != null) WS[weather] = Object.assign({}, window.__WO[weather], { cloud });
-  T.mode = mode; T.camera.fov = T.camera.aspect < 1 ? Math.min(75, tallFov ?? fov * 1.3) : fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
+  T.mode = mode; T.camera.fov = T.camera.aspect < 1 ? Math.min(75, tallFov ?? fov * 1.3) : T.camera.aspect > 2.1 ? scopeFov(fov) : fov; T.camera.near = 0.1; T.camera.updateProjectionMatrix();
   for (const L of T.FLs) L.on = false; for (const n of T.NUTs){ n.on = false; n.h = 0; } T.lastLeaf = T.SP(S).leaf;
   T.winOpen.target = T.winOpen.v = 0; T.deskLamp.on = lamp; { const F = T.fire; F.lit = false; F.flameK = F.emberK = 0; for (const sp of F.smoke){ sp.userData.life = 0; sp.visible = false; } F.on = true; T.updateFire(0.016, 0, 0); }
   T.keys.clear(); window.__camLock = null;

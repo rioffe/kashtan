@@ -5,7 +5,7 @@ These scripts make the Kashtan trailer straight from the game: any size, any len
 the captions in the game's type and puts it all together with ffmpeg.
 
 `kashtan-trailer-1080p.mp4` here is an earlier cut of the standard trailer (1920×1080, 30 fps, 63.5 s). The standard
-cut now runs 68.6 s: `python3 make_trailer.py --size 1080p --duration 68.6`. The music won't be identical, because it's generative.
+cut runs 68.6 s: `python3 make_trailer.py --size 1080p --duration 68.6`. The music won't be identical, because it's generative.
 
 ## What you need
 
@@ -23,7 +23,8 @@ The game itself (`../index.html`) is never changed. The scripts work on a copy o
 ```sh
 cd trailer
 python3 make_trailer.py --size 1920x1080 --duration 60          # -> kashtan-trailer-1920x1080-landscape-60s.mp4
-python3 make_trailer.py --size 4k --duration 97 --crf 18      # the extended cut in 4K: all 25 shots
+python3 make_trailer.py --size 4k --duration 104 --crf 18     # the extended cut in 4K: all 25 shots
+python3 make_trailer.py --size 3840x1608 --duration 104 --best  # the same at 2.39:1, at the highest quality
 python3 make_trailer.py --size 1080x1920 --duration 30 --crf 18 # an Instagram Reel -> kashtan-trailer-1080x1920-portrait-30s.mp4
 python3 make_trailer.py --size 720p --duration 30 --stills      # look at the shots first (see below)
 ```
@@ -34,18 +35,19 @@ python3 make_trailer.py --size 720p --duration 30 --stills      # look at the sh
 | `--duration` | `60` | length in seconds (8 at least) |
 | `--fps` | `30` | frames per second |
 | `--supersample` | 2 up to 1440p, 1 above | draws each frame 2× larger and scales it down. Leaves and fences come out much sharper. |
+| `--best` | | the highest quality, for a master: supersample 2 at any size, CRF 12 with x264's slower preset and film tuning, 320 kbit/s audio. Slow, and a big file. |
 | `--crf` | `16` | x264 quality. 16 is close to lossless (about 25 Mbit/s at 1080p); 20–22 gives a lighter file for the web. |
 | `--shots` | chosen to fit | only these shots, comma-separated, e.g. `--shots gate,candles,cat,year` |
 | `--silent` | | no soundtrack. Skips the real-time sound pass. |
 | `--stills` | | draws only the first, middle and last frame of each shot, then tiles them |
-| `--out` | `kashtan-trailer-WxH-LAYOUT-Ns.mp4` | output file. The layout is `landscape`, `portrait` or `square`. |
+| `--out` | `kashtan-trailer-WxH-LAYOUT-Ns.mp4` | output file. The layout is `landscape`, `scope`, `portrait` or `square`. |
 | `--work` | `work/` | folder for the intermediate files |
 | `--port` | any free one | port the copy of the game is served on (127.0.0.1 only) |
 
 ### How it fits the length
 
 There are 25 shots. 16 make the standard cut, which runs 68.6 s. The other 9 belong to the extended cut and bring it
-to about 101 s:
+to about 102 s:
 
 - **Spring:** the lilacs in front of the house; the window swinging open onto the tree.
 - **Summer:** a crane over the gardens to an apple tree; the view from the top of the chestnut.
@@ -58,14 +60,15 @@ Each shot's camera move is defined from start to finish, so a shot can run longe
 moves faster or slower over the same path.
 
 - **Up to 68.6 s you get the standard cut.** An extended shot is only used when every shot can run at its full
-  length, so they come in one by one above 68.6 s. All 25 fit from about 101 s.
+  length, so they come in one by one above 68.6 s. All 25 fit from about 102 s.
 - **Shorter than about 57 s:** standard shots are dropped rather than cut below 85% of their length. They go in the
   order of `DROP` in `make_trailer.py`: rain, room, church, lie, garden, fire, synagogue, bike, cat, roof, chess. The
   gateway, candles, autumn, winter and the closing year always stay.
 - **Then the rest are stretched or shrunk** so the total comes out exactly right.
-- **Captions** sit inside their shot. A caption that would have less than 2 s on screen is left out. The title
-  card always comes in over the last shot. The extended cut has three more: over the tree view, the conkers and the
-  Ferrari.
+- **Captions** sit inside their shot and leave as the next shot fades in. A caption that would have less than 2 s
+  on screen is left out. The title card always comes in over the last shot. The synagogue carries a longer caption
+  on its history, set a little smaller so it stays at three lines. The extended cut has three more: over the tree
+  view, the conkers and the Ferrari.
 
 | duration | what you get |
 |---|---|
@@ -85,6 +88,9 @@ Any size works. The script picks a layout from the shape of the frame and puts i
 
 - **Landscape** (wider than tall): the shots as framed, with the captions low in the frame as in the game. The
   captions are laid out for 1920×1080 and scaled to fit.
+- **Scope** (wider than 2.1:1, like a 2.39:1 film at `3840x1608`): the landscape captions, and a longer lens. At the
+  same lens a scope frame would see far round to the sides, stretched at the edges, so each shot gets one that sees
+  15% more across than 16:9 and a little less above and below, as a scope film's crop of the same view.
 - **Portrait and square** (Instagram Reels, Stories, TikTok, YouTube Shorts): the captions get their own layout.
   It's 1080 wide with larger type, and lines wrap where they fit. Everything stays clear of the apps' own furniture:
   the bottom quarter (name, caption, sound), the top tenth, and the buttons down the right.
