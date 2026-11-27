@@ -31,9 +31,13 @@ await page.setViewport({ width: W, height: H, deviceScaleFactor: SS });
 await page.evaluateOnNewDocument(SHIM);
 const t0 = Date.now();
 await openGame(page, plan);
+// the drawing buffer must be the whole canvas: a browser may grant a smaller one (Chrome: at most 7680x4320 worth of pixels), and the
+// game, drawing to the full canvas size, would then show only the lower left of every frame
+{ const [cw, ch, bw, bh] = await page.evaluate(() => { const r = __T.renderer, g = r.getContext(); return [r.domElement.width, r.domElement.height, g.drawingBufferWidth, g.drawingBufferHeight]; });
+  if (bw < cw || bh < ch){ console.error(`the browser drew to a ${bw}x${bh} buffer for a ${cw}x${ch} canvas: the frames would be cropped. Use a smaller --supersample.`); await browser.close(); process.exit(1); } }
 await page.evaluate(fs.readFileSync(path.join(HERE, 'shots.js'), 'utf8'));
 await page.evaluate(() => window.__vtOn());
-console.log(`game up in ${((Date.now() - t0) / 1000).toFixed(1)} s; drawing at ${W * SS}x${H * SS}, ${FPS} fps`);
+console.log(`game up in ${((Date.now() - t0) / 1000).toFixed(1)} s; drawing at ${Math.floor(W * SS)}x${Math.floor(H * SS)}, ${FPS} fps`);
 
 const names = await page.evaluate(() => SHOTS.map(s => s.name));
 const warmOf = await page.evaluate(() => Object.fromEntries(SHOTS.map(s => [s.name, s.warm ?? 45])));   // (warm-up frames before a shot, counted at 30 fps)

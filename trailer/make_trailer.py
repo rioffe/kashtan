@@ -7,7 +7,7 @@
 
 See README.md for what it does and how to change the shots.
 """
-import argparse, json, os, shutil, socket, subprocess, sys, time
+import argparse, json, math, os, shutil, socket, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                       # the game: ../index.html and ../models/
@@ -51,6 +51,7 @@ DROP = ['snownight', 'apples', 'clock', 'creeper', 'lilac', 'car', 'window', 'co
 TIMING = {'synagogue': {'hold': 2.0, 'fade': 1.8}}
 XF = 0.6             # crossfade between shots, seconds
 MIN_STRETCH = 0.85   # shots are not cut below 85% of their length while there are shots left to drop
+MAX_DRAWN = 7680 * 4320   # the most pixels Chrome grants a WebGL drawing buffer (an 8K frame)
 MIN_CAPTION = 2.0    # a caption with less time than this on screen is left out
 
 
@@ -218,7 +219,8 @@ def main():
     ap.add_argument('--size', default='1920x1080', help='WIDTHxHEIGHT of the video, or 720p, 1080p, 1440p, 4k')
     ap.add_argument('--duration', type=float, default=60, help='length in seconds')
     ap.add_argument('--fps', type=int, default=30, help='frames per second')
-    ap.add_argument('--supersample', type=int, choices=[1, 2], help='draw each frame this many times larger and scale it down '
+    ap.add_argument('--supersample', type=float, help='draw each frame this many times larger (1 to 2) and scale it down; capped so the '
+                    'drawn frame fits the largest WebGL buffer Chrome grants (7680x4320 worth of pixels) '
                     '(sharper leaves; default 2 up to 1440p, 1 above)')
     ap.add_argument('--best', action='store_true', help='highest quality: supersample 2 at any size, CRF 12 with x264 preset slower and '
                     'film tuning, 320 kbit/s audio (for a master; slow, and a big file)')
@@ -245,6 +247,17 @@ def main():
     if a.duration < 8:
         die('--duration: at least 8 seconds')
     ss = a.supersample or (2 if a.best or w * h <= 2560 * 1440 else 1)
+    if not 1 <= ss <= 2:
+        die('--supersample: between 1 and 2')
+    # Chrome gives a WebGL canvas no more than 7680x4320 worth of pixels; asked for more it quietly hands back a smaller buffer, and
+    # three.js, still drawing to the whole canvas, crops every frame to its lower left. So the frame is drawn no larger than that.
+    cap = math.floor(math.sqrt(MAX_DRAWN / (w * h)) * 100) / 100
+    if ss > cap:
+        if a.supersample:
+            print(f'note: --supersample {ss:g} at {w}x{h} would draw more than Chrome allows; using {cap:g}')
+        ss = max(1.0, cap)
+    if int(w * ss) * int(h * ss) > MAX_DRAWN:
+        die(f'{w}x{h} is too large to draw in Chrome (at most {MAX_DRAWN} pixels a frame)')
     codec = a.codec or ('hevc' if w > 4096 or h > 2304 or w * h > 4096 * 2304 else 'h264')
     if codec == 'hevc' and not a.codec:
         print(f'note: {w}x{h} is larger than H.264 plays on most machines (4096x2304); encoding HEVC (10-bit) instead')
@@ -262,7 +275,7 @@ def main():
     layout = 'scope' if w / h > 2.1 else 'landscape' if w > h else 'square' if w == h else 'portrait'
     out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-trailer-{w}x{h}-{layout}-{round(a.duration)}s.mp4'))
     work = os.path.abspath(a.work)
-    print(f'{w}x{h} {layout} at {a.fps} fps, drawn at {w * ss}x{h * ss}; {total:.1f} s, {len(plan)} shots, each at {k:.2f}x its usual length')
+    print(f'{w}x{h} {layout} at {a.fps} fps, drawn at {int(w * ss)}x{int(h * ss)}; {total:.1f} s, {len(plan)} shots, each at {k:.2f}x its usual length')
     if dropped:
         print('  left out to fit: ' + ', '.join(dropped))
     if skipped:

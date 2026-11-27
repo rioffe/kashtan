@@ -44,8 +44,8 @@ python3 make_trailer.py --size 720p --duration 30 --stills        # look at the 
 | `--size` | `1920x1080` | `WIDTHxHEIGHT`, or `720p`, `1080p`, `1440p`, `4k` (also `2160p`) |
 | `--duration` | `60` | length in seconds (8 at least) |
 | `--fps` | `30` | frames per second |
-| `--supersample` | 2 up to 1440p, 1 above | draws each frame 2× larger and scales it down. Leaves and fences come out much sharper. |
-| `--best` | | the highest quality, for a master: supersample 2 at any size, frames passed along at JPEG quality 0.97 instead of 0.94, CRF 12 with x264's slower preset and film tuning (CRF 14 with x265's slow preset for HEVC) unless `--crf` says otherwise, 320 kbit/s audio. Slow, and a big file. |
+| `--supersample` | 2 up to 1440p, 1 above | draws each frame up to 2× larger (any factor from 1 to 2) and scales it down. Leaves and fences come out much sharper. Capped so the drawn frame stays within Chrome's limit of 7680×4320 worth of pixels: 5160×2160 is drawn at 1.72×. |
+| `--best` | | the highest quality, for a master: supersample 2 at any size (or as near as Chrome allows), frames passed along at JPEG quality 0.97 instead of 0.94, CRF 12 with x264's slower preset and film tuning (CRF 14 with x265's slow preset for HEVC) unless `--crf` says otherwise, 320 kbit/s audio. Slow, and a big file. |
 | `--codec` | `h264`, or `hevc` above 4096×2304 | `h264` plays everywhere. `hevc` is 10-bit HEVC tagged `hvc1` (QuickTime plays it); the script picks it for frames larger than H.264 plays on most machines, such as 5160×2160. |
 | `--crf` | `16` | x264 quality. 16 is close to lossless (about 25 Mbit/s at 1080p); 20–22 gives a lighter file for the web. |
 | `--shots` | chosen to fit | only these shots, comma-separated, e.g. `--shots gate,candles,cat,year` |
@@ -101,9 +101,10 @@ Any size works. The script picks a layout from the shape of the frame and puts i
 
 - **Landscape** (wider than tall): the shots as framed, with the captions low in the frame as in the game. The
   captions are laid out for 1920×1080 and scaled to fit.
-- **Scope** (wider than 2.1:1, like a 2.39:1 film at `3840x1608`): the landscape captions, and a longer lens. At the
-  same lens a scope frame would see far round to the sides, stretched at the edges, so each shot gets one that sees
-  15% more across than 16:9 and a little less above and below, as a scope film's crop of the same view.
+- **Scope** (wider than 2.1:1, like a 2.39:1 film at `3840x1608` or `5160x2160`): the landscape captions and the 16:9
+  frame widened. Each shot keeps the 16:9 lens, so it sees just as much above and below (the church's spire, the
+  synagogue's gables) and far more to the sides: a 50° lens sees about 96° across, a little stretched at the edges.
+  A shot can set `scopeFov` to see less.
 - **Portrait and square** (Instagram Reels, Stories, TikTok, YouTube Shorts): the captions get their own layout.
   It's 1080 wide with larger type, and lines wrap where they fit. Everything stays clear of the apps' own furniture:
   the bottom quarter (name, caption, sound), the top tenth, and the buttons down the right.
@@ -151,7 +152,7 @@ On an M5 Max, a 60 s trailer takes:
 
 Whole runs, start to finish: the 30 s Reel about 2½ minutes, the 69.8 s standard cut about 5, the 104 s extended
 cut in 4K about 10, the same at 2.39:1 with `--best` (3840×1608, drawn at 7680×3216) about 18, and at 5160×2160
-(drawn at 10320×4320, encoded HEVC) about 40.
+(drawn at 8875×3715, encoded HEVC) about 32.
 
 ## Looking before rendering
 
@@ -202,8 +203,8 @@ changing a shot, or after changing the game, since a new bush can end up in fron
   - `S` is the season: 0 is December, 1 March, 2 June, 3 September. Mid-winter is about 0.42, May about 1.65.
   - `tod` is the time of day (0.5 is noon).
   - `weather` is `fair`, `cloudy` or `rain` (snow in winter).
-  - `fov` is the lens for a 16:9 frame; `tallFov` (optional) is the one for portrait and square frames. Scope
-    frames work theirs out from `fov`.
+  - `fov` is the lens for a 16:9 frame (vertical, so scope frames use it too and see more to the sides);
+    `tallFov` (optional) is the one for portrait and square frames, `scopeFov` (optional) for scope.
   - `mode`: `free` (the default) leaves the camera to the shot. The desk shots use `window`, the only mode in which
     the desk lamp lights the room; the bike shot uses `walk`, and the bike steers and carries the eye.
   - `lamp`: whether the desk lamp is on (default on); `cloud` overrides the weather's cloud cover.

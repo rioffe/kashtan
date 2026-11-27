@@ -54,7 +54,7 @@ The driver decides everything once and writes it down. The scripts read only thi
 | field | meaning |
 |---|---|
 | `width`, `height`, `fps` | the output frame and rate |
-| `supersample` | the device pixel ratio the frames are drawn at, 1 or 2 |
+| `supersample` | the device pixel ratio the frames are drawn at, 1 to 2, capped by Chrome's buffer limit |
 | `layout` | `landscape`, `scope`, `portrait` or `square`, chosen from the aspect ratio |
 | `jpegq` | JPEG quality of the frames passed from Chrome to ffmpeg (0.94, or 0.97 with `--best`) |
 | `port`, `site` | where the patched game is served from, and its folder |
@@ -238,11 +238,12 @@ The layout is chosen from the frame's aspect ratio. It decides the caption layou
 | layout | aspect | captions | lens |
 |---|---|---|---|
 | landscape | wider than tall, up to 2.1:1 | wide | the shot's `fov` (vertical, for 16:9) |
-| scope | wider than 2.1:1 | wide | sees 15% more across than 16:9, less above and below |
+| scope | wider than 2.1:1 | wide | the same `fov`, or `scopeFov`: as much above and below as 16:9, far more to the sides |
 | portrait, square | as tall as wide, or taller | tall | `tallFov`, or 1.3× `fov`, capped at 75° |
 
-The camera's `fov` is vertical, so the same lens sees a different amount across at each aspect ratio. Keeping the
-16:9 lens would make a tall frame tunnel-like and a scope frame stretched at the edges.
+The camera's `fov` is vertical, so the same lens sees a different amount across at each aspect ratio. A scope frame
+keeps the 16:9 lens: the 16:9 frame widened, with the same height of view, so whatever a shot frames from top to
+bottom (a spire, a gable) stays in. A tall frame at the 16:9 lens would be tunnel-like, so it gets a wider one.
 
 ## What is and isn't reproducible
 
@@ -263,12 +264,19 @@ The camera's `fov` is vertical, so the same lens sees a different amount across 
 - **Every shot must undo the last.** Falling leaves, conkers, the fire, snowmen, a cat mid-episode or a held key
   leak into the next shot. `world()` resets them all.
 - **A slow crossfade overlaps the next shot.** The planner lengthens that shot to make up for it.
+- **A camera must stand where a person could.** The synagogue's first camera stood inside a house across the street;
+  in 16:9 the wall seen from inside was a sliver at the edge, and the wider scope frame showed it plainly. Check
+  new cameras against the town's blocks, not just the view.
 - **The sound pass is live.** Nothing CPU-heavy should run beside it. The pictures stage doesn't mind contention;
   it only gets slower.
 - **H.264 has a frame-size ceiling** in practice (4096×2304 on most decoders, including Apple's), which is why HEVC
   is used above it.
-- **Very large frames:** WebGL on the M5 Max allows a drawing buffer up to 16384 on a side. A supersampled
-  5160×2160 frame (10320×4320) fits, with 4× multisampling.
+- **Chrome won't draw more than an 8K frame's worth of pixels.** A WebGL drawing buffer may be up to 16384 on a side,
+  but Chrome grants at most 7680×4320 worth of pixels (33.2 million). Asked for more, it quietly hands back a smaller
+  buffer, and the game, drawing to the whole canvas, shows only the lower left of every frame: the first 5160×2160
+  masters, supersampled 2× (10320×4320), were cropped that way. The driver caps the supersampling to fit
+  (5160×2160 is drawn at 1.72×, 8875×3715), and `render.mjs` refuses to start if the buffer is smaller than the
+  canvas. A blank test canvas got the full size, so test with the game's own.
 
 ## Where to change what
 
