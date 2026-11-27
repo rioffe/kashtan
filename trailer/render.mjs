@@ -35,7 +35,7 @@ await openGame(page, plan);
 // game, drawing to the full canvas size, would then show only the lower left of every frame
 { const [cw, ch, bw, bh] = await page.evaluate(() => { const r = __T.renderer, g = r.getContext(); return [r.domElement.width, r.domElement.height, g.drawingBufferWidth, g.drawingBufferHeight]; });
   if (bw < cw || bh < ch){ console.error(`the browser drew to a ${bw}x${bh} buffer for a ${cw}x${ch} canvas: the frames would be cropped. Use a smaller --supersample.`); await browser.close(); process.exit(1); } }
-await page.evaluate(fs.readFileSync(path.join(HERE, 'shots.js'), 'utf8'));
+for (const f of plan.shotFiles ?? ['shots.js']) await page.evaluate(fs.readFileSync(path.join(HERE, f), 'utf8'));   // (a cut's own shots after the trailer's, which they may use)
 await page.evaluate(() => window.__vtOn());
 console.log(`game up in ${((Date.now() - t0) / 1000).toFixed(1)} s; drawing at ${Math.floor(W * SS)}x${Math.floor(H * SS)}, ${FPS} fps`);
 
@@ -52,9 +52,9 @@ const step = (u, f) => page.evaluate((u, f, ms) => { __setU(u, f); __step(ms); }
 const out = path.join(WORK, MODE === 'render' ? 'clips' : 'stills'); fs.mkdirSync(out, { recursive: true });
 
 for (const [k, s] of plan.shots.entries()){
-  const i = names.indexOf(s.name); if (i < 0) throw new Error(`shot ${s.name} is not in shots.js`);
+  const i = names.indexOf(s.name); if (i < 0) throw new Error(`shot ${s.name} is not in ${(plan.shotFiles ?? ['shots.js']).join(' or ')}`);
   const ts = Date.now(), frames = s.frames;
-  await page.evaluate(i => SHOT_BEGIN(i), i);
+  await page.evaluate((i, s) => SHOT_BEGIN(i, s), i, s);   // (the plan's entry for it too: a cut timed to music needs where it falls)
   for (let w = 0, n = Math.round(warmOf[s.name] * FPS / 30); w < n; w++) await step(0, -1);
   let ff = null, put = null;
   if (MODE === 'render'){

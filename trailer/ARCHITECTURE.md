@@ -61,6 +61,14 @@ The driver decides everything once and writes it down. The scripts read only thi
 | `xf`, `total` | the default crossfade and the exact length |
 | `shots[]` | per shot: `name`, `frames`, `dur`, `start` (on the trailer's timeline), `xf` (fade in from the previous shot), `move` (fraction of the shot over which the camera moves; after that it holds), `card` |
 | `cards[]` | per caption: `card`, `in`, `out`, `fade` (seconds on the trailer's timeline) |
+| `shotFiles` | (holiday promo) the shot files to load, in order: `['shots.js', 'holiday-shots.js']`. Absent means `shots.js` alone |
+| `gameMusic` | (holiday promo) `false`: the sound pass turns the game's own music off and lets its sound come up for 5.5 s before recording |
+| `music` | (holiday promo) `bpm`, `bars`, `tail` and `out` for `music.mjs` |
+| `shots[].bar0`, `.lead` | (holiday promo) the bar a shot starts on, and how many seconds before that bar its first frame is (half a dissolve) |
+
+The holiday promo (`make_holiday.py`) writes the same file with these extras. `SHOT_BEGIN(i, s)` gets the shot's
+plan entry as its second argument, so a shot cut to music knows where it falls in it. `assemble()` cuts instead of
+crossfading where a shot's `xf` is 0, and with `music` mixes the recorded game sound under that WAV.
 
 ## The game side
 
@@ -290,3 +298,6 @@ bottom (a spire, a gable) stays in. A tall frame at the 16:9 lens would be tunne
 | transitions, overlays, loudness, encoding | `assemble()` in `make_trailer.py` |
 | a new layout | `layout` in `main()`, `world()` in `shots.js`, the CSS choice in `cards.mjs` |
 | where the trailer hooks into the game | `anchor` in `build_site()` |
+| the holiday promo's shots, in bars | `EDIT`, `CARDS` in `make_holiday.py` |
+| its snowmen, the ride's path and timing, its cameras | `SPOTS`, `RIDE_PTS`, `RIDE_KEYS`, `HSHOTS` in `holiday-shots.js` |
+| its music | `music.mjs` (the score and the instruments) |

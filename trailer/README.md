@@ -16,6 +16,7 @@ current ones. The music is generative, so it's never quite the same twice.
 | extended cut, 2.39:1 master | `python3 make_trailer.py --size 3840x1608 --duration 104 --best` |
 | extended cut, 2.39:1 master, 2160 high | `python3 make_trailer.py --size 5160x2160 --duration 104 --best` (HEVC) |
 | YouTube copy of the 4K cut | see [For YouTube](#for-youtube) |
+| holiday promo, 1080p, 51 s | `python3 make_holiday.py` (see [The holiday promo](#the-holiday-promo)) |
 
 ## What you need
 
@@ -164,6 +165,53 @@ This writes `work/stills/NN-<shot>-{a,b,c}.jpg` (first, middle and last frame of
 size, plus `work/stills/sheet-N.jpg`, which tiles four shots to an image. It takes under a minute. Use it after
 changing a shot, or after changing the game, since a new bush can end up in front of a camera.
 
+## The holiday promo
+
+```sh
+python3 make_holiday.py                         # -> kashtan-holiday-1920x1080-landscape-51s.mp4
+python3 make_holiday.py --size 720p --stills    # look at its shots first (work/holiday/stills/)
+python3 make_holiday.py --music-only            # just the music -> work/holiday/music.wav
+python3 make_holiday.py --shots h-front,h-pov2  # a few shots alone, cut together, no end card
+```
+
+A 51 s holiday promo, 13 shots. On a winter morning my window swings open onto the snowy yard. I run out of the door,
+and a snowman goes up on each bar I stop on. The rest go up round the yard and down the gravel lane, one on each
+beat. Then the ride on the Orlyonok: round the chestnut, weaving the three before the house, left into the lane and
+down it between the eight. The end card, Happy Holidays and then Play Kashtan for more fun, comes over the yard at
+dusk, full of snowmen, the windows lit and snow falling.
+
+It uses the trailer's machinery with its own shots (`holiday-shots.js`, loaded after `shots.js`) and its own
+music (`music.mjs`). Its intermediate files go in `work/holiday/`.
+
+- **The music.** Jingle Bells (James Lord Pierpont, 1857, public domain), arranged for the cut and played on
+  synthesized instruments in Chrome's Web Audio, offline. So it's the same every run and sits on the cut's bars to the
+  sample. The arrangement has glockenspiel (the game's own bell), electric piano, horns, a plucked bass, strings,
+  sleigh bells, a woodblock and brushes. 144 beats a minute puts a bar on exactly 50 frames.
+  - 2 bars of intro: the last line, "one horse open sleigh".
+  - 8 bars of the verse while the snowmen go up.
+  - 16 bars of the chorus for the ride.
+  - A 4-bar ending under the end card.
+
+  The game's own generative music is left out. Its other sounds stay under the tune at `--ambient` (3, so the bike bell rings as loud as the tune): the wind,
+  my steps, the crunch of each snowman going up, the freewheel ticking and the bike bell, rung on "Jingle", on
+  "hey!" and on the last "sleigh".
+- **Cut to the bar.** `EDIT` in `make_holiday.py` counts in bars, and every cut lands on a bar line. The one dissolve
+  is into the dusk shot, centred on its bar. Each shot is told where it falls in the music, so beats line up inside
+  shots too: the snowmen going up on the beat, and the ride passing one lane snowman on each bar of the chorus's
+  second half.
+- **One ride.** The ride is a single path, a natural cubic spline through `RIDE_PTS` in `holiday-shots.js`. Its
+  timing goes through `RIDE_KEYS`, with each lane snowman passed on its bar. The ride's clock is the music's, so the
+  eight ride shots are eight views of the same ride and it carries on across the cuts. The steering and the lean come
+  from the path's curvature and the speed, with the lean balanced for the turn (tan lean = v²κ/g). The rider pedals on
+  the straights and coasts through the tighter turns. The game's bike draws him: `BIKE.step` with no time passing,
+  given the ride's position, heading, steering, lean and cranks.
+- **Seen from outside**, the rider's head and fur hat are given real materials. In the game they're colour-masked
+  so they only cast a shadow and never get in the eye's way. The first-person shots put the masks back and roll with
+  the bike, at half the game's roll.
+- **The snowmen** are the game's own (`makeSnowman`), sixteen of them at `SPOTS`, seeded so they come out the same
+  every run. They're posed as far built as the shot wants through the game's `updateSnowmen`, and are kept out of
+  its list of snowmen, which holds eight at most.
+
 ## The files
 
 | file | what it does |
@@ -174,6 +222,9 @@ changing a shot, or after changing the game, since a new bush can end up in fron
 | `audio.mjs` | The sound. It plays the same shots through in real time and records the game's audio output into `work/audio.webm`. |
 | `cards.mjs` | The captions and the title card, as transparent PNGs in `work/cards/`. The wording lives here. |
 | `lib.mjs` | Shared helpers: finds puppeteer and Chrome, opens the game. |
+| `make_holiday.py` | The holiday promo's driver: its edit in bars (`EDIT`), its end card (`CARDS`). It plans the cut and runs the same scripts, plus `music.mjs`, then mixes the game's sound under the music. |
+| `holiday-shots.js` | The holiday promo's shots: the snowmen, the ride, the bike posed along it. Loaded after `shots.js`, whose helpers it uses. |
+| `music.mjs` | The holiday promo's music, Jingle Bells, synthesized offline into `work/holiday/music.wav`. |
 | `ARCHITECTURE.md`, `.pdf` | How the parts fit together. The PDF is built from the Markdown with `spec2pdf.sh --no-click ARCHITECTURE.md`, run in this folder (pandoc, XeLaTeX and mermaid-filter; the script is in the speccheck project). |
 | `work/` | Everything intermediate. Safe to delete. |
 

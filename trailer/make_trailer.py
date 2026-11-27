@@ -172,7 +172,9 @@ def contact_sheets(work, plan):
         print('  ' + out)
 
 
-def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False, codec='h264'):
+def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False, codec='h264', music=None, ambient=1.0):
+    """The clips joined (crossfaded, or cut where a shot's xf is 0), the cards over them, the sound under them. With `music` (a WAV
+    the length of the cut) the game's own sound, at `ambient`, is mixed under it."""
     args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-stats', '-y']
     for s in plan:
         args += ['-i', os.path.join(work, 'clips', s['name'] + '.mp4')]
@@ -180,11 +182,16 @@ def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False, 
         args += ['-loop', '1', '-framerate', str(fps), '-t', f'{total:.3f}', '-i', os.path.join(work, 'cards', c['card'] + '.png')]
     if not silent:
         args += ['-i', os.path.join(work, 'audio.wav')]
+        if music:
+            args += ['-i', music]
     n, A = len(plan), len(plan) + len(cards)
     g = [f'[{i}:v]settb=AVTB,fps={fps},format=yuv444p,setpts=PTS-STARTPTS[v{i}]' for i in range(n)]
     prev = 'v0'
     for k in range(1, n):
-        g.append(f"[{prev}][v{k}]xfade=transition=fade:duration={plan[k]['xf']}:offset={plan[k]['start']:.3f}[x{k}]")
+        if plan[k]['xf'] > 0:
+            g.append(f"[{prev}][v{k}]xfade=transition=fade:duration={plan[k]['xf']}:offset={plan[k]['start']:.3f}[x{k}]")
+        else:   # (a cut, on the frame)
+            g.append(f"[{prev}][v{k}]concat=n=2:v=1:a=0,settb=AVTB,fps={fps}[x{k}]")   # (its rate and time base set again, as xfade needs them)
         prev = f'x{k}'
     g.append(f'[{prev}]trim=0:{total:.3f},format=yuv444p[base]')
     prev = 'base'
@@ -199,7 +206,12 @@ def assemble(work, plan, cards, total, w, h, fps, crf, out, silent, best=False, 
     maps = ['-map', '[vout]']
     if not silent:
         af = min(2.5, total * 0.08)
-        g.append(f'[{A}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,acompressor=threshold=0.05:ratio=2.5:attack=20:release=400,'
+        src = f'[{A}:a]'
+        if music:   # (the game's sound under the music: both from the first sample, so the cuts stay on the beat)
+            g.append(f'[{A}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,aresample=48000,volume={ambient}[amb];'
+                     f'[{A + 1}:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,aresample=48000[mus];[mus][amb]amix=inputs=2:duration=first:normalize=0[mix]')
+            src = '[mix]'
+        g.append(f'{src}atrim=0:{total:.3f},asetpts=PTS-STARTPTS,acompressor=threshold=0.05:ratio=2.5:attack=20:release=400,'
                  f'loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.8,afade=t=out:st={total - af:.3f}:d={af:.2f},aresample=48000[aout]')
         maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '320k' if best else '256k']
     if codec == 'hevc':   # (10-bit HEVC, tagged hvc1 so QuickTime and Apple's decoders take it; any size up to 8K)
