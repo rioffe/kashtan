@@ -83,3 +83,6 @@ python3 -m http.server 8765    # then open http://localhost:8765/
 `[` and `]` bring up a debug panel for the street lamps' brightness.
 
 See [`setting.md`](setting.md) for the original brief.
+
+## License
+[MIT](LICENSE). Three.js (MIT) and the Google Fonts the page loads (SIL OFL) keep their own licences.
