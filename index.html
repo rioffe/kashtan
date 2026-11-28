@@ -113,7 +113,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ============================== utilities ============================== */
 let seed = 1984;
@@ -1394,16 +1394,18 @@ function toggleWindow(){ winOpen.target = winOpen.target ? 0 : 1; sfx.creak(); i
 function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
 function deskView(k){ desk.f = k; const v = desk.views[k || 'seat']; desk.yaw = v.yaw; desk.pitch = v.pitch; desk.d = v.d; }
 function sitDesk(on, k = null){ if (on === desk.on || mode !== 'window') return; desk.on = on; desk.snap = false; const was = desk.home; desk.home = on ? k : null;   // (k: 'chess' to sit on the sofa by the chessboard)
-  if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(k); camera.near = 0.03; camera.updateProjectionMatrix();
-    caption(k === 'chess' ? (TOUCH ? 'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.' : 'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.') : pick(TOUCH ? ['I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.', 'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.'] : ['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
-  else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat;
+  if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(k); camera.near = 0.03; camera.updateProjectionMatrix(); if (k === 'zenit') desk.sharp(true, desk.views.zenit.t);
+    caption(k === 'chess' ? (TOUCH ? 'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.' : 'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.') : k === 'zenit' ? (TOUCH ? 'My Zenit-3M, on the shelf among the books. Drag to look it over; tap it again to take a picture; ↩︎ to step back.' : 'My Zenit-3M, on the shelf among the books. Drag to look it over; click it again to take a picture; Esc to step back.') : pick(TOUCH ? ['I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.', 'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.'] : ['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
+  else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat; desk.sharp(false);
     if (was === 'chess'){ const t = desk.views.chess.t; camera.position.set(t.x + 1.0, WIN_POS.y, t.z + 0.2); cam.yaw = Math.PI / 2 + 0.15; cam.pitch = -0.55; }   // standing up from the sofa
+    else if (was === 'zenit'){ const t = desk.views.zenit.t; camera.position.set(HOME.x + 0.42, WIN_POS.y, t.z + 0.28); cam.yaw = yawTo(camera.position, t); cam.pitch = -0.5; }   // a step back from the shelf
     else { camera.position.set(HOME.x + 0.45, WIN_POS.y, v.t.z + 0.1); cam.yaw = Math.PI / 2 + 0.2; cam.pitch = -0.35; } } }
 function deskClick(b){ const k = b && b.userData.desk;
-  if (k){ if (desk.f === k){ if (k === 'book') window.open(POST_URL, '_blank', 'noopener'); else if (k === 'calc') toggleCalc(); else if (k === 'chess') CHESS.tap(); else if (k === 'car') window.open(RACE_URL, '_blank', 'noopener'); } else { desk.home = k === 'chess' ? 'chess' : desk.home === 'chess' ? null : desk.home; deskView(k); if (k === 'car') caption(TOUCH ? 'My Formula 1: the Ferrari of 1984, built from Salvo bricks. Tap it again to race downhill.' : 'My Formula 1: the Ferrari of 1984, built from Salvo bricks. Click it again to race downhill.', 6); } return; }
+  if (k){ if (desk.f === k){ if (k === 'book') window.open(POST_URL, '_blank', 'noopener'); else if (k === 'calc') toggleCalc(); else if (k === 'chess') CHESS.tap(); else if (k === 'car') window.open(RACE_URL, '_blank', 'noopener'); else if (k === 'zenit') fireZenit(); } else { desk.home = k === 'chess' || k === 'zenit' ? k : desk.home === 'chess' || desk.home === 'zenit' ? null : desk.home; deskView(k); if (k === 'car') caption(TOUCH ? 'My Formula 1: the Ferrari of 1984, built from Salvo bricks. Tap it again to race downhill.' : 'My Formula 1: the Ferrari of 1984, built from Salvo bricks. Click it again to race downhill.', 6); } return; }
   if (b && b.userData.lamp){ toggleLamp(); return; } if (b && b.userData.win){ toggleWindow(); return; }
   if (desk.f && desk.f !== desk.home) deskView(desk.home); }
 function toggleCalc(){ calc.on = !calc.on; sfx.click(); calc.update && calc.update(); }
+function fireZenit(){ sfx.shutter(); caption(pick(['Clack! The mirror went up and stayed there, until I wound the film on.', 'Clack! Another frame of the yard, on Svema film.', 'Clack! The Zenit’s mirror slapped up, and the finder went dark.']), 4); }
 var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on the sill, living its year: see CACTUS.update; CHURCH_CLOCK sets St. Gertrude's clocks' hands to the hour)
 {
   const wallpaper = tex(128, 128, (g, w, h) => {
@@ -1436,7 +1438,7 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
   // flat label lying on a surface, readable by someone facing -x (towards the table, as you look out of the window it is on your right)
   const label = (w, h, map, x, y, z, rot = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h).rotateX(-Math.PI / 2).rotateY(Math.PI / 2 + rot), new THREE.MeshStandardMaterial({ map, roughness: 0.8 }));
     m.position.set(x, y, z); room.add(m); return m; };
-  const x0 = HOME.x - 1, x1 = HOME.x + 1, y0 = 7.2, y1 = 10.1, zf = BZ - 0.05, zb = BZ - 0.42, zr = BZ - 5.42;
+  const x0 = HOME.x - 1, x1 = HOME.x + 1, y0 = 7.2, y1 = 10.1, zf = BZ - 0.003, zb = BZ - 0.42, zr = BZ - 5.42;   // (zf: the wall's whole thickness, out to the facade's, so the window's reveal leaves no slot down to the yard; the tin sill tucks into it)
   const wx0 = HOME.x - 0.7, wx1 = HOME.x + 0.7, wy0 = 8.1, wy1 = 9.8;
   desk.box = [x0 + 0.05, x1 - 0.05, y0 + 0.05, y1 - 0.05, zr + 0.05, zb - 0.05];   // the close views never leave the room
   // walls with the window opening, side walls, back wall with a door
@@ -1988,15 +1990,261 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
     'Есенин · Стихи', 'Ахматова · Бег времени', 'Пастернак · Стихотворения', 'Мандельштам · Стихотворения', 'Цветаева · Избранное', 'Маяковский · Стихи', 'Райнис · Стихи', 'Заболоцкий · Столбцы'];
   const COLS = ['#7a2a2a', '#2a4a6a', '#3a5a3a', '#6a5a3a', '#1e2a3a', '#8a6a2a', '#5a2a4a', '#2a2a2a', '#a08060', '#4a6a7a', '#8a3a1a'];
   const plain = {}; let ti = 0;
+  const ZEN = { s: 3, z: TB - 1.0, half: 0.12 };   // (the gap on the fourth shelf where my Zenit stands, below)
   for (let s = 0; s < 5; s++){ let z = sz0 - 0.03;
     while (z > sz1 + 0.06){ const t = rnd(0.022, 0.05), hgt = rnd(0.2, 0.33), dep = rnd(0.16, 0.24), col = pick(COLS), title = TITLES[ti++ % TITLES.length];
-      const spine = tex(32, 256, (g, w, h) => { g.fillStyle = col; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(220,190,110,.8)'; g.fillRect(0, 12, w, 2); g.fillRect(0, h - 14, w, 2);
-        g.save(); g.translate(w / 2 + 4, h - 22); g.rotate(-Math.PI / 2); g.fillStyle = '#ecdcae'; g.font = '11px Georgia'; g.fillText(title.length > 34 ? title.slice(0, 33) + '…' : title, 0, 0); g.restore(); });
-      plain[col] = plain[col] || new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 });
-      const sm = new THREE.MeshStandardMaterial({ map: spine, roughness: 0.75 });
-      const bk = new THREE.Mesh(new THREE.BoxGeometry(dep, hgt, t), [plain[col], sm, plain[col], plain[col], plain[col], plain[col]]);
-      bk.position.set(x1 - 0.02 - dep / 2, shelvesY[s] + hgt / 2, z - t / 2); if (rng() < 0.06) bk.rotation.x = 0.12;
-      bk.userData.title = title; room.add(bk); BOOKS.push(bk); z -= t + (rng() < 0.08 ? rnd(0.03, 0.1) : 0.002); } }
+      const gap = s === ZEN.s && z - t < ZEN.z + ZEN.half && z > ZEN.z - ZEN.half, lean = rng() < 0.06;   // (a book in the gap is drawn from the world's sequence all the same, so all after it stays where it was)
+      if (!gap){ const paint = (g, w, h) => { g.scale(w / 32, w / 32); w = 32; h = 256; g.fillStyle = col; g.fillRect(0, 0, w, h);   // (painted at 32 x 256; finer for a close look, see desk.sharp) g.fillStyle = 'rgba(220,190,110,.8)'; g.fillRect(0, 12, w, 2); g.fillRect(0, h - 14, w, 2);
+          g.save(); g.translate(w / 2 + 4, h - 22); g.rotate(-Math.PI / 2); g.fillStyle = '#ecdcae'; g.font = '11px Georgia'; g.fillText(title.length > 34 ? title.slice(0, 33) + '…' : title, 0, 0); g.restore(); }, spine = tex(32, 256, paint);
+        plain[col] = plain[col] || new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 });
+        const sm = new THREE.MeshStandardMaterial({ map: spine, roughness: 0.75 });
+        const bk = new THREE.Mesh(new THREE.BoxGeometry(dep, hgt, t), [plain[col], sm, plain[col], plain[col], plain[col], plain[col]]);
+        bk.position.set(x1 - 0.02 - dep / 2, shelvesY[s] + hgt / 2, z - t / 2); if (lean) bk.rotation.x = 0.12;
+        bk.userData.title = title; bk.userData.paint = paint; room.add(bk); BOOKS.push(bk); }
+      z -= t + (rng() < 0.08 ? rnd(0.03, 0.1) : 0.002); } }
+  // the spines are painted at a pixel to the millimetre, plenty from across the room; looking at my Zenit from a hand's breadth away, the books
+  // round it are painted again, finer the nearer they stand, the nearest first, a few a frame; on stepping back the fine ones are let go
+  desk.sharp = (on, p) => { const q = [];
+    for (const bk of BOOKS){ const u = bk.userData, m = Array.isArray(bk.material) && bk.material[1]; if (!u.paint) continue;
+      if (!on){ if (u.lo){ m.map.dispose(); m.map = u.lo; u.lo = null; } continue; }
+      const d = bk.position.distanceTo(p); if (d < 0.5 && !u.lo) q.push([d, bk]); }
+    q.sort((a, b) => a[0] - b[0]);
+    const step = () => { if (!desk.on || desk.home !== 'zenit') return;
+      for (let i = 0; i < 3 && q.length; i++){ const [d, bk] = q.shift(), u = bk.userData, m = bk.material[1], k = d < 0.3 ? (TOUCH ? 4 : 8) : (TOUCH ? 2 : 4), t = tex(32 * k, 256 * k, u.paint);
+        renderer.initTexture(t); t.image.width = t.image.height = 1; u.lo = m.map; m.map = t; }   // (sent to the GPU, the canvas let go at once)
+      if (q.length) requestAnimationFrame(step); };
+    if (on) step(); };
+
+  /* ---------- my Zenit-3M, on the bookshelf among the books: the camera I had as a boy, made at Krasnogorsk in 1968, one of those sold at
+     home ("Зенит 3м" in script on the prism's face, "СДЕЛАНО В СССР" on its back), with its Industar-50. As on every Zenit since the Zorki it
+     grew out of, the lens is off the middle and the mirror box stands out from the body; satin chrome on top, black enamel and leatherette
+     below. Built in millimetres, measured off photographs: 137 wide, x across (+x the rewind side), y up from its foot, z forward from its back ---------- */
+  {
+    const OX = 11.7, OY = 27.4, BD = 33, MF = 46.5, TOP = 75.5, LOW = 70.5;   // (the lens's axis; the body's depth; the mirror box's front; the top plate, and its step down under the wind-on lever)
+    const zen = new THREE.Group(), B = { satin: [], chrome: [], enamel: [], anod: [], dark: [], glass: [], lea: [] };
+    const add = (k, g, a = 0.62) => { g = g.index ? g.toNonIndexed() : g;   // (every part shaded smooth across its curves and sharp at its edges: see toCreasedNormals)
+      for (const n of Object.keys(g.attributes)) if (n !== 'position' && !(k === 'lea' && n === 'uv')) g.deleteAttribute(n); B[k].push(toCreasedNormals(g, a)); return g; };
+    const rrect = (xa, xb, ya, yb, rr) => { const [r0, r1, r2, r3] = typeof rr === 'number' ? [rr, rr, rr, rr] : rr, s = new THREE.Shape();
+      s.moveTo(xa + r0, ya); s.lineTo(xb - r1, ya); if (r1 > 0) s.absarc(xb - r1, ya + r1, r1, -Math.PI / 2, 0);
+      s.lineTo(xb, yb - r2); if (r2 > 0) s.absarc(xb - r2, yb - r2, r2, 0, Math.PI / 2);
+      s.lineTo(xa + r3, yb); if (r3 > 0) s.absarc(xa + r3, yb - r3, r3, Math.PI / 2, Math.PI);
+      s.lineTo(xa, ya + r0); if (r0 > 0) s.absarc(xa + r0, ya + r0, r0, Math.PI, Math.PI * 1.5); return s; };
+    // a slab: a plan (x across, z forward; its corners' radii front-left, front-right, back-right, back-left) from y0 up to y1, its edges rounded by bev
+    const slab = (xa, xb, za, zb, rr, y0, y1, bev = 0) => { const q = (typeof rr === 'number' ? [rr, rr, rr, rr] : rr).map(v => Math.max(0, v - bev));
+      return new THREE.ExtrudeGeometry(rrect(xa + bev, xb - bev, -zb + bev, -za - bev, q), { depth: y1 - y0 - 2 * bev, bevelEnabled: bev > 0, bevelThickness: bev, bevelSize: bev, bevelSegments: 4, curveSegments: 9 })
+        .rotateX(-Math.PI / 2).translate(0, y0 + bev, 0); };
+    // a turned part round the y axis: its profile [r, y, knurled] from the bottom up; kn ridges round it, kd deep, where the profile says
+    const turn = (pts, seg = 48, kn = 0, kd = 0.3) => { const n = kn ? kn * 2 : seg, pos = [], idx = [];
+      for (const [rr, y, k] of pts) for (let i = 0; i <= n; i++){ const th = i / n * TAU, R = kn && k && i % 2 ? rr - kd : rr; pos.push(R * Math.sin(th), y, R * Math.cos(th)); }
+      for (let j = 0; j < pts.length - 1; j++) for (let i = 0; i < n; i++){ const a = j * (n + 1) + i, c = a + n + 1; idx.push(a, a + 1, c, a + 1, c + 1, c); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); return g; };
+    const box = (w, h, d, x, y, z, ry = 0, rz = 0, rx = 0) => new THREE.BoxGeometry(w, h, d).rotateX(rx).rotateZ(rz).rotateY(ry).translate(x, y, z);
+    const at = (g, x, y, z) => g.translate(x, y, z), fwd = g => g.rotateX(Math.PI / 2), back = g => g.rotateX(-Math.PI / 2);   // (fwd: a part turned about y now faces forward)
+
+    // the body: black enamel over the casting, its feet on a chrome bottom plate; the mirror box out in front of it
+    add('satin', slab(-68.2, 68.2, 0.3, BD - 0.3, 5.7, 0, 2.4, 0.8));
+    add('enamel', slab(-68.5, 68.5, 0, BD, 6, 2, 58.4));
+    add('enamel', slab(-14.95 + 0.04, 38.35 - 0.04, 30, MF - 0.04, [2.46, 2.46, 0, 0], 2, 53.8));   // (a hair inside the prism's housing where they overlap, so their faces don't fight)
+    // the top plate, stepped down at the wind-on lever's end; the prism's housing rising from it to the front, its face flush with the mirror box
+    add('satin', slab(-68.5, -36, 0.04, BD - 0.04, [6, 0, 0, 6], 58, LOW, 1.0));   // (its faces a hair behind the higher part's, where it runs on under it)
+    add('satin', slab(-38, 68.5, 0, BD, [1.5, 6, 6, 1.5], 58, TOP, 1.3));
+    add('satin', slab(-14.95, 38.35, 30, MF, [2.5, 2.5, 0, 0], 53.4, TOP - 0.04));
+    { const ST = [[0, 16.6, 11.2, 82.7], [11, 19.4, 12.4, 89.5], [33, 26.65, 13.8, 89.5], [MF + 0.03, 26.65, 13.8, 89.5]], y0 = TOP - 0.6, NC = 8;   // (z, half its foot, half its top, its height; its face a hair proud of the face below, so the two neither fight nor part)
+      const sec = ([z, hb, ht, yt]) => { const out = [[-hb, y0]];
+        for (const s of [-1, 1]){ const C = [s * ht, yt], sd = new V3(-s * (hb - ht), yt - y0, 0).normalize(), d = 3.6;   // (each top corner rounded off: a curve from the side, by the corner, onto the top)
+          const side = [C[0] - sd.x * d, C[1] - sd.y * d], top = [C[0] - s * d, C[1]], [a, b] = s < 0 ? [side, top] : [top, side];
+          for (let i = 0; i <= NC; i++){ const t = i / NC, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * C[0] + t * t * b[0], u * u * a[1] + 2 * u * t * C[1] + t * t * b[1]]); } }
+        out.push([hb, y0]); return out.map(([x, y]) => [x + OX, y, z]); };
+      const S = ST.map(sec), n = S[0].length, pos = [], tri = (a, b, c) => pos.push(...a, ...b, ...c);
+      for (let j = 0; j < S.length - 1; j++) for (let i = 0; i < n - 1; i++){ tri(S[j][i], S[j][i + 1], S[j + 1][i]); tri(S[j][i + 1], S[j + 1][i + 1], S[j + 1][i]); }
+      for (const P of [S[0], S[S.length - 1]]){ const m = [P.reduce((s, p) => s + p[0], 0) / n, P.reduce((s, p) => s + p[1], 0) / n, P[0][2]]; for (let i = 0; i < n; i++) tri(m, P[i], P[(i + 1) % n]); }
+      const A = new V3(), Bv = new V3(), Cv = new V3(), N = new V3(), O = new V3(OX, 78, MF / 2);
+      for (let i = 0; i < pos.length; i += 9){ A.fromArray(pos, i); Bv.fromArray(pos, i + 3); Cv.fromArray(pos, i + 6);   // (every face outwards, judged from the housing's middle)
+        N.subVectors(Bv, A).cross(Cv.clone().sub(A)); if (N.dot(A.clone().add(Bv).add(Cv).divideScalar(3).sub(O)) < 0){ Bv.toArray(pos, i + 6); Cv.toArray(pos, i + 3); } }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); add('satin', g, 0.5); }
+    // the leatherette: twisted cords in rows, the rows laid alternately (a herringbone) about a millimetre apart, in panels on the front and over the back
+    const leaPaint = (g, w, h) => { const lr = mkRng(1969), rows = 16, p = h / rows, nb = 38; g.fillStyle = '#060606'; g.fillRect(0, 0, w, h);
+      for (let j = 0; j < rows; j++){ const y = j * p, s = j % 2 ? 1 : -1;
+        for (let i = 0; i < nb; i++){ const x = i * w / nb + lr() * 0.8, bw = w / nb * 0.66, l = 54 + lr() * 40 | 0, gr = g.createLinearGradient(0, y, 0, y + p);
+          gr.addColorStop(0, `rgb(${l * 0.4 | 0},${l * 0.4 | 0},${l * 0.4 | 0})`); gr.addColorStop(0.5, `rgb(${l},${l},${l})`); gr.addColorStop(1, `rgb(${l * 0.4 | 0},${l * 0.4 | 0},${l * 0.4 | 0})`); g.fillStyle = gr;
+          for (const dx of [-w, 0, w]){ g.beginPath(); g.moveTo(x + dx, y + 1.5); g.lineTo(x + dx + bw, y + 1.5); g.lineTo(x + dx + bw + s * 3.4, y + p - 1.5); g.lineTo(x + dx + s * 3.4, y + p - 1.5); g.fill(); } } } };
+    const leaMap = tex(256, 256, leaPaint), leaBump = tex(256, 256, leaPaint, { srgb: false }); for (const t of [leaMap, leaBump]) t.repeat.set(1 / 16, 1 / 16);   // (16 mm to the tile)
+    const panel = (xa, xb, ya, yb, z, th = 0.45) => new THREE.ExtrudeGeometry(rrect(xa, xb, ya, yb, 2.2), { depth: th, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, z);
+    add('lea', panel(-62.5, -20.6, 6, 53.6, BD), 0.3); add('lea', panel(41, 62.5, 6, 53.6, BD), 0.3); add('lea', panel(-62.5, 62.5, 6.6, 54.4, -0.45), 0.3);
+
+    // on the front: the self-timer's lever and its button, the flash socket on the shoulder; the strap lugs at the ends; the back's catch
+    const SX = -37.1, SY = 19.8, SZ = BD + 0.45;
+    add('chrome', at(fwd(turn([[0, 0], [4.8, 0], [4.8, 0.7], [4.5, 1.2], [1.3, 1.2], [1.3, 3.3], [1.0, 3.7], [0, 3.75]], 40)), -40.3, 46.8, SZ));
+    for (const a of [2.6, 5.9]) add('dark', at(fwd(turn([[0, 1.25], [0.45, 1.25], [0.45, 1.21]], 8)), -40.3 + Math.cos(a) * 3.3, 46.8 + Math.sin(a) * 3.3, SZ));   // (its two screws)
+    add('chrome', at(fwd(turn([[0, 0], [3.3, 0], [3.3, 1.3], [0, 1.3]], 32)), SX, SY, SZ));
+    { const a = Math.asin((4.3 - 2.5) / 16.6), lv = new THREE.Shape(); lv.moveTo(4.3 * Math.cos(a), 4.3 * Math.sin(a)); lv.lineTo(2.5 * Math.cos(a), 16.6 + 2.5 * Math.sin(a));
+      lv.absarc(0, 16.6, 2.5, a, Math.PI - a, false); lv.lineTo(-4.3 * Math.cos(a), 4.3 * Math.sin(a)); lv.absarc(0, 0, 4.3, Math.PI - a, TAU + a, false);
+      add('chrome', new THREE.ExtrudeGeometry(lv, { depth: 1.0, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.35, bevelSegments: 2, curveSegments: 10 }).translate(SX, SY, SZ + 1.65)); }
+    add('chrome', at(fwd(turn([[0, 0], [2.9, 0], [2.9, 0.5], [2.4, 1.2], [1.2, 1.6], [0, 1.65]], 32)), SX, SY, SZ + 3.0));
+    add('dark', box(4.6, 0.45, 0.6, SX, SY, SZ + 4.45, 0, 0.6));                                           // (its screw's slot)
+    add('chrome', at(fwd(turn([[0, 0], [2.3, 0], [2.3, 1.2], [2.0, 1.7], [0, 1.8]], 32)), SX, SY + 16.6, SZ + 2.9));   // (the knob at its tip)
+    add('chrome', at(fwd(turn([[0, 0], [3.7, 0], [3.7, 1.6], [3.3, 2.1], [2.3, 2.1], [2.2, 1.2]], 32)), -24.6, 64.2, BD));
+    add('dark', at(fwd(turn([[2.2, 1.2], [0, 1.2]], 24)), -24.6, 64.2, BD)); add('chrome', at(fwd(turn([[0.6, 1.2], [0.6, 2.2], [0, 2.3]], 12)), -24.6, 64.2, BD));
+    for (const s of [-1, 1]){ add('chrome', new THREE.TorusGeometry(2.1, 0.62, 10, 24).translate(s * 71.1, 51.5, 24)); add('chrome', new THREE.CylinderGeometry(1.4, 1.6, 2.2, 16).rotateZ(Math.PI / 2).translate(s * 69.3, 51.5, 24)); }
+    add('chrome', slab(68.3, 69.1, 6.2, 10.2, 0.35, 8, 57));
+
+    // the eyepiece, round, at the back of the prism's housing
+    add('chrome', at(back(turn([[9.7, -0.4], [9.7, 1.0], [9.3, 1.6], [8.3, 1.7], [8.1, 1.3]], 48)), OX, 68, 0));
+    add('anod', at(back(turn([[8.1, 1.3], [6.8, 1.3], [6.6, 0.6]], 48)), OX, 68, 0));
+    add('glass', at(back(turn([[6.6, 0.6], [5, 0.75], [3, 0.85], [0, 0.9]], 40)), OX, 68, 0)); add('dark', at(back(turn([[6.6, -0.2], [0, -0.2]], 24)), OX, 68, 0));
+
+    // on top: the rewind knob (the film-speed reminder on its top), the shutter-speed dial, the release, and the frame counter on the wind-on lever
+    const RW = [53.5, 15.5], SD = [-18.6, 13.8], RL = [-32.5, 14.5], FC = [-53.5, 15.5];
+    const knob = (k, pts, x, z, seg = 48, kn = 0, kd = 0.3) => add(k, at(turn(pts, seg, kn, kd), x, 0, z));
+    knob('chrome', [[0, TOP], [9.6, TOP], [9.6, TOP + 1.1], [10.6, TOP + 1.3]], ...RW, 64);
+    knob('chrome', [[10.6, TOP + 1.3], [11.8, TOP + 1.6, 1], [11.8, TOP + 7.6, 1], [11.4, TOP + 8.1], [10.7, TOP + 8.1]], ...RW, 0, 72, 0.38);
+    knob('chrome', [[10.7, TOP + 8.1], [10.5, TOP + 8.25], [3.9, TOP + 8.25]], ...RW, 64);
+    knob('chrome', [[3.9, TOP + 8.25], [3.6, TOP + 8.3, 1], [3.6, TOP + 9.6, 1], [3.2, TOP + 10.0, 1], [0, TOP + 10.0]], ...RW, 0, 18, 0.45);
+    add('dark', box(0.55, 0.4, 6.2, RW[0], TOP + 10.0, RW[1], 0.5));
+    knob('chrome', [[0, TOP], [6.2, TOP], [6.2, TOP + 0.6], [5.6, TOP + 1.0], [5.6, TOP + 4.6], [6.6, TOP + 4.8]], ...SD);
+    add('chrome', box(4.6, 0.9, 2.0, SD[0] + 6.6, TOP + 3.4, SD[1] + 2.2, -0.75));                          // (the flash-sync selector's tab)
+    knob('anod', [[6.6, TOP + 4.8], [6.6, TOP + 6.8], [8.4, TOP + 7.0]], ...SD);
+    knob('anod', [[8.4, TOP + 7.0], [8.8, TOP + 7.3, 1], [8.8, TOP + 10.4, 1], [8.4, TOP + 10.8], [8.0, TOP + 10.8], [0, TOP + 10.8]], ...SD, 0, 60, 0.35);
+    knob('chrome', [[2.2, TOP + 10.8], [2.2, TOP + 11.3], [1.8, TOP + 11.6], [0, TOP + 11.7]], ...SD, 32);
+    knob('chrome', [[0, TOP], [4.3, TOP], [4.3, TOP + 1.0], [3.9, TOP + 1.5], [3.0, TOP + 1.6], [3.0, TOP + 3.4], [2.8, TOP + 3.8], [1.1, TOP + 3.6], [1.0, TOP + 3.2]], ...RL, 40);
+    knob('dark', [[1.0, TOP + 3.2], [0, TOP + 3.2]], ...RL, 16);
+    // the wind-on lever: a hub under the counter, its arm along the back of the top plate, a finger tab turned up at its end
+    { const y = LOW + 1.2, P = [[FC[0], FC[1]], [-50.5, 4], [-44, -1.2], [-17.5, -1.9]];
+      add('chrome', new THREE.CylinderGeometry(9.8, 9.8, 2.2, 48).translate(FC[0], y, FC[1]));
+      for (let i = 1; i < P.length; i++){ const [ax, az] = P[i - 1], [bx, bz] = P[i], l = Math.hypot(bx - ax, bz - az);
+        add('chrome', box(l, 2.2, 5.6, (ax + bx) / 2, y, (az + bz) / 2, -Math.atan2(bz - az, bx - ax))); add('chrome', new THREE.CylinderGeometry(2.8, 2.8, 2.12, 20).translate(bx, y, bz)); }
+      add('chrome', box(7, 1.8, 5.0, -15.2, y + 1.5, -2.3, 0.05, 0.45));
+      for (let i = 0; i < 5; i++) add('chrome', box(0.5, 0.5, 4.6, -17.6 + i * 1.25, y + 1.05 + i * 0.55, -2.3, 0.05, 0.45)); }
+    knob('chrome', [[0, LOW + 2.3], [13.6, LOW + 2.3], [13.9, LOW + 2.6], [13.9, LOW + 5.2], [13.5, LOW + 5.6], [9.7, LOW + 5.6]], ...FC, 72);
+    knob('chrome', [[9.7, LOW + 5.6], [9.7, LOW + 6.6, 1], [9.3, LOW + 7.0, 1], [7.6, LOW + 7.0]], ...FC, 0, 48, 0.3);
+    knob('chrome', [[7.6, LOW + 7.0], [7.4, LOW + 7.2], [7.4, LOW + 10.4], [5.2, LOW + 10.4], [5.2, LOW + 9.8], [0, LOW + 9.8]], ...FC);
+    for (let i = 0; i < 6; i++){ const a = i / 6 * TAU; add('chrome', box(2.6, 1.4, 2.2, FC[0] + Math.sin(a) * 6.3, LOW + 11.1, FC[1] + Math.cos(a) * 6.3, a)); }   // (its crown's teeth)
+    knob('chrome', [[2.6, LOW + 9.8], [2.6, LOW + 10.5], [2.0, LOW + 11.3], [0, LOW + 11.5]], ...FC, 24); add('dark', box(0.5, 0.4, 4.6, FC[0], LOW + 11.45, FC[1], 1.1));
+
+    // the Industar-50, screwed in: its scales' ring knurled at the back, the distance ring, the aperture ring knurled, the black front with its name
+    const lens = (k, pts, seg = 128, kn = 0, kd = 0.3) => add(k, at(fwd(turn(pts, seg, kn, kd)), OX, OY, MF));
+    lens('anod', [[19.5, -0.5], [21.9, -0.3], [21.9, 1.3]], 96);
+    lens('chrome', [[21.9, 1.3], [23.7, 1.3], [24.0, 1.6, 1], [24.0, 5.0, 1], [23.7, 5.3]], 0, 110, 0.35);
+    lens('chrome', [[23.7, 5.3], [23.75, 5.45], [23.75, 8.6], [23.5, 8.85], [21.7, 8.85]]);
+    lens('chrome', [[21.7, 8.85], [21.65, 8.95], [21.65, 12.9], [21.4, 13.1], [21.0, 13.1]]);
+    lens('anod', [[21.0, 13.1], [21.0, 13.5]]);
+    lens('chrome', [[21.0, 13.5], [21.9, 13.6], [22.1, 13.9, 1], [22.1, 16.0, 1], [21.9, 16.2]], 0, 100, 0.32);
+    lens('chrome', [[21.9, 16.2], [21.85, 18.0], [21.6, 18.3], [17.3, 19.5], [16.75, 19.5]]);
+    lens('chrome', [[16.75, 19.5], [16.6, 19.7], [16.6, 25.3], [16.75, 25.6], [16.75, 25.9], [16.5, 26.1]], 96);
+    lens('anod', [[16.5, 26.1], [10.9, 26.1]], 96);
+    lens('chrome', [[10.9, 26.1], [10.9, 26.5], [10.6, 26.7], [10.0, 26.7], [9.8, 26.4]], 96);
+    lens('dark', [[9.8, 26.4], [9.7, 22.0], [9.6, 16.5], [0, 16.5]], 64);
+    lens('anod', [[9.6, 19.0], [5.6, 19.25], [4.6, 19.3], [4.5, 18.9]], 64);   // (inside, through the glass: the iris, stopped down to 5.6)
+    { const R = 26, pts = []; for (let i = 0; i <= 12; i++){ const rr = 9.4 * (1 - i / 12); pts.push([rr, 21.8 + Math.sqrt(R * R - rr * rr) - Math.sqrt(R * R - 9.4 * 9.4)]); } lens('glass', pts, 64); }
+
+    // its materials. The chrome mirrors a room of its own (the chessboard's is the dark of the room, for its lacquer, and turns chrome to brass):
+    // the white ceiling, the pale blue wallpaper, the window full of sky, the red floor below; set on it by the chessboard's light, as the Ferrari's are
+    const zenEnv = tex(512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#e4e2dc'); gr.addColorStop(0.3, '#cdd2d4'); gr.addColorStop(0.42, '#a9bccb'); gr.addColorStop(0.58, '#8c9eac');
+        gr.addColorStop(0.64, '#5a3a2c'); gr.addColorStop(0.72, '#3a2016'); gr.addColorStop(1, '#22130c'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#fffaf0'; g.fillRect(w * 0.7, h * 0.18, w * 0.1, h * 0.3); g.fillStyle = '#e2ecf6'; g.fillRect(w * 0.705, h * 0.2, w * 0.09, h * 0.12); g.fillStyle = '#efece4'; g.fillRect(w * 0.748, h * 0.18, w * 0.004, h * 0.3); g.fillRect(w * 0.7, h * 0.33, w * 0.1, h * 0.006);
+        const lg = g.createRadialGradient(w * 0.23, h * 0.1, 0, w * 0.23, h * 0.1, h * 0.08); lg.addColorStop(0, '#fff4dc'); lg.addColorStop(1, 'rgba(255,244,220,0)'); g.fillStyle = lg; g.fillRect(0, 0, w, h * 0.3); });
+    zenEnv.mapping = THREE.EquirectangularReflectionMapping;
+    const M = { satin: new THREE.MeshStandardMaterial({ color: '#cdd0d2', metalness: 1, roughness: 0.36 }),
+      chrome: new THREE.MeshStandardMaterial({ color: '#dadcdd', metalness: 1, roughness: 0.2 }),
+      enamel: new THREE.MeshPhysicalMaterial({ color: '#0c0c0d', roughness: 0.4, clearcoat: 0.7, clearcoatRoughness: 0.24 }),
+      anod: new THREE.MeshStandardMaterial({ color: '#141416', metalness: 0.5, roughness: 0.42 }),
+      dark: new THREE.MeshStandardMaterial({ color: '#040405', roughness: 0.85 }),
+      glass: new THREE.MeshPhysicalMaterial({ color: '#0b1016', roughness: 0.02, clearcoat: 1, clearcoatRoughness: 0, iridescence: 1, iridescenceIOR: 1.35, iridescenceThicknessRange: [260, 420], transparent: true, opacity: 0.55 }),   // (coated: purple and amber in its reflections)
+      lea: new THREE.MeshStandardMaterial({ map: leaMap, bumpMap: leaBump, bumpScale: 1.5, roughness: 0.78 }) };
+    desk.envM = [[M.satin, 0.85, zenEnv], [M.chrome, 0.95, zenEnv], [M.enamel, 0.6, zenEnv], [M.anod, 0.5, zenEnv], [M.glass, 1.3, zenEnv]];
+    for (const k in B){ const m = new THREE.Mesh(mergeGeometries(B[k]), M[k]); m.castShadow = m.receiveShadow = true; zen.add(m); }
+
+    /* the engraving, filled black on the chrome, and the white figures on the black: drawn as decals over the parts */
+    const INK = '#141414', PAINT = '#efeee6', FONT = (px, w = 500) => `${w} ${px}px Arial, Helvetica, sans-serif`;
+    const decal = (geo, w, h, draw, rough = 0.5) => { const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex(w, h, draw), transparent: true, depthWrite: false, roughness: rough, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); zen.add(m); return m; };
+    const up = g => g.rotateZ(Math.PI).rotateX(-Math.PI / 2);   // (a decal made facing forward, laid on a top face, read from behind the camera)
+    // text round a circle (canvas centre cx, cy), clockwise and standing out from it, or anticlockwise and standing in towards it
+    const arcText = (g, s, cx, cy, R, a, out = true, sp = 0) => { g.textAlign = 'center'; const ws = [...s].map(ch => g.measureText(ch).width + sp), W = ws.reduce((p, q) => p + q, 0); let c = 0;
+      [...s].forEach((ch, i) => { const t = (c + ws[i] / 2) / R, an = out ? a + W / 2 / R - t : a - W / 2 / R + t; c += ws[i];
+        g.save(); g.translate(cx + R * Math.cos(an), cy - R * Math.sin(an)); g.rotate(out ? Math.PI / 2 - an : -Math.PI / 2 - an); g.fillText(ch, 0, 0); g.restore(); }); };
+    // the factory's mark: a prism, a ray of light through it
+    const kmz = (g, x, y, s, lw) => { g.lineWidth = lw; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x - 0.52 * s, y + 0.1 * s); g.lineTo(x - 0.26 * s, y - 0.1 * s); g.lineTo(x + 0.26 * s, y - 0.1 * s); g.lineTo(x + 0.52 * s, y + 0.1 * s); g.closePath(); g.stroke();
+      g.beginPath(); g.moveTo(x - 0.78 * s, y - 0.005 * s); g.lineTo(x - 0.4 * s, y); g.lineTo(x, y + 0.1 * s); g.lineTo(x + 0.4 * s, y); g.lineTo(x + 0.72 * s, y); g.stroke();
+      g.beginPath(); g.moveTo(x + 0.8 * s, y); g.lineTo(x + 0.66 * s, y - 0.045 * s); g.lineTo(x + 0.66 * s, y + 0.045 * s); g.closePath(); g.fill(); };
+    // "Зенит 3м" in the factory's hand: strokes of cubic curves (x-height 1, on the line at 0), leaning forward
+    const SCRIPT = [
+      [0.02,1.62, 0.0,1.95,0.25,2.18,0.62,2.18, 1.0,2.18,1.32,2.02,1.22,1.72, 1.12,1.45,0.85,1.32,0.58,1.3, 0.78,1.3,0.72,1.2,0.62,1.24,
+       1.15,1.22,1.52,0.92,1.42,0.45, 1.32,0.02,0.9,-0.28,0.48,-0.24, 0.1,-0.2,-0.02,0.08,0.28,0.14, 0.7,0.22,1.35,0.12,1.78,0.42],   // З
+      [1.78,0.42, 2.08,0.6,2.28,0.86,2.12,0.98, 1.96,1.08,1.72,0.86,1.72,0.55, 1.72,0.15,1.92,-0.02,2.17,0.0, 2.37,0.02,2.47,0.12,2.57,0.25,   // е
+       2.64,0.45,2.68,0.8,2.7,1.0, 2.68,0.65,2.64,0.3,2.62,0.0], [2.66,0.5, 2.82,0.55,2.98,0.56,3.14,0.54],                                  // н
+      [3.18,1.0, 3.16,0.65,3.12,0.3,3.14,0.1, 3.16,-0.02,3.29,-0.02,3.39,0.15,
+       3.49,0.45,3.54,0.8,3.56,1.0, 3.54,0.6,3.5,0.2,3.6,0.06, 3.7,-0.06,3.92,0.02,3.99,0.35, 4.03,0.6,4.06,0.85,4.08,1.0, 4.06,0.65,4.02,0.25,4.08,0.08, 4.12,-0.02,4.24,-0.02,4.34,0.12,   // и
+       4.42,0.4,4.46,0.75,4.48,0.95, 4.46,0.6,4.44,0.3,4.42,0.0, 4.48,0.6,4.6,1.0,4.74,1.0, 4.88,1.0,4.9,0.6,4.86,0.0, 4.92,0.6,5.04,1.0,5.18,1.0, 5.32,1.0,5.32,0.6,5.3,0.15, 5.29,0.0,5.44,-0.05,5.62,0.14],   // т
+      [5.95,1.68, 6.1,2.05,6.85,2.1,6.85,1.7, 6.85,1.35,6.45,1.15,6.2,1.12, 6.8,1.05,7.05,0.55,6.85,0.1, 6.65,-0.4,6.0,-0.55,5.8,-0.2],   // 3
+      [7.15,0.02, 7.2,0.2,7.24,0.4,7.28,0.56, 7.33,0.4,7.38,0.25,7.43,0.1, 7.48,0.25,7.53,0.4,7.58,0.56, 7.6,0.35,7.62,0.15,7.66,0.0]];   // м
+    { const PX = 16, W = 46, H = 21, cx = OX, cy = 64.2;   // (on the prism's face: 46 x 21 mm at 16 px a millimetre)
+      decal(new THREE.PlaneGeometry(W, H).translate(cx, cy, MF + 0.02), W * PX, H * PX, (g, w, h) => { const s = 3.7 * PX, x0 = w / 2 + (-7.2 - cx) * PX, y0 = h / 2 + (cy - 59.4) * PX;
+        const P = (u, v) => [x0 + (u * 1.13 + 0.24 * v) * s, y0 - v * s]; g.strokeStyle = INK; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 0.075 * s;
+        for (const st of SCRIPT){ g.beginPath(); g.moveTo(...P(st[0], st[1])); for (let i = 2; i + 5 < st.length; i += 6) g.bezierCurveTo(...P(st[i], st[i + 1]), ...P(st[i + 2], st[i + 3]), ...P(st[i + 4], st[i + 5])); g.stroke(); } }); }
+    // on the back: the mark and "СДЕЛАНО В СССР" left of the eyepiece (as you hold it), the number on the right
+    decal(new THREE.PlaneGeometry(30, 11).rotateY(Math.PI).translate(43.5, 64.4, -0.02), 480, 176, (g, w, h) => { g.fillStyle = g.strokeStyle = INK;
+      kmz(g, w / 2, h * 0.3, 140, 3.2); g.font = FONT(40); g.textAlign = 'center'; g.save(); g.translate(w / 2, h * 0.86); g.scale(0.92, 1); g.fillText('СДЕЛАНО В СССР', 0, 0); g.restore(); });
+    decal(new THREE.PlaneGeometry(26, 5).rotateY(Math.PI).translate(-38, 61.2, -0.02), 416, 80, (g, w, h) => { g.fillStyle = INK; g.font = FONT(40); g.textAlign = 'center'; g.fillText('№ 68064372', w / 2, h * 0.78); });
+    // on the top plate: the rewind's arrow, the film's plane, the speed dial's index
+    { const PX = 10, x0 = -36, x1_ = 66.4, z0 = 3.5, z1 = 29.1, cx = (x0 + x1_) / 2, cz = (z0 + z1) / 2, W = x1_ - x0, D = z1 - z0;
+      decal(up(new THREE.PlaneGeometry(W, D)).translate(cx, TOP + 0.02, cz), W * PX, D * PX, (g, w, h) => { const u = x => (x1_ - x) * PX, v = z => (z1 - z) * PX;   // (canvas right is -x, down is -z)
+        g.strokeStyle = g.fillStyle = INK; g.lineWidth = 0.32 * PX; g.lineCap = 'round';
+        g.beginPath(); g.arc(u(RW[0]), v(RW[1]), 15.6 * PX, -0.32, 0.06); g.stroke();   // (the rewind's way round)
+        { const a = -0.32, ex = u(RW[0]) + Math.cos(a) * 15.6 * PX, ey = v(RW[1]) + Math.sin(a) * 15.6 * PX; g.beginPath(); g.moveTo(ex + 1.6 * PX, ey - 0.8 * PX); g.lineTo(ex, ey); g.lineTo(ex + 1.0 * PX, ey + 1.5 * PX); g.stroke(); }
+        g.beginPath(); g.arc(u(52.6), v(27.6), 0.95 * PX, 0, TAU); g.stroke(); g.beginPath(); g.moveTo(u(52.6) - 1.5 * PX, v(27.6)); g.lineTo(u(52.6) + 1.5 * PX, v(27.6)); g.stroke();
+        g.beginPath(); g.moveTo(u(SD[0]), v(SD[1] + 9.6)); g.lineTo(u(SD[0]), v(SD[1] + 11.4)); g.stroke();
+        g.font = FONT(2.4 * PX); g.textAlign = 'center'; g.fillText('М', u(SD[0]), v(SD[1] + 11.8)); }); }
+    // the speed dial: the shutter's speeds round its black top (B for as long as you hold the release, X for the flash)
+    decal(up(new THREE.CircleGeometry(8.0, 48)).translate(SD[0], TOP + 10.82, SD[1]), 256, 256, (g, w, h) => { const c = w / 2, k = w / 16;
+      g.fillStyle = PAINT; g.font = FONT(1.85 * k, 600); g.textAlign = 'center'; g.textBaseline = 'middle';
+      ['60', '125', '250', '500', 'В', '30·X'].forEach((s, i) => { const a = Math.PI / 2 - i * TAU / 6; g.save(); g.translate(c + Math.cos(a) * 5.1 * k, c - Math.sin(a) * 5.1 * k); g.rotate(Math.PI / 2 - a); g.fillText(s, 0, 0); g.restore(); }); }, 0.45);
+    // the film-speed reminder on the rewind knob: ЦВЕТНАЯ, a bulb and the sun, and the speeds
+    decal(up(new THREE.RingGeometry(3.9, 10.5, 64)).translate(RW[0], TOP + 8.27, RW[1]), 256, 256, (g, w, h) => { const c = w / 2, k = w / 21;
+      g.fillStyle = g.strokeStyle = INK; g.textBaseline = 'middle'; g.font = FONT(1.45 * k);
+      arcText(g, 'ЦВЕТНАЯ', c, c, 8.4 * k, Math.PI * 0.61, true, 0.5);
+      ['16', '32', '65', '130', '250', '500'].forEach((s, i) => arcText(g, s, c, c, 8.4 * k, Math.PI * (0.25 - i * 0.28), true));   // (500 a little apart from ЦВЕТНАЯ)
+      g.lineWidth = 0.18 * k; for (const a of [Math.PI * 0.42, Math.PI * 0.95]){ g.beginPath(); g.moveTo(c + Math.cos(a) * 6.6 * k, c - Math.sin(a) * 6.6 * k); g.lineTo(c + Math.cos(a) * 10.2 * k, c - Math.sin(a) * 10.2 * k); g.stroke(); }
+      g.beginPath(); g.arc(c - 4.7 * k, c - 3.2 * k, 0.8 * k, 0, TAU); g.stroke(); g.strokeRect(c - 5.0 * k, c - 2.5 * k, 0.6 * k, 0.7 * k);   // (the bulb)
+      for (let i = 0; i < 5; i++){ const a = Math.PI * (0.25 + i * 0.125); g.beginPath(); g.moveTo(c + 1.5 * k, c - 5.0 * k); g.lineTo(c + 1.5 * k + Math.cos(a) * 1.4 * k, c - 5.0 * k - Math.sin(a) * 1.4 * k); g.stroke(); } }, 0.4);
+    // the frame counter, 0 to 36
+    decal(up(new THREE.RingGeometry(9.8, 13.4, 72)).translate(FC[0], LOW + 5.62, FC[1]), 256, 256, (g, w, h) => { const c = w / 2, k = w / 26.8;
+      g.fillStyle = g.strokeStyle = INK; g.textBaseline = 'middle'; g.font = FONT(1.5 * k); g.lineWidth = 0.15 * k;
+      for (let i = 0; i <= 36; i++){ const a = Math.PI / 2 - i / 40 * TAU; if (i % 5){ g.beginPath(); g.arc(c + Math.cos(a) * 12.4 * k, c - Math.sin(a) * 12.4 * k, 0.17 * k, 0, TAU); g.fill(); } else arcText(g, String(i), c, c, 11.6 * k, a, true); } }, 0.4);
+    // on the lens: the black front (its name, its aperture and focal length, its number, the mark); the scales on its rings
+    decal(new THREE.RingGeometry(10.9, 16.5, 96).translate(OX, OY, MF + 26.12), 512, 512, (g, w, h) => { const c = w / 2, k = w / 33;
+      g.fillStyle = g.strokeStyle = PAINT; g.textBaseline = 'middle'; g.font = FONT(2.3 * k, 600);
+      arcText(g, 'ИНДУСТАР-50', c, c, 13.6 * k, Math.PI * 0.66, true, 0.3 * k); arcText(g, '3,5/50', c, c, 13.6 * k, Math.PI * 0.2, true, 0.2 * k);
+      arcText(g, '№6883027', c, c, 13.6 * k, -Math.PI * 0.27, true, 0.25 * k);
+      g.save(); g.translate(c + Math.cos(Math.PI * 1.25) * 13.6 * k, c - Math.sin(Math.PI * 1.25) * 13.6 * k); g.rotate(-Math.PI * 0.75); kmz(g, 0, 0, 5.2 * k, 0.3 * k); g.restore(); }, 0.5);
+    // a band of a turned surface (its edges [r, y] round the lens's axis) carrying a strip of text: u round it (dir 1 anticlockwise from in front), v across
+    const band = (ra, ya, rb, yb, u0, dir, w, h, draw) => { const seg = 160, pos = [], uv = [], idx = [];
+      for (let i = 0; i <= seg; i++){ const th = u0 + dir * i / seg * TAU, s = Math.sin(th), co = Math.cos(th); pos.push(ra * s, ya, ra * co, rb * s, yb, rb * co); uv.push(i / seg, 0, i / seg, 1); }
+      for (let i = 0; i < seg; i++){ const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+      const P = new V3().fromArray(pos, 0), Q = new V3().fromArray(pos, 3), R = new V3().fromArray(pos, 6), n = R.sub(P).cross(Q.sub(P));   // (facing out of the lens: forward, or out from its axis)
+      if (n.dot(ya === yb ? new V3(0, 1, 0) : new V3(Math.sin(u0), 0, Math.cos(u0))) < 0) for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]];
+      g.setIndex(idx); const sx = w / (TAU * (ra + rb) / 2) / (h / Math.hypot(rb - ra, yb - ya));   // (how much wider than tall the strip's pixels are on the lens)
+      return decal(at(fwd(g), OX, OY, MF), w, h, (c, w_, h_) => draw(c, w_, h_, sx), 0.4); };
+    // (on the lens, as built about y: angle 0 is underneath, π on top; u = 0.5 opposite u0)
+    const strip = (items, fs, col = INK) => (g, w, h, sx) => { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = FONT(fs);
+      for (const [s, u, c] of items){ g.fillStyle = c || col; g.save(); g.translate(u * w, h * 0.55); g.scale(sx, 1);
+        if (s === '▲'){ g.beginPath(); g.moveTo(0, -h * 0.35); g.lineTo(-h * 0.3, h * 0.25); g.lineTo(h * 0.3, h * 0.25); g.fill(); } else g.fillText(s, 0, 0); g.restore(); } };
+    // the depth-of-field scale, on the front of the scales' ring, over the top, the red mark in the middle
+    band(21.75, 8.87, 23.5, 8.87, 0, -1, 2048, 32, strip([['▲', 0.5, '#c8281e'], ...['3,5', '4', '5,6', '8', '11', '16'].flatMap((s, i) => [[s, 0.5 - 0.022 - i * 0.017], [s, 0.5 + 0.022 + i * 0.017]])], 22));
+    // the distances, round the distance ring (∞ at the mark), read from behind the camera
+    band(21.67, 9.1, 21.67, 12.7, 0, 1, 2048, 64, strip([['∞', 0.5], ['20', 0.478], ['10', 0.458], ['7', 0.441], ['5', 0.426], ['4', 0.412], ['3', 0.394], ['2', 0.372], ['1,5', 0.35], ['1,2', 0.328], ['1', 0.307], ['0,9', 0.29], ['0,8', 0.272], ['0,7', 0.252], ['0,65', 0.232], ['М', 0.53]], 36));
+    // the apertures, round the bevel of the aperture ring, along the bottom
+    band(21.55, 18.32, 17.35, 19.52, Math.PI, 1, 2048, 72, strip(['16', '11', '8', '5,6', '4', '3,5'].map((s, i) => [s, 0.42 + i * 0.032]), 40));
+
+    // it stands on the shelf in the gap left for it, turned a little towards the window
+    zen.scale.setScalar(0.001); zen.rotation.y = -Math.PI / 2 + 0.3; zen.position.set(x1 - 0.15, shelvesY[ZEN.s], ZEN.z); room.add(zen); zen.updateMatrixWorld(true);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(140, 92, 80).translate(0, 46, 37), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.desk = 'zenit'; zen.add(hit); desk.pick.push(hit);
+    const t = zen.localToWorld(new V3(6, 44, 34)), SH = shelvesY[ZEN.s], SH2 = shelvesY[ZEN.s + 1] - 0.02;
+    desk.views.zenit = { t, yaw: -Math.PI / 2 + 0.62, pitch: 0.38, d: 0.3, y0: -Math.PI / 2 - 0.95, y1: -Math.PI / 2 + 0.95, p0: 0.02, p1: 1.2, d0: 0.14, d1: 0.6,
+      dmax: (D) => { for (let s = 0.1; s < 0.62; s += 0.005){ const x = t.x + D.x * s, y = t.y + D.y * s, z = t.z + D.z * s;   // (round it from the room: never into the books, nor through the shelf over it)
+        if (x > sx0 - 0.015 && (y < SH + 0.01 || y > SH2 - 0.01 || Math.abs(z - ZEN.z) > ZEN.half - 0.015)) return Math.max(0.1, s - 0.005); } return Infinity; } };
+  }
+
 
   /* a narrow sofa-bed further back on the right, with the obligatory carpet on the wall */
   // the folding sofa-bed of the sixties and seventies: a walnut-stained frame with open wooden arms, upholstered side panels,
@@ -2320,7 +2568,7 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
         renderer.setRenderTarget(prevT); renderer.setClearColor(rv.cc, pa); renderer.shadowMap.autoUpdate = au; rU.uReflK.value = RK; };
       const dbg = (new URLSearchParams(location.search).get('chesscam') || '').split(',').filter(Boolean).map(Number);   // debug: ?chesscam=x,y,z,tx,ty,tz in the board's frame (metres)
       const only = new URLSearchParams(location.search).get('chessonly'); if (only) meshes.forEach(e => e.m.visible = e.type === only);
-      CHESS = { ctr, board, reflect, tap, reset, play, G, lod(){ const kd = 0.18 + 0.82 * env.day; for (const m of desk.carM || []){ if (m.envMap !== roomEnv){ m.envMap = roomEnv; m.needsUpdate = true; } m.envMapIntensity = 0.7 * kd; } if (desk.figM){ if (desk.figM.envMap !== roomEnv){ desk.figM.envMap = roomEnv; desk.figM.needsUpdate = true; } desk.figM.envMapIntensity = 0.8 * kd; } BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
+      CHESS = { ctr, board, reflect, tap, reset, play, G, lod(){ const kd = 0.18 + 0.82 * env.day; for (const m of desk.carM || []){ if (m.envMap !== roomEnv){ m.envMap = roomEnv; m.needsUpdate = true; } m.envMapIntensity = 0.7 * kd; } for (const [m, k, e = roomEnv] of desk.envM || []){ if (m.envMap !== e){ m.envMap = e; m.needsUpdate = true; } m.envMapIntensity = k * kd; } if (desk.figM){ if (desk.figM.envMap !== roomEnv){ desk.figM.envMap = roomEnv; desk.figM.needsUpdate = true; } desk.figM.envMapIntensity = 0.8 * kd; } BOX.envMapIntensity = 0.6 * kd; EBO.envMapIntensity = 0.9 * kd; boardTop.envMapIntensity = boardSide.envMapIntensity = 0.6 * kd; if (dbg.length === 6 && mode === 'window'){ camera.position.copy(board.localToWorld(new V3(dbg[0], dbg[1], dbg[2]))); camera.lookAt(board.localToWorld(new V3(dbg[3], dbg[4], dbg[5]))); camera.updateMatrixWorld(); if (camera.near > 0.02){ camera.near = 0.01; camera.updateProjectionMatrix(); } }
         const d = camera.position.distanceTo(ctr), l = d < 1.15 ? 0 : d < 3.4 ? 1 : 2; board.visible = d < 18; if (l === cur) return; cur = l; for (const { m, geos } of meshes) m.geometry = geos[l]; } };
       if (new URLSearchParams(location.search).has('chesslog')) console.log('CHESS tris per LOD', [0, 1, 2].map(l => meshes.reduce((a, { m, geos }) => a + geos[l].index.count / 3 * m.count, 0)).join('/'), 'board', (BL * 100).toFixed(1) + 'x' + (BW * 100).toFixed(1) + ' cm', 'at', ctr.toArray().map(v => v.toFixed(3)).join(','));
     }
@@ -2364,7 +2612,7 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
     const b = pickBook(e); if (desk.on){ deskClick(b); return; }
-    if (b && b.userData.chair){ sitDesk(true); return; } if (b && b.userData.desk === 'chess'){ sitDesk(true, 'chess'); return; }
+    if (b && b.userData.chair){ sitDesk(true); return; } if (b && (b.userData.desk === 'chess' || b.userData.desk === 'zenit')){ sitDesk(true, b.userData.desk); return; }
     if (b){ if (b.userData.lamp) toggleLamp(); else if (b.userData.calc) toggleCalc(); else if (b.userData.win) toggleWindow(); else if (b.userData.desk === 'car') window.open(RACE_URL, '_blank', 'noopener'); else window.open(POST_URL, '_blank', 'noopener'); } });
 }
 
@@ -10184,7 +10432,7 @@ const WIN_POS = new V3(HOME.x + 0.32, 8.75, BZ - 1.0), WIN_LOOK = TREE.clone().a
 function setMode(m){
   if (started && BIKE.riding){ if (m === 'walk'){ BIKE.dismount(); return; } BIKE.dismount(false); }   // (Walk gets off the bike at the door; anything else just leaves it there)
   if (!started || m === mode && m !== 'climb') return;
-  if (desk.on){ desk.on = false; desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); }
+  if (desk.on){ desk.on = false; desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); desk.sharp(false); }
   const prev = mode;
   if (m === 'walk'){
     mode = 'walk'; resetBody();
@@ -10477,6 +10725,7 @@ const sfx = (() => {
     bell(){ if (ctx){ const t = ctx.currentTime; for (const d of [0, 0.17]){ tone(t + d, 2700, 2680, 0.07, 1.1); tone(t + d, 4120, 4100, 0.035, 0.7); tone(t + d, 1660, 1650, 0.02, 0.9); } } },   // a bicycle bell, rung twice
     tock(v = 1){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 2600, 0.09 * v, 0.018); tone(ctx.currentTime, 1150, 700, 0.035 * v, 0.045, 'sine'); tone(ctx.currentTime, 260, 170, 0.05 * v, 0.07, 'sine'); } },   // a lacquered piece set down on a lacquered board
     click(){ if (ctx){ noiseHit(ctx.currentTime, 'bandpass', 3500, 0.12, 0.015); tone(ctx.currentTime, 1800, 900, 0.03, 0.03, 'square'); } },
+    shutter(){ if (ctx){ const t = ctx.currentTime; noiseHit(t, 'bandpass', 1300, 0.2, 0.035); tone(t, 210, 80, 0.12, 0.09); noiseHit(t + 0.012, 'bandpass', 3800, 0.09, 0.02); noiseHit(t + 0.05, 'bandpass', 2600, 0.08, 0.025); tone(t + 0.05, 900, 500, 0.02, 0.03, 'square'); } },   // a Zenit's release: the mirror's slap, the curtains' clack
     flutter(){ if (ctx) for (let i = 0; i < 14; i++) noiseHit(ctx.currentTime + i * 0.03 + Math.random() * 0.2, 'bandpass', 600 + Math.random() * 500, 0.06, 0.05); },
   };
 })();
@@ -10538,6 +10787,11 @@ const I18N = {   // English → [Russian, Latvian]
   'I would sit here for hours, and the tree would sit there with me.': ['Я мог сидеть здесь часами, и дерево было там, со мной.', 'Es te varēju sēdēt stundām, un koks bija tur, kopā ar mani.'],
   'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.': ['Папины шахматы: фигуры расставлены для партии. Тяни, чтобы осмотреться; Esc — встать.', 'Tēta šahs: figūras saliktas spēlei. Velc, lai paskatītos apkārt; Esc — piecelties.'],
   'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.': ['Папины шахматы: фигуры расставлены для партии. Тяни, чтобы осмотреться; ↩︎ — встать.', 'Tēta šahs: figūras saliktas spēlei. Velc, lai paskatītos apkārt; ↩︎ — piecelties.'],
+  'My Zenit-3M, on the shelf among the books. Drag to look it over; click it again to take a picture; Esc to step back.': ['Мой «Зенит-3М» на полке среди книг. Тяни, чтобы рассмотреть; кликни ещё раз — сделать снимок; Esc — отойти.', 'Mans Zenit-3M plauktā starp grāmatām. Velc, lai to apskatītu; noklikšķini vēlreiz, lai uzņemtu bildi; Esc — atkāpties.'],
+  'My Zenit-3M, on the shelf among the books. Drag to look it over; tap it again to take a picture; ↩︎ to step back.': ['Мой «Зенит-3М» на полке среди книг. Тяни, чтобы рассмотреть; коснись ещё раз — сделать снимок; ↩︎ — отойти.', 'Mans Zenit-3M plauktā starp grāmatām. Velc, lai to apskatītu; pieskaries vēlreiz, lai uzņemtu bildi; ↩︎ — atkāpties.'],
+  'Clack! The mirror went up and stayed there, until I wound the film on.': ['Щёлк! Зеркало поднялось и осталось наверху, пока я не перевёл плёнку.', 'Klikš! Spogulis pacēlās un palika augšā, līdz es pārtinu filmiņu.'],
+  'Clack! Another frame of the yard, on Svema film.': ['Щёлк! Ещё один кадр двора на плёнке «Свема».', 'Klikš! Vēl viens pagalma kadrs uz Svema filmiņas.'],
+  'Clack! The Zenit’s mirror slapped up, and the finder went dark.': ['Щёлк! Зеркало «Зенита» хлопнуло вверх, и видоискатель потемнел.', 'Klikš! Zenit spogulis uzsitās augšā, un skatu meklētājs kļuva tumšs.'],
   'Reykjavík, 1972: Fischer – Spassky, the sixth game. ↩︎ sets the pieces back.': ['Рейкьявик, 1972: Фишер — Спасский, шестая партия. ↩︎ — расставить фигуры заново.', 'Reikjavīka, 1972: Fišers — Spaskis, sestā partija. ↩︎ — salikt figūras atpakaļ.'],
   'I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.': ['Я сел за свой стол. Коснись любой вещи, чтобы рассмотреть; ↩︎ — встать.', 'Es apsēdos pie sava galda. Pieskaries jebkurai lietai, lai to aplūkotu tuvāk; ↩︎ — piecelties.'],
   'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.': ['Мой стол: тетрадь, калькулятор, книга, купальщица. Коснись, чтобы рассмотреть; ↩︎ — встать.', 'Mans galds: burtnīca, kalkulators, grāmata, peldētāja. Pieskaries, lai aplūkotu tuvāk; ↩︎ — piecelties.'],
@@ -10933,7 +11187,7 @@ function frame(){
         console.log('CT', n, 'mode=' + mode, performance.now().toFixed(0), x.toFixed(0), y.toFixed(0), el && (el.id || el.tagName), 'lampOn=' + deskLamp.on);
         for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
         console.log('CT after', n, 'lampOn=' + deskLamp.on); } }, 50); } if (q.get('w')) weather = q.get('w'), Object.assign(W, { cloud: WEATHERS[q.get('w')].cloud, rain: WEATHERS[q.get('w')].rain, wet: WEATHERS[q.get('w')].rain, leafWet: WEATHERS[q.get('w')].rain }); if (q.get('wo')) winOpen.target = winOpen.v = 1; if (q.get('lamp') === '0') deskLamp.on = false;
-    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true, q.get('desk') === 'chess' ? 'chess' : null); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
+    if (q.get('desk')) { const iv = setInterval(() => { if (mode !== 'window') return; clearInterval(iv); sitDesk(true, q.get('desk') === 'chess' || q.get('desk') === 'zenit' ? q.get('desk') : null); desk.snap = true; deskView(q.get('desk') === 'seat' ? null : q.get('desk')); if (q.get('dy')) desk.yaw += +q.get('dy'); if (q.get('dd')) desk.d = +q.get('dd'); if (q.get('dp')) desk.pitch = +q.get('dp'); }, 100); } if (q.get('lookcam') && !q.get('summon')) window.__lookcam = q.get('lookcam').split(',').map(Number); if (q.get('wyaw')) window.__wv = [+q.get('wyaw'), +(q.get('wp') || 0), +(q.get('wz') || 1.3)]; 
     if (q.has('poff')){ const pp = +(q.get('pp') || 0), P = PERCH[pp]; mode = 'climb'; perch = pp; place(P.p, P.yaw, P.pitch); P.off = +q.get('poff'); if (P.cur) P.cur.set(0, 0, 0); syncButtons(); }   // debug: sit on perch pp, shuffled along it
     if (q.get('bulblog')){ const e = PERCH[0].p.clone().sub(TREE); const cs = CANDLES.map(c => [c, c.p.distanceTo(e)]).sort((a, b) => a[1] - b[1]).slice(0, 4);
       cs.forEach(([c, d]) => { const up = new V3(0, 1, 0).applyQuaternion(c.q); console.log('NEARCANDLE', d.toFixed(2), c.p.clone().add(TREE).toArray().map(v => v.toFixed(2)).join(','), 'up', up.toArray().map(v => v.toFixed(2)).join(','), 's', c.s.toFixed(2)); }); }

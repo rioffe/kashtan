@@ -9,7 +9,7 @@ Line numbers below are approximate and drift with every change. Each section of 
 
 - **One page, no build step.** The whole game is `index.html`: about 11,000 lines and 1.4 MB, of which the first hundred are the
   HTML and CSS of the overlay and the rest is a single `<script type="module">`.
-- **Three.js 0.160 from unpkg**, through an import map. The page also imports `mergeGeometries` / `mergeVertices` from the addons,
+- **Three.js 0.160 from unpkg**, through an import map. The page also imports `mergeGeometries` / `mergeVertices` / `toCreasedNormals` from the addons,
   and fetches `GLTFLoader` and the meshopt decoder only when the room needs the figurine.
 - **Everything is made in code at load time.** Geometry is built vertex by vertex, every texture is painted on a canvas, and all
   sound is synthesised with the Web Audio API. The one binary asset is `models/bather.glb` (the porcelain figurine on the table).
@@ -435,7 +435,9 @@ Call it after changing the mode, season, time, weather or language.
 - **The room.** It holds the desk lamp, the calculator, and the window (`winOpen`). The Easter cactus (`CACTUS.update(age, day)`)
   has an age, `PLANT_A`, that runs on with the year. The chess set (`CHESS`) has lathe-turned pieces from `CH_PROF`; `play(dt)`
   replays game 6 of Fischer–Spassky 1972, and `reflect()` mirrors the pieces in the board. The figurine is a glTF loaded after the
-  room is built. Each object on the table has a camera preset in `desk.views[k]`, with its orbit limits.
+  room is built. Each object on the table has a camera preset in `desk.views[k]`, with its orbit limits. The Zenit-3M on the
+  bookshelf (`desk.views.zenit`) is built in millimetres and scaled down; its `dmax` keeps the orbit out of the books round its gap
+  (`ZEN`), and its metal mirrors an environment of its own, set through `desk.envM` by `CHESS.lod`. The books' spines are painted at 32 x 256; while the Zenit's close view is open, `desk.sharp` repaints the ones near it finer (up to 8x, a few a frame) and lets them go on stepping back.
 - **St. Gertrude's clock.** `CHURCH_CLOCK(hour)` turns its hands.
 
 ## Audio

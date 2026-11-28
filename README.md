@@ -30,7 +30,8 @@ blocks south across Stabu is the Great Choral Synagogue, and as you come near it
 Two more things are yours. Leaning against the wall to the right of our entrance is the Orlyonok, the bicycle my parents finally
 bought me when I was twelve: click it and ride round the yard and out into the streets. Up in my room are the desk lamp, the Easter
 cactus on the sill, and, on the table, the Post machine book, an Elektronika B3-34 calculator, a porcelain *Young bather*, and a
-1984 Ferrari Formula 1 built from Salvo bricks. Dad's chess set is set up on the sofa.
+1984 Ferrari Formula 1 built from Salvo bricks. Dad's chess set is set up on the sofa, and my Zenit-3M camera stands on the
+bookshelf among the books.
 
 Plays in English, Russian (Русский) or Latvian (Latviešu): pick on the title screen or with the
 EN / RU / LV button (or `?lang=ru`, `?lang=lv`).
@@ -53,7 +54,7 @@ the lamp (**O**) to switch it on, any book on the shelf to open the [Post machin
 Click the chair (**X**) to sit at the table, then click anything on it to look closer: drag to turn it, scroll to
 zoom, **Esc** to get up. Click a thing a second time to use it: the calculator switches on, the book opens the Post machine,
 and the Formula 1 races downhill in [Riga Downhill](https://rioffe.github.io/riga-downhill/). Click the chessboard to sit
-down on the sofa beside it.
+down on the sofa beside it. Click the Zenit on the bookshelf to look it over, and again to take a picture.
 
 **On iPad / touch screens:** the stick (bottom left) walks (push it all the way to run); drag anywhere
 to look; ⤒ jumps or clambers onto a roof, and rings the bell on the bike; ↩︎ (under the season's name) does what Esc does;
