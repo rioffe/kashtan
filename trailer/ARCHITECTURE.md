@@ -65,6 +65,7 @@ The driver decides everything once and writes it down. The scripts read only thi
 | `gameMusic` | (holiday promo) `false`: the sound pass turns the game's own music off and lets its sound come up for 5.5 s before recording |
 | `music` | (holiday promo) `bpm`, `bars`, `tail` and `out` for `music.mjs` |
 | `shots[].bar0`, `.lead` | (holiday promo) the bar a shot starts on, and how many seconds before that bar its first frame is (half a dissolve) |
+| `lang` | (holiday promo) `en`, `ru` or `lv`: the end card's words (`HOLIDAY` in `cards.mjs`), and the game's language (`openGame` adds `&lang=` to its address) |
 
 The holiday promo (`make_holiday.py`) writes the same file with these extras. `SHOT_BEGIN(i, s)` gets the shot's
 plan entry as its second argument, so a shot cut to music knows where it falls in it. `assemble()` cuts instead of
@@ -300,4 +301,6 @@ bottom (a spire, a gable) stays in. A tall frame at the 16:9 lens would be tunne
 | where the trailer hooks into the game | `anchor` in `build_site()` |
 | the holiday promo's shots, in bars | `EDIT`, `CARDS` in `make_holiday.py` |
 | its snowmen, the ride's path and timing, its cameras | `SPOTS`, `RIDE_PTS`, `RIDE_KEYS`, `HSHOTS` in `holiday-shots.js` |
+| the rider's face and hat, the trees in the windows | `FACE`, `HAT`, `XMAS` in `holiday-shots.js` |
+| the holiday card's words, by language | `HOLIDAY` in `cards.mjs` |
 | its music | `music.mjs` (the score and the instruments) |

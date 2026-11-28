@@ -2,7 +2,8 @@
 """A holiday promo for Kashtan, straight from the game: I run round the yard building snowmen, more go up round the yard and down
 the gravel lane, then a slalom between them on the Orlyonok to Jingle Bells, and Happy Holidays over the yard at dusk.
 
-    python3 make_holiday.py                          # 1920x1080 -> kashtan-holiday-1920x1080-landscape-51s.mp4
+    python3 make_holiday.py                          # 1920x1080, in English -> kashtan-holiday-en-1920x1080-landscape-51s.mp4
+    python3 make_holiday.py --lang ru                # the end card in Russian (lv: Latvian) -> kashtan-holiday-ru-...
     python3 make_holiday.py --stills                 # look at the shots first (first, middle and last frame of each)
     python3 make_holiday.py --music-only             # just the soundtrack's music -> work/holiday/music.wav
 
@@ -68,6 +69,7 @@ def plan_edit(fps, only=None):
 
 def main():
     ap = argparse.ArgumentParser(description='Make the Kashtan holiday promo.', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    ap.add_argument('--lang', default='en', choices=['en', 'ru', 'lv'], help="the end card's language (and the game's): English, Russian, Latvian")
     ap.add_argument('--size', default='1920x1080', help='WIDTHxHEIGHT, or 720p, 1080p, 1440p, 4k')
     ap.add_argument('--fps', type=int, default=30, help='frames per second (30 puts a bar on exactly 50 frames)')
     ap.add_argument('--supersample', type=float, help='draw each frame this many times larger and scale it down (default 2 up to 1440p, 1 above)')
@@ -77,7 +79,7 @@ def main():
     ap.add_argument('--silent', action='store_true', help='no sound at all')
     ap.add_argument('--music-only', action='store_true', help='only make the music (work/holiday/music.wav)')
     ap.add_argument('--ambient', type=float, default=3.0, help="how loud the game's own sound is under the music (3: the bike bell as loud as the tune)")
-    ap.add_argument('--out', help='output file (default: kashtan-holiday-WxH-LAYOUT-Ns.mp4 here)')
+    ap.add_argument('--out', help='output file (default: kashtan-holiday-LANG-WxH-LAYOUT-Ns.mp4 here)')
     ap.add_argument('--work', default=os.path.join(HERE, 'work', 'holiday'), help='folder for the intermediate files')
     ap.add_argument('--port', type=int, default=0, help='port to serve the game on (default: any free one)')
     a = ap.parse_args()
@@ -94,14 +96,14 @@ def main():
     only = [s.strip() for s in a.shots.split(',')] if a.shots else None
     plan, cards, total = plan_edit(a.fps, only)
     layout = 'scope' if w / h > 2.1 else 'landscape' if w > h else 'square' if w == h else 'portrait'
-    out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-holiday-{w}x{h}-{layout}-{round(total)}s.mp4'))
+    out = os.path.abspath(a.out or os.path.join(HERE, f'kashtan-holiday-{a.lang}-{w}x{h}-{layout}-{round(total)}s.mp4'))
     work = os.path.abspath(a.work)
-    print(f'{w}x{h} {layout} at {a.fps} fps, drawn at {int(w * ss)}x{int(h * ss)}; {total:.1f} s, {len(plan)} shots, {BPM} a minute ({BAR:.3f} s a bar)')
+    print(f'{a.lang}: {w}x{h} {layout} at {a.fps} fps, drawn at {int(w * ss)}x{int(h * ss)}; {total:.1f} s, {len(plan)} shots, {BPM} a minute ({BAR:.3f} s a bar)')
     print('  ' + '  '.join(f"{s['name']} {s['dur']:.2f}" for s in plan))
 
     os.makedirs(work, exist_ok=True)
     music = os.path.join(work, 'music.wav')
-    plan_json = {'width': w, 'height': h, 'fps': a.fps, 'supersample': ss, 'xf': 0, 'total': total, 'layout': layout, 'jpegq': 0.94,
+    plan_json = {'lang': a.lang, 'width': w, 'height': h, 'fps': a.fps, 'supersample': ss, 'xf': 0, 'total': total, 'layout': layout, 'jpegq': 0.94,
                  'shots': plan, 'cards': cards, 'shotFiles': ['shots.js', 'holiday-shots.js'], 'gameMusic': False,
                  'music': {'bpm': BPM, 'bars': sum(e[1] for e in EDIT), 'tail': TAIL, 'out': music}}
     t0 = time.time()

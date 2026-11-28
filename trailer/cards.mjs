@@ -8,6 +8,13 @@ import { HERE, loadPlan, loadPuppeteer, launch } from './lib.mjs';
 
 const WORK = process.argv[2] || path.join(HERE, 'work'), plan = loadPlan(WORK);
 const cap = (t) => `<div class="cap">${t}</div>`, capLong = (t) => `<div class="cap long">${t}</div>`;   // (long: a smaller hand, for three lines)
+// the holiday card's words in the game's three languages (make_holiday.py --lang); the game's name as the game gives it in each
+export const HOLIDAY = {
+  en: { hello: 'Happy Holidays!', play: 'Play Kashtan for more fun!' },
+  ru: { hello: 'С праздниками!', play: 'Играйте в «Каштан» — будет ещё веселее!' },
+  lv: { hello: 'Priecīgus svētkus!', play: 'Spēlējiet „Kastaņu“ — būs vēl jautrāk!' },
+};
+function hol(){ return HOLIDAY[plan.lang] || HOLIDAY.en; }
 // the cards; make_trailer.py's EDIT table says which shot each one goes over
 export const CARDS = {
   intro: `<div class="cap"><div class="sub">Engelsa iela 78 · Rīga · 1984</div>A long gravel road, the garages, the old ladies’ gardens —<br>and at the end of it, to the right, the tree.</div>`,
@@ -21,9 +28,10 @@ export const CARDS = {
   roof: cap('All of Rīga from the roof of the tall house on Stabu,<br>and our chestnut over the roofs.'),
   title: `<div class="shade"></div><div class="end"><div class="ru">Каштан · Kastaņa</div><h1>Kashtan</h1><div class="tag">A meditation on a chestnut tree · Rīga, 1984</div>
     <div class="url">rioffe.github.io/kashtan</div><div class="langs">Plays in your browser · English · Русский · Latviešu</div></div>`,
-  // the holiday promo's end card (make_holiday.py), in two parts that come in one after the other: laid out alike, each showing its own lines
-  holiday: `<div class="hshade"></div><div class="hol"><h2>Happy Holidays!</h2><div class="play off">Play Kashtan for more fun!</div><div class="url off">rioffe.github.io/kashtan</div></div>`,
-  'holiday-play': `<div class="hol"><h2 class="off">Happy Holidays!</h2><div class="play">Play Kashtan for more fun!</div><div class="url">rioffe.github.io/kashtan</div></div>`,
+  // the holiday promo's end card (make_holiday.py), in two parts that come in one after the other: laid out alike, each showing its own
+  // lines; in the plan's language (HOLIDAY, below)
+  holiday: `<div class="hshade"></div><div class="hol"><h2>${hol().hello}</h2><div class="play off">${hol().play}</div><div class="url off">rioffe.github.io/kashtan</div></div>`,
+  'holiday-play': `<div class="hol"><h2 class="off">${hol().hello}</h2><div class="play">${hol().play}</div><div class="url">rioffe.github.io/kashtan</div></div>`,
 };
 // landscape: laid out for 1920x1080, captions low in the frame as in the game
 const CSS_WIDE = `
@@ -82,10 +90,11 @@ await page.setViewport({ width: vw, height: vh, deviceScaleFactor: Math.max(1, s
 const out = path.join(WORK, 'cards'); fs.mkdirSync(out, { recursive: true });
 for (const k of new Set(plan.cards.map(c => c.card))){
   if (!CARDS[k]) throw new Error(`no card called ${k} in cards.mjs`);
-  fs.writeFileSync(path.join(plan.site, 'card.html'), `<!doctype html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;500&display=block" rel="stylesheet"><style>${CSS}</style></head><body>${TALL ? CARDS[k].replace(/<br>/g, ' ') : CARDS[k]}</body></html>`);   // (portrait: the lines left to wrap)
+  fs.writeFileSync(path.join(plan.site, 'card.html'), `<!doctype html><html lang="${plan.lang || 'en'}"><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;500&display=block" rel="stylesheet"><style>${CSS}</style></head><body>${TALL ? CARDS[k].replace(/<br>/g, ' ') : CARDS[k]}</body></html>`);   // (portrait: the lines left to wrap)
   await page.goto(`http://127.0.0.1:${plan.port}/card.html?${k}`, { waitUntil: 'load', timeout: 60000 });
-  await page.evaluate(async () => { for (const f of ["italic 46px 'Cormorant Garamond'", "italic 600 150px 'Cormorant Garamond'", "400 168px 'Cormorant Garamond'", '500 30px Inter', '17px Inter']) await document.fonts.load(f); await document.fonts.ready; });
-  const ok = await page.evaluate(() => document.fonts.check("italic 46px 'Cormorant Garamond'") && document.fonts.check('17px Inter'));
+  // (each face loaded for the card's own letters: a Cyrillic or Latvian card needs more of the font than the Latin letters it loads by default)
+  await page.evaluate(async () => { const t = document.body.textContent; for (const f of ["italic 46px 'Cormorant Garamond'", "italic 600 150px 'Cormorant Garamond'", "400 168px 'Cormorant Garamond'", '500 30px Inter', '17px Inter']) await document.fonts.load(f, t); await document.fonts.ready; });
+  const ok = await page.evaluate(() => { const t = document.body.textContent; return document.fonts.check("italic 46px 'Cormorant Garamond'", t) && document.fonts.check("italic 600 150px 'Cormorant Garamond'", t) && document.fonts.check('17px Inter', t); });
   await page.screenshot({ path: path.join(out, k + '.png'), omitBackground: true });
   console.log(`  ${k.padEnd(8)} ${ok ? '' : '(the web fonts did not load: drawn in Georgia / system sans)'}`);
 }

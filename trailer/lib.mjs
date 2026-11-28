@@ -33,7 +33,7 @@ export async function launch(puppeteer, work, tag, { width, height }){
 export async function openGame(page, plan, { quiet = false } = {}){
   page.on('pageerror', e => console.log('page error:', e.message));
   if (!quiet) page.on('console', m => { const t = m.text(); if (/error/i.test(t) && !/GPU stall/.test(t)) console.log('page:', t.slice(0, 300)); });
-  await page.goto(`http://127.0.0.1:${plan.port}/index.html?s=1.62&tod=0.36&noui`, { waitUntil: 'load', timeout: 600000 });
+  await page.goto(`http://127.0.0.1:${plan.port}/index.html?s=1.62&tod=0.36&noui${plan.lang ? '&lang=' + plan.lang : ''}`, { waitUntil: 'load', timeout: 600000 });
   await page.waitForFunction(() => window.__T && window.__T.started, { timeout: 600000, polling: 500 });
   await new Promise(r => setTimeout(r, 6000));
 }

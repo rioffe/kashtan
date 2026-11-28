@@ -16,7 +16,7 @@ current ones. The music is generative, so it's never quite the same twice.
 | extended cut, 2.39:1 master | `python3 make_trailer.py --size 3840x1608 --duration 104 --best` |
 | extended cut, 2.39:1 master, 2160 high | `python3 make_trailer.py --size 5160x2160 --duration 104 --best` (HEVC) |
 | YouTube copy of the 4K cut | see [For YouTube](#for-youtube) |
-| holiday promo, 1080p, 51 s | `python3 make_holiday.py` (see [The holiday promo](#the-holiday-promo)) |
+| holiday promo, 1080p, 51 s | `python3 make_holiday.py`, `--lang ru` or `--lang lv` for the end card in Russian or Latvian (see [The holiday promo](#the-holiday-promo)) |
 
 ## What you need
 
@@ -168,7 +168,9 @@ changing a shot, or after changing the game, since a new bush can end up in fron
 ## The holiday promo
 
 ```sh
-python3 make_holiday.py                         # -> kashtan-holiday-1920x1080-landscape-51s.mp4
+python3 make_holiday.py                         # -> kashtan-holiday-en-1920x1080-landscape-51s.mp4
+python3 make_holiday.py --lang ru               # the end card in Russian -> kashtan-holiday-ru-1920x1080-landscape-51s.mp4
+python3 make_holiday.py --lang lv               # in Latvian -> kashtan-holiday-lv-...
 python3 make_holiday.py --size 720p --stills    # look at its shots first (work/holiday/stills/)
 python3 make_holiday.py --music-only            # just the music -> work/holiday/music.wav
 python3 make_holiday.py --shots h-front,h-pov2  # a few shots alone, cut together, no end card
@@ -178,7 +180,7 @@ A 51 s holiday promo, 13 shots. On a winter morning my window swings open onto t
 and a snowman goes up on each bar I stop on. The rest go up round the yard and down the gravel lane, one on each
 beat. Then the ride on the Orlyonok: round the chestnut, weaving the three before the house, left into the lane and
 down it between the eight. The end card, Happy Holidays and then Play Kashtan for more fun, comes over the yard at
-dusk, full of snowmen, the windows lit and snow falling.
+dusk, full of snowmen, the windows lit, New Year trees in a few of them, and snow falling.
 
 It uses the trailer's machinery with its own shots (`holiday-shots.js`, loaded after `shots.js`) and its own
 music (`music.mjs`). Its intermediate files go in `work/holiday/`.
@@ -205,9 +207,22 @@ music (`music.mjs`). Its intermediate files go in `work/holiday/`.
   from the path's curvature and the speed, with the lean balanced for the turn (tan lean = v²κ/g). The rider pedals on
   the straights and coasts through the tighter turns. The game's bike draws him: `BIKE.step` with no time passing,
   given the ride's position, heading, steering, lean and cranks.
-- **Seen from outside**, the rider's head and fur hat are given real materials. In the game they're colour-masked
-  so they only cast a shadow and never get in the eye's way. The first-person shots put the masks back and roll with
-  the bike, at half the game's roll.
+- **Seen from outside**, the rider has a face. In the game his head is only a shadow (an egg with a nose, and a hat
+  of boxes), colour-masked so it never gets in the eye's way, and it stays that way, casting the shadow. Over it go
+  a twelve-year-old's head and an ushanka with its ear flaps tied up over the top (`FACE`, `HAT` in
+  `holiday-shots.js`). Each is one smooth surface, a signed distance field meshed by surface nets as the game meshes
+  the torso, coloured in its vertices: the cheeks and nose red with the cold, the lips red and full, the brows, the lashes, the
+  black hair under the hat, the hat's fur darker on the crown than on the band and flaps. The eyes are glossy balls
+  of their own, hazel, looking a little down the road, behind my glasses (round dark plastic rims close before
+  the eyes, the arms back over the ears). The first-person shots hide it all and roll with the bike, at half the game's roll.
+- **New Year trees** stand lit in four of our house's windows (`XMAS`), each its own: a tall one with coloured bulbs
+  and the red star, a bushy one in warm white with a gold star in a dark room, a small one on a table in blue and
+  white with tinsel and a glass spire, another with coloured bulbs and tinsel in the dark. The front's windows are
+  painted on it, so each is a panel over its window: the window drawn again as the game draws it (from the same
+  seeds) with the tree behind the glass, by day and by night, lit as the front's windows are lit. The bulbs are layers
+  of their own, added on, in three groups that twinkle (in step, slowly, or at random), dimmer by day.
+- **In three languages.** `--lang` (`en`, `ru`, `lv`) picks the end card's words (`HOLIDAY` in `cards.mjs`) and the
+  game's language, and goes into the file's name. The pictures are the same in all three.
 - **The snowmen** are the game's own (`makeSnowman`), sixteen of them at `SPOTS`, seeded so they come out the same
   every run. They're posed as far built as the shot wants through the game's `updateSnowmen`, and are kept out of
   its list of snowmen, which holds eight at most.
@@ -222,8 +237,8 @@ music (`music.mjs`). Its intermediate files go in `work/holiday/`.
 | `audio.mjs` | The sound. It plays the same shots through in real time and records the game's audio output into `work/audio.webm`. |
 | `cards.mjs` | The captions and the title card, as transparent PNGs in `work/cards/`. The wording lives here. |
 | `lib.mjs` | Shared helpers: finds puppeteer and Chrome, opens the game. |
-| `make_holiday.py` | The holiday promo's driver: its edit in bars (`EDIT`), its end card (`CARDS`). It plans the cut and runs the same scripts, plus `music.mjs`, then mixes the game's sound under the music. |
-| `holiday-shots.js` | The holiday promo's shots: the snowmen, the ride, the bike posed along it. Loaded after `shots.js`, whose helpers it uses. |
+| `make_holiday.py` | The holiday promo's driver: its edit in bars (`EDIT`), its end card (`CARDS`), its language (`--lang`). It plans the cut and runs the same scripts, plus `music.mjs`, then mixes the game's sound under the music. |
+| `holiday-shots.js` | The holiday promo's shots: the snowmen, the ride, the bike posed along it, the rider's face, the trees in the windows. Loaded after `shots.js`, whose helpers it uses. |
 | `music.mjs` | The holiday promo's music, Jingle Bells, synthesized offline into `work/holiday/music.wav`. |
 | `ARCHITECTURE.md`, `.pdf` | How the parts fit together. The PDF is built from the Markdown with `spec2pdf.sh --no-click ARCHITECTURE.md`, run in this folder (pandoc, XeLaTeX and mermaid-filter; the script is in the speccheck project). |
 | `work/` | Everything intermediate. Safe to delete. |
