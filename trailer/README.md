@@ -171,6 +171,8 @@ changing a shot, or after changing the game, since a new bush can end up in fron
 python3 make_holiday.py                         # -> kashtan-holiday-en-1920x1080-landscape-51s.mp4
 python3 make_holiday.py --lang ru               # the end card in Russian -> kashtan-holiday-ru-1920x1080-landscape-51s.mp4
 python3 make_holiday.py --lang lv               # in Latvian -> kashtan-holiday-lv-...
+python3 make_holiday.py --size 4k               # 3840x2160
+python3 make_holiday.py --size 1080x1920        # for Instagram Reels: portrait, the end card in the tall layout
 python3 make_holiday.py --size 720p --stills    # look at its shots first (work/holiday/stills/)
 python3 make_holiday.py --music-only            # just the music -> work/holiday/music.wav
 python3 make_holiday.py --shots h-front,h-pov2  # a few shots alone, cut together, no end card

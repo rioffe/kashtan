@@ -366,6 +366,7 @@ function xmasTrees(){ if (HOL.trees) return HOL.trees; const THREE = T.THREE, PP
 
 // ---------------------------------------------------------------- the shots
 var DAY = { S: 0.42, tod: 0.46 }, NOON = { S: 0.42, tod: 0.52 };
+var tall = () => T.camera.aspect < 1;   // (a phone's tall frame: the yard's and the lane's cameras look a little higher, so the snow in front doesn't fill half of it)
 var HSHOTS = [
   // INTRO (2 bars). A winter morning: my window swinging open onto the snowy yard
   { name: 'h-window', setup(){ world({ S: 0.42, tod: 0.45, fov: 58, lamp: false, mode: 'window' });
@@ -386,12 +387,12 @@ var HSHOTS = [
   { name: 'h-yard', setup(){ world({ ...DAY, fov: 50 }); onBike(false); },
     cam(u){ const t = st_(u), B = {}; ['D4', 'S3', 'D5', 'S2', 'D1', 'S1'].forEach((k, i) => B[k] = [i * HBEAT + 0.05, 0.75]);
       snowmen(['D2', 'D3'], B, t);
-      return look(vmix(V(-11.5, 5.6, -126), V(-10.2, 4.9, -127.5), ease(u)), V(2.5, 0.6, -140)); } },
+      return look(vmix(V(-11.5, 5.6, -126), V(-10.2, 4.9, -127.5), ease(u)), V(2.5, tall() ? 2.2 : 0.6, -140)); } },
   // and down the gravel lane, one on each beat
   { name: 'h-lane', setup(){ world({ ...DAY, fov: 48 }); onBike(false); },
     cam(u){ const t = st_(u), B = {}; LANE.forEach((k, i) => B[k] = [i * HBEAT + 0.05, 0.7]);
       snowmen(YARD, B, t);
-      return look(vmix(V(-11, 1.7, -131), V(-10.9, 1.9, -116), ease(u)), V(-8.6, 0.6, mix(-108, -90, ease(u)))); } },
+      return look(vmix(V(-11, 1.7, -131), V(-10.9, 1.9, -116), ease(u)), V(-8.6, tall() ? 1.3 : 0.6, mix(-108, -90, ease(u)))); } },
   // CHORUS (16 bars): the ride. "Jingle bells": round the chestnut, the bell rung
   { name: 'h-go', setup(){ world({ ...NOON, fov: 46 }); onBike(true); riderSeen(true); snowmen([...YARD, ...LANE]); },
     // (from by the workshops' wall, north of the chestnut: he comes up the east side of the yard towards it and swings round in front)
