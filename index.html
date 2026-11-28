@@ -731,7 +731,16 @@ const onStreet = (x, z, m) => { if (x < TOWN.x0 + m || x > TOWN.x1 - m || z < TO
 // within o of the rectangle, its corners rounded to r (the kerb's line round a block)
 const inRound = (x, z, x0, x1, z0, z1, o, r) => { const dx = Math.abs(x - (x0 + x1) / 2), dz = Math.abs(z - (z0 + z1) / 2), hx = (x1 - x0) / 2 + o, hz = (z1 - z0) / 2 + o;
   if (dx > hx || dz > hz) return false; const qx = Math.max(0, dx - hx + r), qz = Math.max(0, dz - hz + r); return qx * qx + qz * qz <= r * r; };
-const kerbY = (x, z) => { if (inHome(x, z)) return 0; if (inRound(x, z, -76, 86, -207, -45, WALK, KERB_R)) return KERB_H;   // (our yard and lane on the ground; the pavement round our blocks; elsewhere the ring round the nearest block)
+// what is laid on the ground in our yard and lane, and how high its top is: the lane's dirt (1 cm), the ring of trodden earth round the
+// chestnut (1.4 cm), the paths (1.5 to 1.7 cm), each a little over the one under it (filled in as they are laid). The bike rides on them,
+// not through them
+const LAYERS = { paths: [] };
+function layerTop(x, z){ let y = 0;
+  if (z > ROAD_Z0 && z < STABU_FRONT && Math.abs(x - ROAD_X) < ROAD_W / 2) y = 0.01;
+  if (LAYERS.ring && Math.hypot(x - LAYERS.ring.x, z - LAYERS.ring.z) < LAYERS.ring.r) y = Math.max(y, LAYERS.ring.y);
+  for (const p of LAYERS.paths) if (p.y > y && x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1 && p.pts.some(([px, pz]) => (x - px) ** 2 + (z - pz) ** 2 < p.r2)) y = p.y;
+  return y; }
+const kerbY = (x, z) => { if (inHome(x, z)) return layerTop(x, z); if (inRound(x, z, -76, 86, -207, -45, WALK, KERB_R)) return KERB_H;   // (in our yard and lane on what is laid on the ground there; the pavement round our blocks; elsewhere the ring round the nearest block)
   const gx = Math.floor((x - TX0 + STREET / 2) / CELL), gz = Math.floor((z - TZ0 + STREET / 2) / CELL), x0 = bx0(gx), z0 = bz0(gz); return blockOn(gx, gz) && inRound(x, z, x0, x0 + BLOCK, z0, bz1(gz), WALK, KERB_R) ? KERB_H : 0; };
 // the street lamps: one over every crossing and one halfway along every block (three lattices, CELL apart each way), hung over the middle of
 // the street on wires from the house fronts at the height of the tops of the third-floor windows; their light a melancholy yellow. There are
@@ -838,7 +847,9 @@ const stars = [makeStars(1800, 1.6), makeStars(300, 3.0)];
     for (let i = 0; i < p2.count; i++){ const x = p2.getX(i), z = p2.getZ(i), n = 0.72 + 0.4 * fbm(x * 0.04 + 10, z * 0.04); c2[i * 3] = n * 1.02; c2[i * 3 + 1] = n; c2[i * 3 + 2] = n * 0.92; uv.setXY(i, x / 900 + 0.5, -z / 900 + 0.5); }
     g2.setAttribute('color', new THREE.BufferAttribute(c2, 3)); const ground2 = new THREE.Mesh(g2, groundMat); ground2.receiveShadow = true; scene.add(ground2); }
 }
-const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off, polygonOffsetUnits: off * 2 }), k);
+// (pulled towards the eye a little, so it never flickers against the ground under it: mostly by a fixed step, which keeps them in their
+// order far off; only a quarter by the slope, which seen low along the ground would let it draw over a few centimetres of what stands on it)
+const flatMat = (map, color, k = 0.9, off = -1) => snowify(new THREE.MeshStandardMaterial({ map, color, roughness: 1, polygonOffset: true, polygonOffsetFactor: off * 0.25, polygonOffsetUnits: off * 2 }), k);
 {
   var roadMat = flatMat(dirtTex, '#ffffff', 0.85, -1), LANE_EDGE;   // (LANE_EDGE: its ragged edges, for the dirt roads in the lots too)
   { // ragged verges: the grass bites into the lane's edges in uneven scallops, as on the paths
@@ -972,6 +983,7 @@ void main(){ float r2 = dot(vUv, vUv), e = max(0.0, 1.0 - r2); gl_FragColor = ve
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U_, 2)); g.setIndex(I_);
     return new THREE.Mesh(g, flatMat(ct, '#d8ccb8', 0.9, -3)); })();
   worn.position.set(TREE.x, 0.014, TREE.z); worn.receiveShadow = true; scene.add(worn);
+  LAYERS.ring = { x: TREE.x, z: TREE.z, r: 6.2, y: 0.014 };
 }
 
 /* ============================== the building ============================== */
@@ -1256,7 +1268,9 @@ const TUFTS = [], DANDS = [], LTUFTS = [], LDANDS = [];   // (and the lots' roun
       if (i % 2 === 0) for (const sd of [-1, 1]) edges.push([P.x + nx * sd * w / 2, P.z + nz * sd * w / 2, nx * sd, nz * sd]); }
     for (let i = 0; i < N; i++) for (let k = 0; k < A - 1; k++){ const a = i * A + k; idx.push(a, a + 1, a + A, a + 1, a + A + 1, a + A); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.Mesh(g, pathMat(map)); m.receiveShadow = true; scene.add(m); return curve; };
+    const m = new THREE.Mesh(g, pathMat(map)); m.receiveShadow = true; scene.add(m);
+    const cl = curve.getSpacedPoints(Math.ceil(L / 0.15)).map(p => [p.x, p.z]), xs = cl.map(p => p[0]), zs = cl.map(p => p[1]);   // (for layerTop)
+    LAYERS.paths.push({ y, pts: cl, r2: (w / 2) ** 2, x0: Math.min(...xs) - w, x1: Math.max(...xs) + w, z0: Math.min(...zs) - w, z1: Math.max(...zs) + w }); return curve; };
   ribbon([[-17.8, BZ + 0.38], [0, BZ + 0.38], [17.8, BZ + 0.38]], 0.72, asphalt);                                          // the strip along the wall
   // where the lane ends at the gardens it splits in two: a path to each entrance, with a triangle of grass between them
   ribbon([[ROAD_X - 0.7, ROAD_Z0 + 0.6], [-9.3, -131], [-9.35, -138], [-9.2, -144.5], [-9, BZ + 1.15]], 1.1, asphalt, 0.017);                 // to entrance 1
@@ -9792,8 +9806,28 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
   const satin = new THREE.MeshStandardMaterial({ color: '#d6d2c8', metalness: 0.85, roughness: 0.3, envMap: yardEnv, envMapIntensity: 0.9 }), chainM = new THREE.MeshStandardMaterial({ color: '#5a5b5f', metalness: 0.75, roughness: 0.4, envMap: yardEnv, envMapIntensity: 0.5 });
   const guardM = new THREE.MeshPhysicalMaterial({ color: '#101112', roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, envMap: yardEnv, envMapIntensity: 0.35, side: THREE.DoubleSide });
   const felt = new THREE.MeshStandardMaterial({ color: '#c6b289', roughness: 0.95, side: THREE.DoubleSide }), thread = new THREE.MeshStandardMaterial({ color: '#cdd2da', roughness: 0.6 });
-  const amber = new THREE.MeshStandardMaterial({ color: '#f2a41c', roughness: 0.25, emissive: '#3a2200' });
-  const red = new THREE.MeshStandardMaterial({ color: '#c01010', roughness: 0.3, emissive: '#300000' }), white = new THREE.MeshStandardMaterial({ color: '#f2f0e6', roughness: 0.3 });
+  // the reflectors: moulded plastic, a smooth glossy face over a field of little corner-cube prisms (three facets to each hexagon), so they
+  // send light straight back the way it came. To an eye beside the light (the sun, the moon, a lamp behind me) one blazes in its colour,
+  // brightest where the light is right behind the eye and fading within some twenty degrees of it; seen from anywhere else it is plain
+  // coloured plastic that glints in its facets. Only light that falls on its face counts (RE_Direct wrapped: every light, the street lamps too)
+  const prisms = tex(256, 256, (g, w, h) => { const im = g.createImageData(w, h), d = im.data, R = 11, S3 = Math.sqrt(3);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){ const q = (S3 / 3 * x - y / 3) / R, r = (2 / 3 * y) / R;   // (pointy-topped hexagons, R pixels to a corner)
+      let cx = q, cz = r, cy = -q - r, rx = Math.round(cx), ry = Math.round(cy), rz = Math.round(cz); const dx = Math.abs(rx - cx), dy = Math.abs(ry - cy), dz = Math.abs(rz - cz);
+      if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+      const hx = R * S3 * (rx + rz / 2), hy = R * 1.5 * rz, a = Math.atan2(y - hy, x - hx), k = ((Math.floor((a + Math.PI / 2 + TAU) / (TAU / 3)) % 3) + 3) % 3, t = -Math.PI / 2 + (k + 0.5) * TAU / 3;
+      const i = (y * w + x) * 4, sn = Math.sin(0.6); d[i] = 128 + 127 * sn * Math.cos(t); d[i + 1] = 128 - 127 * sn * Math.sin(t); d[i + 2] = 128 + 127 * Math.cos(0.6); d[i + 3] = 255; }
+    g.putImageData(im, 0, 0); }, { srgb: false });
+  const retro = (color, emissive) => shaderChain(new THREE.MeshPhysicalMaterial({ color, emissive, roughness: 0.22, normalMap: prisms, normalScale: new THREE.Vector2(0.55, 0.55),
+    clearcoat: 1, clearcoatRoughness: 0.03, envMap: yardEnv, envMapIntensity: 0.5 }), 'retro', sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', `#include <lights_physical_pars_fragment>
+      void RE_Direct_Retro(const in IncidentLight L, const in vec3 gP, const in vec3 gN, const in vec3 gV, const in vec3 gC, const in PhysicalMaterial material, inout ReflectedLight reflectedLight){
+        RE_Direct_Physical(L, gP, gN, gV, gC, material, reflectedLight);
+        vec3 c = material.diffuseColor / max(max(material.diffuseColor.r, material.diffuseColor.g), max(material.diffuseColor.b, 1e-3));   // (its colour, at full strength)
+        float back = max(dot(L.direction, gV), 0.0), face = smoothstep(0.12, 0.5, dot(normalize(vNormal), L.direction));
+        reflectedLight.directDiffuse += c * L.color * face * (1.1 * pow(back, 140.0) + 0.3 * pow(back, 18.0)); }   // (bright, but not so bright the tone mapping bleaches the red)
+      #undef RE_Direct
+      #define RE_Direct RE_Direct_Retro`); });
+  const amber = retro('#f2a41c', '#3a2200'), red = retro('#c01010', '#300000'), white = retro('#f2f0e6', '#000000');
   const SCL = 0.2915 / Rw, root = new THREE.Group(); root.rotation.order = 'YXZ'; root.scale.setScalar(SCL); scene.add(root);   // (24 x 1.5: a 507 mm rim, a 38 mm tyre, 583 mm across)
   const frame = new THREE.Group(); root.add(frame);
   let paintEnv = 2.1; const paintDS = paint.clone(); paintDS.side = THREE.DoubleSide;
@@ -10021,7 +10055,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
         nn.copy(u).multiplyScalar(c / ra).addScaledVector(v, sn / rb).normalize(); na.setXYZ(q, nn.x, nn.y, nn.z); } }
     pa.needsUpdate = na.needsUpdate = true; m.geometry.computeBoundingSphere(); };
   const ARM_UP = [[0, 0.038, 0.038], [0.35, 0.033, 0.033], [1, 0.0285, 0.0285]], ARM_LO = [[0, 0.027, 0.026], [0.3, 0.0285, 0.0245], [0.75, 0.0245, 0.019], [1, 0.0235, 0.0175]], ARM_IN = [[0, 0.0235, 0.0175], [0.55, 0.0235, 0.0175], [1, 0.016, 0.0112]];   // (the wrist a shade fuller than the hand's own, then tapering away inside it)
-  const LEG_UP = [[0, 0.062, 0.062], [0.4, 0.056, 0.056], [1, 0.045, 0.045]], LEG_LO = [[0, 0.043, 0.043], [0.3, 0.045, 0.042], [0.8, 0.033, 0.031], [1, 0.03, 0.03]];
+  const LEG_UP = [[0, 0.062, 0.062], [0.4, 0.056, 0.056], [1, 0.045, 0.045]], LEG_LO = [[0, 0.043, 0.043], [0.3, 0.045, 0.042], [0.8, 0.033, 0.031], [1, 0.03, 0.03]], LEG_HEM = [[0, 0.03, 0.03], [1, 0.031, 0.031]];   // (LEG_HEM: on past the ankle, for the trousers' hem)
   const meQ = new THREE.Quaternion(), ZL = new V3(0, 0, 1);
   sleeveM.side = trouserM.side = THREE.DoubleSide;   // (the inside of a cuff)
   const arms = [-1, 1].map(s => ({ s, skinT: tubeMesh(skin), clothT: tubeMesh(sleeveM) }));
@@ -10102,7 +10136,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const make = (parent) => { const grp = (L) => { const g = new THREE.Group(); for (const [geo, m] of L){ const o = new THREE.Mesh(geo, m); o.castShadow = true; g.add(o); } parent.add(g); return g; };
       return { keds: grp(kedsGeo), boots: grp(bootGeo) }; };
     return { make }; })();
-  const legs = [-1, 1].map(s => ({ s, skinT: tubeMesh(skin), clothT: tubeMesh(trouserM), sock: limb(0.032, 0.03, sockM), shoe: (() => { const g = new THREE.Group(); me.add(g); g.userData.v = SHOE.make(g); return g; })() }));
+  const legs = [-1, 1].map(s => ({ s, skinT: tubeMesh(skin), clothT: tubeMesh(trouserM), sock: limb(0.032, 0.03, sockM), hipB: (() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), trouserM); m.castShadow = true; me.add(m); return m; })(), shoe: (() => { const g = new THREE.Group(); me.add(g); g.userData.v = SHOE.make(g); return g; })() }));
   const EYE = P(-0.05, 1.39);   // (where the eye is, on the bike)
   // the rest of me: the pelvis on the saddle, the torso leaning a little forward over the bars, the shoulders; the neck and the head drawn
   // only into the shadows (the eye is inside it), with hair, or in the cold the fur hat with its ear flaps tied up
@@ -10152,6 +10186,7 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     const prof = [[0, -0.02], [0.112, -0.016], [0.121, 0.04], [0.126, 0.12], [0.138, 0.2], [0.146, 0.25], [0.139, 0.282], [0.1, 0.305], [0.052, 0.316], [0, 0.318]].map(([r, y]) => [r * 0.86, y]);   // (a twelve-year-old's chest: 25 cm across, 16 deep)
     const torso = new THREE.Mesh(new THREE.BufferGeometry(), sleeveM); torso.castShadow = true; me.add(torso);   // (its skin made when it's first needed)
     const pelvis = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), trouserM); pelvis.position.set(SC.x + 0.005, SC.y + 0.095, 0); pelvis.scale.set(0.09, 0.072, 0.112); pelvis.castShadow = true; me.add(pelvis);
+    { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), trouserM); m.position.set(SC.x - 0.064, SC.y + 0.088, 0); m.scale.set(0.088, 0.046, 0.098); m.castShadow = true; me.add(m); }   // the seat, low on the saddle's broad back and out to its edge (the saddle's back no longer showing behind me), sloping up into the pelvis
     const shoulders = [];   // (in the torso's skin now)
     const head = new THREE.Group(); head.position.set(EYE.x - 0.058, EYE.y + 0.018, 0); head.rotation.z = -0.12; me.add(head);
     const part = (geo, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, ghost); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; head.add(m); return m; };
@@ -10315,10 +10350,12 @@ const BIKE = (() => { const up = new V3(0, 1, 0), X = new V3(1, 0, 0), Z = new V
     root.position.set(st.x, st.ky, st.z); root.rotation.set(st.lean, st.head + Math.PI / 2, 0); root.updateMatrixWorld(true);
     // me on it: the hips on the saddle, the feet on the pedals, the knees forward; the shoulders behind the bars, the elbows out
     frame.updateMatrixWorld(true); const toMe = (v) => me.worldToLocal(v);
-    for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.105, 0.088, 0));
-      const knee = ik(hip, ank, 0.39, 0.38, P(1, 0.15, lg.s * 0.25)), Lp = limbPath(hip.clone().addScaledVector(knee.clone().sub(hip).normalize(), -0.02), knee, ank, LEG_UP, LEG_LO, 0.08, null, ZL);
-      if (st.summer){ const c = Lp.sA * 0.72; fillTube(lg.clothT, Lp, 0, c, 0.011, 0.006); fillTube(lg.skinT, Lp, c - 0.04, Lp.sEnd, 0, 0); lg.skinT.visible = true; }   // (shorts, and bare knees)
-      else { fillTube(lg.clothT, Lp, 0, Lp.sEnd, 0.005, 0.003); lg.skinT.visible = false; }
+    for (const lg of legs){ const pw = pedals[lg.s > 0 ? 1 : 0].getWorldPosition(new V3()); const foot = toMe(pw), hip = P(SC.x + 0.02, SC.y + 0.06, lg.s * 0.085), ank = foot.clone().add(P(-0.114, 0.088, 0));
+      const knee = ik(hip, ank, 0.39, 0.38, P(1, 0.15, lg.s * 0.25)), shin = ank.clone().sub(knee).normalize();
+      const Lp = limbPath(hip.clone().addScaledVector(knee.clone().sub(hip).normalize(), -0.02), knee, ank, LEG_UP, LEG_LO, 0.08, null, ZL, ank.clone().addScaledVector(shin, 0.022), LEG_HEM);
+      if (st.summer){ const c = Lp.sA * 0.72; fillTube(lg.clothT, Lp, 0, c, 0.011, 0.006); fillTube(lg.skinT, Lp, c - 0.04, Lp.sW, 0, 0); lg.skinT.visible = true; }   // (shorts, and bare knees)
+      else { fillTube(lg.clothT, Lp, 0, Lp.sEnd, 0.005, 0.022); lg.skinT.visible = false; }   // (the trousers down over the shoe's top, hanging straight and a little wider at the hem)
+      lg.hipB.position.copy(Lp.pts[0]); lg.hipB.scale.setScalar(Lp.rad[0][0] + (st.summer ? 0.011 : 0.005));   // (the top of the thigh closed, round, into the seat)
       span(lg.sock, ank.clone().add(P(0, -0.02, 0)), ank.clone().add(P(0, 0.05, 0)));
       lg.shoe.position.copy(foot.clone().add(P(0, 0.012, 0))); lg.shoe.rotation.set(0, 0, 0); }
     for (const am of arms){ const h = hands[am.s > 0 ? 1 : 0], sh = SHO(am.s); me.getWorldQuaternion(meQ).invert();

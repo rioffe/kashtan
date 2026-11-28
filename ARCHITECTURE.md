@@ -428,7 +428,13 @@ Call it after changing the mode, season, time, weather or language.
   `summonCat` is the secret, and `catScare` runs when you kick the tree.
 - **Birds** (`BIRDS`) switch between flying and perching, and all fly off when the trunk is kicked.
 - **The bike** (`BIKE`) is a closure module with its own model, physics and interface: `mount`, `dismount`, `step`, `update`,
-  `parkHere`, `bell`, `riding`, `roll`.
+  `parkHere`, `bell`, `riding`, `roll`. Its reflectors (front, back, the pedals') are retroreflective: their material
+  (`retro`) wraps three's `RE_Direct`, so every light, the street lamps' too, sends some of its light straight back, and a
+  reflector blazes in its colour only when that light is right behind the eye. Under the smooth face, a normal map of
+  corner-cube prisms makes them glint. In our yard and lane it rides on what is laid on the ground (`layerTop`: the lane's
+  dirt, the trodden ring round the chestnut, the paths, each a centimetre or two up), not through it. Those layers
+  (`flatMat`) are pulled towards the eye mostly by a fixed depth step and only a little by their slope, so seen low
+  along the ground they don't draw over the bottom of the tyres.
 - **The fire and chestnuts.** `fire` and `updateFire` handle the flames, embers, smoke and sparks once you roast. Chestnuts
   (`NUTs`, `spawnNut`, `updateNuts`) are gathered by walking over them.
 - **Snowmen** (`SNOWMEN`, `makeSnowman`, `updateSnowmen`) are built in stages and melt as `S` moves into spring.
