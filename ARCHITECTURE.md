@@ -437,7 +437,13 @@ Call it after changing the mode, season, time, weather or language.
   replays game 6 of Fischer–Spassky 1972, and `reflect()` mirrors the pieces in the board. The figurine is a glTF loaded after the
   room is built. Each object on the table has a camera preset in `desk.views[k]`, with its orbit limits. The Zenit-3M on the
   bookshelf (`desk.views.zenit`) is built in millimetres and scaled down; its `dmax` keeps the orbit out of the books round its gap
-  (`ZEN`), and its metal mirrors an environment of its own, set through `desk.envM` by `CHESS.lod`. The books' spines are painted at 32 x 256; while the Zenit's close view is open, `desk.sharp` repaints the ones near it finer (up to 8x, a few a frame) and lets them go on stepping back.
+  (`ZEN`), and its metal mirrors an environment of its own, set through `desk.envM` by `CHESS.lod`.
+  The books on the shelf are cloth-bound hardbacks (rounded spine, boards proud of the page block, headbands, foil bands, some
+  with a label) and a few paperbacks, all in two merged meshes, cloth and pages. Their sizes and colours still come from the world's
+  `rng`; their styles from a sequence of their own. A book leans only into a real gap (never the Zenit's), turned about its bottom
+  edge until it rests on its neighbour, which then stands; no book is placed where it would run into the case's side. Each title is set from `sdfAtlas`, a single-channel distance-field atlas with one
+  cell per title layout, drawn by the cloth material's shader with a smoothstep, so the lettering stays sharp at any distance. An
+  invisible box per book in `BOOKS` takes the pointer, and its `userData.glow` lights that book through the shader's `uHi`.
 - **St. Gertrude's clock.** `CHURCH_CLOCK(hour)` turns its hands.
 
 ## Audio

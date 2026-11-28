@@ -1394,9 +1394,9 @@ function toggleWindow(){ winOpen.target = winOpen.target ? 0 : 1; sfx.creak(); i
 function toggleLamp(){ deskLamp.on = !deskLamp.on; sfx.click(); }
 function deskView(k){ desk.f = k; const v = desk.views[k || 'seat']; desk.yaw = v.yaw; desk.pitch = v.pitch; desk.d = v.d; }
 function sitDesk(on, k = null){ if (on === desk.on || mode !== 'window') return; desk.on = on; desk.snap = false; const was = desk.home; desk.home = on ? k : null;   // (k: 'chess' to sit on the sofa by the chessboard)
-  if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(k); camera.near = 0.03; camera.updateProjectionMatrix(); if (k === 'zenit') desk.sharp(true, desk.views.zenit.t);
+  if (on){ desk.cp.copy(camera.position); const fw = new THREE.Vector3(); camera.getWorldDirection(fw); desk.ct.copy(camera.position).addScaledVector(fw, 0.8); deskView(k); camera.near = 0.03; camera.updateProjectionMatrix();
     caption(k === 'chess' ? (TOUCH ? 'Dad’s chess set, the pieces set up for a game. Drag to look around it; ↩︎ to get up.' : 'Dad’s chess set, the pieces set up for a game. Drag to look around it; Esc to get up.') : k === 'zenit' ? (TOUCH ? 'My Zenit-3M, on the shelf among the books. Drag to look it over; tap it again to take a picture; ↩︎ to step back.' : 'My Zenit-3M, on the shelf among the books. Drag to look it over; click it again to take a picture; Esc to step back.') : pick(TOUCH ? ['I sat down at my table. Tap anything on it to look closer; ↩︎ to get up.', 'My table: the notebook, the calculator, the book, the bather. Tap to look closer; ↩︎ to get up.'] : ['I sat down at my table. Click anything on it to look closer; Esc to get up.', 'My table: the notebook, the calculator, the book, the bather. Click to look closer; Esc to get up.']), 6); }
-  else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat; desk.sharp(false);
+  else { desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); const v = desk.views.seat;
     if (was === 'chess'){ const t = desk.views.chess.t; camera.position.set(t.x + 1.0, WIN_POS.y, t.z + 0.2); cam.yaw = Math.PI / 2 + 0.15; cam.pitch = -0.55; }   // standing up from the sofa
     else if (was === 'zenit'){ const t = desk.views.zenit.t; camera.position.set(HOME.x + 0.42, WIN_POS.y, t.z + 0.28); cam.yaw = yawTo(camera.position, t); cam.pitch = -0.5; }   // a step back from the shelf
     else { camera.position.set(HOME.x + 0.45, WIN_POS.y, v.t.z + 0.1); cam.yaw = Math.PI / 2 + 0.2; cam.pitch = -0.35; } } }
@@ -1989,31 +1989,157 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
     'Перельман · Занимательная физика', 'Гамов · Мистер Томпкинс в стране чудес', 'Пушкин · Стихотворения', 'Лермонтов · Избранное', 'Тютчев · Стихотворения', 'Блок · Стихотворения и поэмы',
     'Есенин · Стихи', 'Ахматова · Бег времени', 'Пастернак · Стихотворения', 'Мандельштам · Стихотворения', 'Цветаева · Избранное', 'Маяковский · Стихи', 'Райнис · Стихи', 'Заболоцкий · Столбцы'];
   const COLS = ['#7a2a2a', '#2a4a6a', '#3a5a3a', '#6a5a3a', '#1e2a3a', '#8a6a2a', '#5a2a4a', '#2a2a2a', '#a08060', '#4a6a7a', '#8a3a1a'];
-  const plain = {}; let ti = 0;
+  let ti = 0;
   const ZEN = { s: 3, z: TB - 1.0, half: 0.12 };   // (the gap on the fourth shelf where my Zenit stands, below)
+  /* the books: most of them cloth-bound hardbacks, the boards a little proud of the pages, the back rounded and lettered in foil, a band or
+     two of foil at its head and foot, some with a dark label under the title; a few paperbacks among them, their spines flat and printed.
+     Their sizes and colours come from the world's sequence as before, the rest from a sequence of their own. All of them are two meshes,
+     the cloth and the pages; each title is set from a distance-field atlas (sdfAtlas), so it reads sharp however near you look */
+  const books = [];
   for (let s = 0; s < 5; s++){ let z = sz0 - 0.03;
     while (z > sz1 + 0.06){ const t = rnd(0.022, 0.05), hgt = rnd(0.2, 0.33), dep = rnd(0.16, 0.24), col = pick(COLS), title = TITLES[ti++ % TITLES.length];
       const gap = s === ZEN.s && z - t < ZEN.z + ZEN.half && z > ZEN.z - ZEN.half, lean = rng() < 0.06;   // (a book in the gap is drawn from the world's sequence all the same, so all after it stays where it was)
-      if (!gap){ const paint = (g, w, h) => { g.scale(w / 32, w / 32); w = 32; h = 256; g.fillStyle = col; g.fillRect(0, 0, w, h);   // (painted at 32 x 256; finer for a close look, see desk.sharp) g.fillStyle = 'rgba(220,190,110,.8)'; g.fillRect(0, 12, w, 2); g.fillRect(0, h - 14, w, 2);
-          g.save(); g.translate(w / 2 + 4, h - 22); g.rotate(-Math.PI / 2); g.fillStyle = '#ecdcae'; g.font = '11px Georgia'; g.fillText(title.length > 34 ? title.slice(0, 33) + '…' : title, 0, 0); g.restore(); }, spine = tex(32, 256, paint);
-        plain[col] = plain[col] || new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 });
-        const sm = new THREE.MeshStandardMaterial({ map: spine, roughness: 0.75 });
-        const bk = new THREE.Mesh(new THREE.BoxGeometry(dep, hgt, t), [plain[col], sm, plain[col], plain[col], plain[col], plain[col]]);
-        bk.position.set(x1 - 0.02 - dep / 2, shelvesY[s] + hgt / 2, z - t / 2); if (lean) bk.rotation.x = 0.12;
-        bk.userData.title = title; bk.userData.paint = paint; room.add(bk); BOOKS.push(bk); }
+      const wall = z - t < sz1 + 0.021;   // (nor one that would run into the case's side: the row ends short of it)
+      if (!gap && !wall) books.push({ t, hgt, dep, col, title, lean, s, za: z - t, zb: z, c: new V3(x1 - 0.02 - dep / 2, shelvesY[s] + hgt / 2, z - t / 2), id: books.length });
       z -= t + (rng() < 0.08 ? rnd(0.03, 0.1) : 0.002); } }
-  // the spines are painted at a pixel to the millimetre, plenty from across the room; looking at my Zenit from a hand's breadth away, the books
-  // round it are painted again, finer the nearer they stand, the nearest first, a few a frame; on stepping back the fine ones are let go
-  desk.sharp = (on, p) => { const q = [];
-    for (const bk of BOOKS){ const u = bk.userData, m = Array.isArray(bk.material) && bk.material[1]; if (!u.paint) continue;
-      if (!on){ if (u.lo){ m.map.dispose(); m.map = u.lo; u.lo = null; } continue; }
-      const d = bk.position.distanceTo(p); if (d < 0.5 && !u.lo) q.push([d, bk]); }
-    q.sort((a, b) => a[0] - b[0]);
-    const step = () => { if (!desk.on || desk.home !== 'zenit') return;
-      for (let i = 0; i < 3 && q.length; i++){ const [d, bk] = q.shift(), u = bk.userData, m = bk.material[1], k = d < 0.3 ? (TOUCH ? 4 : 8) : (TOUCH ? 2 : 4), t = tex(32 * k, 256 * k, u.paint);
-        renderer.initTexture(t); t.image.width = t.image.height = 1; u.lo = m.map; m.map = t; }   // (sent to the GPU, the canvas let go at once)
-      if (q.length) requestAnimationFrame(step); };
-    if (on) step(); };
+  {
+    const BR = mkRng(1937), bp = a => a[Math.floor(BR() * a.length)], FN = 36, FONT = `${FN}px Georgia, 'Times New Roman', serif`, mg = document.createElement('canvas').getContext('2d'); mg.font = FONT;
+    const C = h => new THREE.Color(h), lum = c => 0.3 * c.r + 0.59 * c.g + 0.11 * c.b, em = s => mg.measureText(s).width / FN;
+    const GOLD = C('#d8b060'), SILVER = C('#d2d3cc'), INK = C('#1a1712'), CREAM = C('#ebe0c2'), FADE = C('#b4a68e'), CARD = C('#d9d2c2');
+    // a title in two lines: the author over the title, or a long title broken where its halves come out most even
+    const two = s => { const i = s.indexOf(' · '); if (i > 0) return [s.slice(0, i), s.slice(i + 3)]; const w = s.split(' '); if (w.length < 2) return null;
+      let k = 1; for (let j = 1, best = 1e9; j < w.length; j++){ const d = Math.abs(w.slice(0, j).join(' ').length - w.slice(j).join(' ').length); if (d < best){ best = d; k = j; } } return [w.slice(0, k).join(' '), w.slice(k).join(' ')]; };
+    const fit = (L, along, across) => Math.min(across / (L.length * 1.2), along / Math.max(...L.map(em)), 0.0068);   // (the letters' em, in metres: as big as the spine allows, never shouting)
+    const NS = 10;
+    for (const b of books){ const cl = C(b.col), light = lum(cl) > 0.15, h = b.t / 2;
+      b.paper = /^(Квант|Задачи)/.test(b.title) || BR() < 0.12;
+      b.page = C(BR() < 0.3 ? '#dccfa6' : BR() < 0.5 ? '#efe8d5' : '#e7ddc2');
+      if (b.paper){ [b.ink, b.met] = [light ? INK : CREAM, 0]; b.panel = BR() < 0.6 ? C(light ? '#2a2420' : '#d9ccae') : null; b.bands = []; b.sc = cl; b.S = b.t; }
+      else { const r = BR(); [b.ink, b.met] = light ? (r < 0.45 ? [INK, 0] : [GOLD, 1]) : r < 0.66 ? [GOLD, 1] : r < 0.84 ? [SILVER, 1] : [CREAM, 0];
+        b.label = BR() < 0.22 ? C(BR() < 0.5 ? '#151311' : '#5c1a14') : null; if (b.label) [b.ink, b.met] = [GOLD, 1];
+        const st = BR(); b.bands = st < 0.35 ? [[0.0135, 0.0011], [0.0172, 0.0011]] : st < 0.6 ? [[0.0115, 0.0026], [0.0166, 0.0009]] : st < 0.8 ? [[0.014, 0.0016]] : [];   // (in from the head and the foot: where, how wide)
+        b.bt = 0.0021 + BR() * 0.0008; b.sq = 0.0022 + BR() * 0.001; b.bulge = BR() < 0.15 ? 0.0008 : Math.min(0.005, b.t * 0.12); b.hbc = C(bp(['#8a2420', '#e6dcc4', '#283a66', '#3a5e36', '#c49a3c']));
+        b.sc = cl.clone().lerp(FADE, 0.1);   // (the spine a little faded by the light, the boards not)
+        b.sp = []; for (let i = 0; i <= NS; i++){ const u = i / NS * 2 - 1, d = 2 * b.bulge * u / h, l = Math.hypot(1, d); b.sp.push({ x: -b.dep / 2 + b.bulge * u * u, z: u * h, n: [-1 / l, 0, d / l], s: 0 }); }
+        for (let i = 1; i <= NS; i++) b.sp[i].s = b.sp[i - 1].s + Math.hypot(b.sp[i].x - b.sp[i - 1].x, b.sp[i].z - b.sp[i - 1].z); b.S = b.sp[NS].s; for (const q of b.sp) q.s -= b.S / 2; }
+      const foot = b.paper ? 0.012 : b.bands.length ? 0.026 : 0.014, head = b.panel ? 0.056 : foot, along = (b.hgt - foot - head) * 0.88, across = b.S * 0.72;
+      const L1 = [b.title], L2 = two(b.title), f1 = fit(L1, along, across), f2 = L2 ? fit(L2, along, across) : 0;
+      [b.L, b.f] = f2 > f1 * 1.12 ? [L2, f2] : [L1, f1]; b.yc = -b.hgt / 2 + foot + (b.hgt - foot - head) / 2; b.key = b.L.join('\n');
+      if (b.label){ const l = Math.max(...b.L.map(em)) * b.f / 2 + 0.006; b.lab = [b.yc - l, b.yc + l]; } }
+    // leaning: a book leans only into room it has, beside a gap in the row or at the shelf's end (never into my Zenit's), tipping on its bottom
+    // edge until it rests on its neighbour, its top corner on the neighbour's side or its side on the neighbour's top edge; the one it rests on stands
+    for (let s = 0; s < 5; s++){ const row = books.filter(b => b.s === s).sort((p, q) => p.za - q.za);
+      row.forEach((b, i) => { const L = row[i - 1], R = row[i + 1], r = BR(); if (b.support || !(b.lean || r < 0.45)) return;   // (the world's lean, or often a book beside a gap)
+        const zen = (a, z) => s === ZEN.s && Math.abs((a + z) / 2 - ZEN.z) < ZEN.half;
+        const sides = [[-1, L ? L.zb : sz1 + 0.02, b.za, L], [1, b.zb, R ? R.za : sz0 - 0.02, R]].map(([d, a, z, n]) => [d, z - a, n, zen(a, z)])
+          .filter(([d, g, n, zg]) => g > 0.006 && !zg && !(n && n.dir)).sort((p, q) => q[1] - p[1]);
+        if (!sides.length) return; const [d, g, n] = sides[0], gg = g - 0.0008, Hn = n ? n.hgt : 9, t1 = Math.asin(Math.min(1, gg / b.hgt)), th = b.hgt * Math.cos(t1) <= Hn ? t1 : Math.atan(gg / Hn);   // (its corner on a taller neighbour's side, else its side on the neighbour's edge)
+        if (th < 0.035 || th > 0.45) return; b.dir = d; b.th = th; if (n) n.support = true; }); }
+    for (const b of books){ const M4 = () => new THREE.Matrix4(); b.m = M4().makeTranslation(b.c.x, b.c.y, b.c.z);
+      if (b.dir){ const y = b.c.y - b.hgt / 2, z = b.dir > 0 ? b.zb : b.za; b.m = M4().makeTranslation(b.c.x, y, z).multiply(M4().makeRotationX(b.dir * b.th)).multiply(M4().makeTranslation(0, b.hgt / 2, b.c.z - z)); } }   // (turned about the edge it stands on)
+
+    // the titles as a distance field: each set once in white on black, then every texel given its distance to the letters' edge (the
+    // Felzenszwalb-Huttenlocher transform, as in Mapbox's tiny-sdf), 0.5 on the edge; drawn with a smoothstep, the edge stays sharp however magnified
+    const sdfAtlas = keys => { const R = 6, pad = R + 3, LH = Math.round(FN * 1.2), W = 2048, cells = new Map(), INF = 1e20;
+      for (const k of keys){ const L = k.split('\n'); cells.set(k, { L, w: Math.ceil(Math.max(...L.map(s => mg.measureText(s).width))) + 2 * pad, h: L.length * LH + 2 * pad }); }
+      let x = 0, y = 0, rh = 0; for (const c of [...cells.values()].sort((a, b) => b.h - a.h)){ if (x + c.w > W){ x = 0; y += rh; rh = 0; } c.x = x; c.y = y; x += c.w; rh = Math.max(rh, c.h); }
+      const H = Math.ceil((y + rh) / 4) * 4, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+      g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff'; g.font = FONT; g.textAlign = 'center'; g.textBaseline = 'middle';
+      for (const c of cells.values()) c.L.forEach((s, i) => g.fillText(s, c.x + c.w / 2, c.y + pad + (i + 0.5) * LH));
+      const px = g.getImageData(0, 0, W, H).data, out = new Uint8Array(W * H), n = Math.max(W, H), f = new Float64Array(n), v = new Uint16Array(n), zz = new Float64Array(n + 1);
+      const e1 = (gr, o, st, len) => { v[0] = 0; zz[0] = -INF; zz[1] = INF; f[0] = gr[o];
+        for (let q = 1, k = 0, s = 0; q < len; q++){ f[q] = gr[o + q * st]; const q2 = q * q; do { const r = v[k]; s = (f[q] - f[r] + q2 - r * r) / (q - r) / 2; } while (s <= zz[k] && --k > -1); k++; v[k] = q; zz[k] = s; zz[k + 1] = INF; }
+        for (let q = 0, k = 0; q < len; q++){ while (zz[k + 1] < q) k++; const r = v[k], d = q - r; gr[o + q * st] = f[r] + d * d; } };
+      for (const c of cells.values()){ const { w, h } = c, go = new Float64Array(w * h), gi = new Float64Array(w * h);
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++){ const a = px[((c.y + j) * W + c.x + i) * 4] / 255, k = j * w + i;
+          if (a >= 1){ go[k] = 0; gi[k] = INF; } else if (a <= 0){ go[k] = INF; gi[k] = 0; } else { const d = 0.5 - a; go[k] = d > 0 ? d * d : 0; gi[k] = d < 0 ? d * d : 0; } }
+        for (const gr of [go, gi]){ for (let i = 0; i < w; i++) e1(gr, i, w, h); for (let j = 0; j < h; j++) e1(gr, j * w, 1, w); }
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++){ const k = j * w + i; out[(c.y + j) * W + c.x + i] = Math.max(0, Math.min(255, Math.round(255 * (0.5 - (Math.sqrt(go[k]) - Math.sqrt(gi[k])) / (2 * R))))); } }
+      cv.width = cv.height = 1;
+      const tx = new THREE.DataTexture(out, W, H, THREE.RedFormat); tx.minFilter = THREE.LinearMipmapLinearFilter; tx.magFilter = THREE.LinearFilter; tx.generateMipmaps = true; tx.anisotropy = 8; tx.needsUpdate = true;
+      return { tx, cells, W, H }; };
+    const AT = sdfAtlas([...new Set(books.map(b => b.key))]);
+
+    // the meshes, built straight into arrays: each vertex its position, normal, uv (the cloth's weave, or the page edges), colour, and the
+    // book it belongs to (for the glow under the pointer); the cloth's also where it falls in the title's cell, the cell, the lettering's colour, and whether it is foil
+    const AC = { P: [], N: [], U: [], C: [], I: [], T: [], K: [], H: [], M: [] }, AP = { P: [], N: [], U: [], C: [], I: [] };
+    const mat = new THREE.Matrix4(), nm = new THREE.Matrix3(), _p = new V3(), _n = new V3(), _a = new V3(), _b = new V3(), _c = new V3(); let b = null, cell = null;
+    const V = (p, n, uv, c, met = 0, ys = null) => ({ p, n, uv, c, met, ys });
+    const put = (A, v) => { _p.fromArray(v.p).applyMatrix4(mat); _n.fromArray(v.n).applyMatrix3(nm).normalize(); A.P.push(_p.x, _p.y, _p.z); A.N.push(_n.x, _n.y, _n.z); A.U.push(v.uv[0], v.uv[1]); A.C.push(v.c.r, v.c.g, v.c.b); A.I.push(b.id);
+      if (A !== AC) return; if (v.ys){ const [y, s] = v.ys; A.T.push((cell.x + cell.w / 2 + (y - b.yc) * FN / b.f) / AT.W, (cell.y + cell.h / 2 + s * FN / b.f) / AT.H); A.K.push(...b.K); } else { A.T.push(0, 0); A.K.push(0, 0, 0, 0); }
+      A.H.push(b.ink.r, b.ink.g, b.ink.b, b.met); A.M.push(v.met); };
+    const tri = (A, a, c1, c2) => { _a.fromArray(c1.p).sub(_c.fromArray(a.p)); _b.fromArray(c2.p).sub(_c); if (_a.cross(_b).dot(_c.fromArray(a.n)) < 0) [c1, c2] = [c2, c1]; put(A, a); put(A, c1); put(A, c2); };   // (wound to face its normal)
+    const quad = (A, a, c1, c2, d) => { tri(A, a, c1, c2); tri(A, a, c2, d); };
+    const fan = (A, pts, y, ny, c, uv) => { const m = pts.reduce((s, q) => [s[0] + q[0] / pts.length, s[1] + q[1] / pts.length], [0, 0]), vt = q => V([q[0], y, q[1]], [0, ny, 0], uv(q), c);
+      for (let i = 0; i < pts.length; i++) tri(A, vt(m), vt(pts[i]), vt(pts[(i + 1) % pts.length])); };
+    const wv = (u, v) => [u / 0.005, v / 0.005], SMOOTH = [0.5, 0.5];   // (the weave: 5 mm to the tile)
+    // up a spine, the bands of it: [from, to, colour at the foot, at the head, foil, smooth]
+    const rowsOf = (Y0, Y1, sc, marks, wear) => { const R = [], ms = [...marks].sort((p, q) => p[0] - q[0]); let y = Y0;
+      if (wear){ R.push([Y0, Y0 + 0.004, wear, sc, 0, 0]); y = Y0 + 0.004; }
+      for (const [a, z, c, m] of ms){ if (a > y) R.push([y, a, sc, sc, 0, 0]); R.push([a, z, c, c, m, 1]); y = z; }
+      const top = wear ? Y1 - 0.004 : Y1; if (top > y) R.push([y, top, sc, sc, 0, 0]); if (wear) R.push([top, Y1, sc, wear, 0, 0]); return R; };
+    const hard = () => { const X0 = -b.dep / 2, X1 = b.dep / 2, Y0 = -b.hgt / 2, Y1 = b.hgt / 2, h = b.t / 2, bt = b.bt, sq = b.sq, sp = b.sp, xa = X0 + b.bulge + bt;
+      const edge = b.sc.clone().multiplyScalar(0.85), side = C(b.col), sideEdge = side.clone().multiplyScalar(0.85), wear = b.sc.clone().lerp(FADE, 0.4);
+      const marks = []; for (const [d, w] of b.bands) marks.push([Y0 + d, Y0 + d + w, b.ink, b.met], [Y1 - d - w, Y1 - d, b.ink, b.met]); if (b.lab) marks.push([b.lab[0], b.lab[1], b.label, 0]);
+      for (const [ya, yb, ca, cb, met, sm] of rowsOf(Y0, Y1, b.sc, marks, wear)) for (let i = 0; i < NS; i++){ const p = sp[i], q = sp[i + 1], U = (r, y) => sm ? SMOOTH : wv(r.s, y);
+        quad(AC, V([p.x, ya, p.z], p.n, U(p, ya), ca, met, [ya, p.s]), V([q.x, ya, q.z], q.n, U(q, ya), ca, met, [ya, q.s]), V([q.x, yb, q.z], q.n, U(q, yb), cb, met, [yb, q.s]), V([p.x, yb, p.z], p.n, U(p, yb), cb, met, [yb, p.s])); }
+      for (const [y, ny] of [[Y1, 1], [Y0, -1]]) for (let i = 0; i < NS; i++){ const p = sp[i], q = sp[i + 1], n = [0, ny, 0];   // (the spine's cloth over its stiffening, seen edge on at head and foot)
+        quad(AC, V([p.x, y, p.z], n, wv(p.s, 0), edge), V([q.x, y, q.z], n, wv(q.s, 0), edge), V([q.x + bt, y, q.z], n, wv(q.s, 1), edge), V([p.x + bt, y, p.z], n, wv(p.s, 1), edge)); }
+      for (const g of [-1, 1]){ const zo = g * h, zi = g * (h - bt), n = [0, 0, g];   // the boards
+        quad(AC, V([X0 + b.bulge, Y0, zo], n, wv(X0, Y0), side), V([X1, Y0, zo], n, wv(X1, Y0), side), V([X1, Y1, zo], n, wv(X1, Y1), side), V([X0 + b.bulge, Y1, zo], n, wv(X0, Y1), side));
+        for (const [y, ny] of [[Y1, 1], [Y0, -1]]) quad(AC, V([xa, y, zi], [0, ny, 0], wv(xa, 0), sideEdge), V([X1, y, zi], [0, ny, 0], wv(X1, 0), sideEdge), V([X1, y, zo], [0, ny, 0], wv(X1, 0.5), sideEdge), V([xa, y, zo], [0, ny, 0], wv(xa, 0.5), sideEdge));
+        quad(AC, V([X1, Y0, zi], [1, 0, 0], wv(Y0, 0), sideEdge), V([X1, Y1, zi], [1, 0, 0], wv(Y1, 0), sideEdge), V([X1, Y1, zo], [1, 0, 0], wv(Y1, 0.5), sideEdge), V([X1, Y0, zo], [1, 0, 0], wv(Y0, 0.5), sideEdge));
+        const ep = b.page.clone().lerp(CREAM, 0.5), ni = [0, 0, -g];   // (the endpaper, inside the board above the pages)
+        quad(AP, V([xa, Y1 - sq - 0.0005, zi], ni, SMOOTH, ep), V([X1, Y1 - sq - 0.0005, zi], ni, SMOOTH, ep), V([X1, Y1, zi], ni, SMOOTH, ep), V([xa, Y1, zi], ni, SMOOTH, ep)); }
+      // the pages: their back rounded with the spine's, their edges striped with the leaves
+      const zl = h - bt - 0.0002, fr = sp.map(p => { const z = Math.max(-zl, Math.min(zl, p.z)); return [X0 + b.bulge * (z / h) ** 2 + bt + 0.0003, z]; }), poly = [...fr, [X1 - sq, zl], [X1 - sq, -zl]];
+      fan(AP, poly, Y1 - sq, 1, b.page, q => [q[1] / 0.012, q[0] / 0.05]); fan(AP, poly, Y0 + sq, -1, b.page, q => [q[1] / 0.012, q[0] / 0.05]);
+      quad(AP, V([X1 - sq, Y0 + sq, -zl], [1, 0, 0], [-zl / 0.012, 0], b.page), V([X1 - sq, Y0 + sq, zl], [1, 0, 0], [zl / 0.012, 0], b.page), V([X1 - sq, Y1 - sq, zl], [1, 0, 0], [zl / 0.012, 4], b.page), V([X1 - sq, Y1 - sq, -zl], [1, 0, 0], [-zl / 0.012, 4], b.page));
+      const yh = Y1 - sq + 0.0012;   // the headband: silk thread over a cord, along the pages' back at the head
+      for (let i = 0; i < NS; i++){ const [px_, pz] = fr[i], [qx, qz] = fr[i + 1];
+        quad(AP, V([px_, yh, pz], [0, 1, 0], [pz / 0.003, 0], b.hbc), V([qx, yh, qz], [0, 1, 0], [qz / 0.003, 0], b.hbc), V([qx + 0.0019, yh, qz], [0, 1, 0], [qz / 0.003, 0.1], b.hbc), V([px_ + 0.0019, yh, pz], [0, 1, 0], [pz / 0.003, 0.1], b.hbc));
+        quad(AP, V([px_ + 0.0019, Y1 - sq, pz], [1, 0, 0], [pz / 0.003, 0], b.hbc), V([qx + 0.0019, Y1 - sq, qz], [1, 0, 0], [qz / 0.003, 0], b.hbc), V([qx + 0.0019, yh, qz], [1, 0, 0], [qz / 0.003, 0.1], b.hbc), V([px_ + 0.0019, yh, pz], [1, 0, 0], [pz / 0.003, 0.1], b.hbc)); } };
+    const soft = () => { const X0 = -b.dep / 2, X1 = b.dep / 2, Y0 = -b.hgt / 2, Y1 = b.hgt / 2, h = b.t / 2, ct = 0.0006, zc = h - ct, cv = C(b.col);
+      const rows = rowsOf(Y0, Y1, cv, b.panel ? [[Y1 - 0.05, Y1, b.panel, 0]] : [], null);
+      for (const [ya, yb, ca, cb] of rows){   // the spine, flat, and the covers, the printed panel carried round onto them
+        quad(AC, V([X0, ya, -h], [-1, 0, 0], SMOOTH, ca, 0, [ya, -h]), V([X0, ya, h], [-1, 0, 0], SMOOTH, ca, 0, [ya, h]), V([X0, yb, h], [-1, 0, 0], SMOOTH, cb, 0, [yb, h]), V([X0, yb, -h], [-1, 0, 0], SMOOTH, cb, 0, [yb, -h]));
+        for (const g of [-1, 1]) quad(AC, V([X0, ya, g * h], [0, 0, g], SMOOTH, ca), V([X1, ya, g * h], [0, 0, g], SMOOTH, ca), V([X1, yb, g * h], [0, 0, g], SMOOTH, cb), V([X0, yb, g * h], [0, 0, g], SMOOTH, cb)); }
+      for (const [y, ny] of [[Y1, 1], [Y0, -1]]){ const n = [0, ny, 0];   // the card's cut edges
+        quad(AC, V([X0, y, -zc], n, SMOOTH, CARD), V([X0 + ct, y, -zc], n, SMOOTH, CARD), V([X0 + ct, y, zc], n, SMOOTH, CARD), V([X0, y, zc], n, SMOOTH, CARD));
+        for (const g of [-1, 1]) quad(AC, V([X0, y, g * zc], n, SMOOTH, CARD), V([X1, y, g * zc], n, SMOOTH, CARD), V([X1, y, g * h], n, SMOOTH, CARD), V([X0, y, g * h], n, SMOOTH, CARD)); }
+      for (const g of [-1, 1]) quad(AC, V([X1, Y0, g * zc], [1, 0, 0], SMOOTH, CARD), V([X1, Y1, g * zc], [1, 0, 0], SMOOTH, CARD), V([X1, Y1, g * h], [1, 0, 0], SMOOTH, CARD), V([X1, Y0, g * h], [1, 0, 0], SMOOTH, CARD));
+      const zl = zc - 0.0001, xb = X1 - 0.0003, poly = [[X0 + ct, -zl], [X0 + ct, zl], [xb, zl], [xb, -zl]];
+      fan(AP, poly, Y1 - 0.0004, 1, b.page, q => [q[1] / 0.012, q[0] / 0.05]); fan(AP, poly, Y0 + 0.0004, -1, b.page, q => [q[1] / 0.012, q[0] / 0.05]);
+      quad(AP, V([xb, Y0, -zl], [1, 0, 0], [-zl / 0.012, 0], b.page), V([xb, Y0, zl], [1, 0, 0], [zl / 0.012, 0], b.page), V([xb, Y1 - 0.0004, zl], [1, 0, 0], [zl / 0.012, 4], b.page), V([xb, Y1 - 0.0004, -zl], [1, 0, 0], [-zl / 0.012, 4], b.page)); };
+    const pickM = new THREE.MeshBasicMaterial({ visible: false }), BU = { uHi: { value: -1 }, uGlow: { value: new THREE.Color('#3a2c10') }, tSdf: { value: AT.tx } };
+    for (b of books){ cell = AT.cells.get(b.key); b.K = [(cell.x + 1) / AT.W, (cell.y + 1) / AT.H, (cell.x + cell.w - 1) / AT.W, (cell.y + cell.h - 1) / AT.H];
+      mat.copy(b.m); nm.getNormalMatrix(mat); (b.paper ? soft : hard)();
+      const pk = new THREE.Mesh(new THREE.BoxGeometry(b.dep, b.hgt, b.t), pickM); pk.matrixAutoUpdate = false; pk.matrix.copy(b.m);   // (what the pointer finds: a box round it)
+      const id = b.id; pk.userData.title = b.title; pk.userData.glow = on => { BU.uHi.value = on ? id : -1; }; room.add(pk); BOOKS.push(pk); }
+
+    // the weave of the cloth, and the leaves' edges
+    const weave = tex(64, 64, (g, w, h) => { const r = mkRng(77); g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 16; i++){ g.fillStyle = `rgba(0,0,0,${0.06 + r() * 0.08})`; g.fillRect(0, i * 4 + 3, w, 1); g.fillStyle = `rgba(0,0,0,${0.04 + r() * 0.06})`; g.fillRect(i * 4 + 2, 0, 1, h); } });
+    const leaves = tex(256, 4, (g, w, h) => { const r = mkRng(91); for (let i = 0; i < w; i++){ const l = 236 + r() * 19 | 0; g.fillStyle = `rgb(${l},${l},${l - 4})`; g.fillRect(i, 0, 1, h); } });
+    const hook = txt => sh => { Object.assign(sh.uniforms, BU);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aId; varying float vId;' + (txt ? '\nattribute vec2 aT; attribute vec4 aCell; attribute vec4 aInk; attribute float aMet; varying vec2 vT; varying vec4 vCell; varying vec4 vInk; varying float vMet;' : ''))
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvId = aId;' + (txt ? ' vT = aT; vCell = aCell; vInk = aInk; vMet = aMet;' : ''));
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uHi; uniform vec3 uGlow; varying float vId;' + (txt ? '\nuniform sampler2D tSdf; varying vec2 vT; varying vec4 vCell; varying vec4 vInk; varying float vMet;' : ''))
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += uGlow * (1.0 - step(0.5, abs(vId - uHi)));');
+      if (txt) sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+        float tm = 0.0;   // (the lettering: inside the title's cell, the distance field's edge drawn a pixel soft at any size)
+        if (vCell.z > vCell.x){ float d = texture2D(tSdf, clamp(vT, vCell.xy, vCell.zw)).r, w = clamp(fwidth(d) * 0.75, 0.002, 0.3); tm = smoothstep(0.5 - w, 0.5 + w, d); }
+        diffuseColor.rgb = mix(diffuseColor.rgb, vInk.rgb, tm); float foil = max(vMet, tm * vInk.a);`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.32, foil);')
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.5, foil);'); };   // (the foil half metal: its own gold shows in the room's light, and it catches the window)
+    const clothM = new THREE.MeshStandardMaterial({ vertexColors: true, map: weave, roughness: 0.84 }), pageM = new THREE.MeshStandardMaterial({ vertexColors: true, map: leaves, roughness: 0.9 });
+    clothM.onBeforeCompile = hook(true); clothM.customProgramCacheKey = () => 'books-cloth'; pageM.onBeforeCompile = hook(false); pageM.customProgramCacheKey = () => 'books-pages';
+    for (const [A, m] of [[AC, clothM], [AP, pageM]]){ const g = new THREE.BufferGeometry(), F = (k, a, n) => g.setAttribute(k, new THREE.Float32BufferAttribute(a, n));
+      F('position', A.P, 3); F('normal', A.N, 3); F('uv', A.U, 2); F('color', A.C, 3); F('aId', A.I, 1); if (A.T){ F('aT', A.T, 2); F('aCell', A.K, 4); F('aInk', A.H, 4); F('aMet', A.M, 1); }
+      g.computeBoundingSphere(); room.add(new THREE.Mesh(g, m)); }
+    desk.envM = [...(desk.envM || []), [clothM, 0.5]];   // (the foil catches the room's light, as the chessboard's lacquer does)
+  }
+  // (end of the books)
 
   /* ---------- my Zenit-3M, on the bookshelf among the books: the camera I had as a boy, made at Krasnogorsk in 1968, one of those sold at
      home ("Зенит 3м" in script on the prism's face, "СДЕЛАНО В СССР" on its back), with its Industar-50. As on every Zenit since the Zorki it
@@ -2151,7 +2277,7 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
       dark: new THREE.MeshStandardMaterial({ color: '#040405', roughness: 0.85 }),
       glass: new THREE.MeshPhysicalMaterial({ color: '#0b1016', roughness: 0.02, clearcoat: 1, clearcoatRoughness: 0, iridescence: 1, iridescenceIOR: 1.35, iridescenceThicknessRange: [260, 420], transparent: true, opacity: 0.55 }),   // (coated: purple and amber in its reflections)
       lea: new THREE.MeshStandardMaterial({ map: leaMap, bumpMap: leaBump, bumpScale: 1.5, roughness: 0.78 }) };
-    desk.envM = [[M.satin, 0.85, zenEnv], [M.chrome, 0.95, zenEnv], [M.enamel, 0.6, zenEnv], [M.anod, 0.5, zenEnv], [M.glass, 1.3, zenEnv]];
+    desk.envM = [...(desk.envM || []), [M.satin, 0.85, zenEnv], [M.chrome, 0.95, zenEnv], [M.enamel, 0.6, zenEnv], [M.anod, 0.5, zenEnv], [M.glass, 1.3, zenEnv]];
     for (const k in B){ const m = new THREE.Mesh(mergeGeometries(B[k]), M[k]); m.castShadow = m.receiveShadow = true; zen.add(m); }
 
     /* the engraving, filled black on the chrome, and the white figures on the black: drawn as decals over the parts */
@@ -2166,21 +2292,32 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
     const kmz = (g, x, y, s, lw) => { g.lineWidth = lw; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x - 0.52 * s, y + 0.1 * s); g.lineTo(x - 0.26 * s, y - 0.1 * s); g.lineTo(x + 0.26 * s, y - 0.1 * s); g.lineTo(x + 0.52 * s, y + 0.1 * s); g.closePath(); g.stroke();
       g.beginPath(); g.moveTo(x - 0.78 * s, y - 0.005 * s); g.lineTo(x - 0.4 * s, y); g.lineTo(x, y + 0.1 * s); g.lineTo(x + 0.4 * s, y); g.lineTo(x + 0.72 * s, y); g.stroke();
       g.beginPath(); g.moveTo(x + 0.8 * s, y); g.lineTo(x + 0.66 * s, y - 0.045 * s); g.lineTo(x + 0.66 * s, y + 0.045 * s); g.closePath(); g.fill(); };
-    // "Зенит 3м" in the factory's hand: strokes of cubic curves (x-height 1, on the line at 0), leaning forward
-    const SCRIPT = [
-      [0.02,1.62, 0.0,1.95,0.25,2.18,0.62,2.18, 1.0,2.18,1.32,2.02,1.22,1.72, 1.12,1.45,0.85,1.32,0.58,1.3, 0.78,1.3,0.72,1.2,0.62,1.24,
-       1.15,1.22,1.52,0.92,1.42,0.45, 1.32,0.02,0.9,-0.28,0.48,-0.24, 0.1,-0.2,-0.02,0.08,0.28,0.14, 0.7,0.22,1.35,0.12,1.78,0.42],   // З
-      [1.78,0.42, 2.08,0.6,2.28,0.86,2.12,0.98, 1.96,1.08,1.72,0.86,1.72,0.55, 1.72,0.15,1.92,-0.02,2.17,0.0, 2.37,0.02,2.47,0.12,2.57,0.25,   // е
-       2.64,0.45,2.68,0.8,2.7,1.0, 2.68,0.65,2.64,0.3,2.62,0.0], [2.66,0.5, 2.82,0.55,2.98,0.56,3.14,0.54],                                  // н
-      [3.18,1.0, 3.16,0.65,3.12,0.3,3.14,0.1, 3.16,-0.02,3.29,-0.02,3.39,0.15,
-       3.49,0.45,3.54,0.8,3.56,1.0, 3.54,0.6,3.5,0.2,3.6,0.06, 3.7,-0.06,3.92,0.02,3.99,0.35, 4.03,0.6,4.06,0.85,4.08,1.0, 4.06,0.65,4.02,0.25,4.08,0.08, 4.12,-0.02,4.24,-0.02,4.34,0.12,   // и
-       4.42,0.4,4.46,0.75,4.48,0.95, 4.46,0.6,4.44,0.3,4.42,0.0, 4.48,0.6,4.6,1.0,4.74,1.0, 4.88,1.0,4.9,0.6,4.86,0.0, 4.92,0.6,5.04,1.0,5.18,1.0, 5.32,1.0,5.32,0.6,5.3,0.15, 5.29,0.0,5.44,-0.05,5.62,0.14],   // т
-      [5.95,1.68, 6.1,2.05,6.85,2.1,6.85,1.7, 6.85,1.35,6.45,1.15,6.2,1.12, 6.8,1.05,7.05,0.55,6.85,0.1, 6.65,-0.4,6.0,-0.55,5.8,-0.2],   // 3
-      [7.15,0.02, 7.2,0.2,7.24,0.4,7.28,0.56, 7.33,0.4,7.38,0.25,7.43,0.1, 7.48,0.25,7.53,0.4,7.58,0.56, 7.6,0.35,7.62,0.15,7.66,0.0]];   // м
-    { const PX = 16, W = 46, H = 21, cx = OX, cy = 64.2;   // (on the prism's face: 46 x 21 mm at 16 px a millimetre)
-      decal(new THREE.PlaneGeometry(W, H).translate(cx, cy, MF + 0.02), W * PX, H * PX, (g, w, h) => { const s = 3.7 * PX, x0 = w / 2 + (-7.2 - cx) * PX, y0 = h / 2 + (cy - 59.4) * PX;
-        const P = (u, v) => [x0 + (u * 1.13 + 0.24 * v) * s, y0 - v * s]; g.strokeStyle = INK; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 0.075 * s;
-        for (const st of SCRIPT){ g.beginPath(); g.moveTo(...P(st[0], st[1])); for (let i = 2; i + 5 < st.length; i += 6) g.bezierCurveTo(...P(st[i], st[i + 1]), ...P(st[i + 2], st[i + 3]), ...P(st[i + 4], st[i + 5])); g.stroke(); } }); }
+    // "Зенит" as the factory wrote it on the prism: traced from a photograph of the nameplate, in its pixels (the line at y 60.2, the x-height
+    // 15.7), each stroke a smooth curve through its points: the З's head run down to a point, back along the waist and looped below the line
+    // into the е; н; и; т written as an m, a bar over it. Then "3м" in the same hand (cubic segments, x-height 1, on the line at 0)
+    const ZS = [
+      [42.2,36.5, 44.6,32.0, 47.6,28.3, 51.2,25.8, 56.5,23.5, 60.5,23.4, 64.5,24.3, 67.6,26.2, 69.8,28.9, 71.0,33.0, 70.6,37.8, 68.9,41.7, 65.2,45.7, 60.5,49.4, 54.5,52.2, 49.5,54.0, 45.4,55.3],
+      [45.4,55.3, 50.5,56.2, 55.6,57.4],
+      [55.6,57.4, 56.0,60.0, 55.9,62.5, 54.9,66.0, 52.6,69.5, 49.3,72.2, 45.4,73.7, 41.0,73.8, 38.0,72.2, 36.6,69.0, 37.4,65.8, 39.8,63.1, 43.6,61.0, 48.5,59.8, 53.5,59.0, 58.8,57.6, 63.0,56.2, 65.5,55.3],
+      [65.5,55.3, 66.6,52.3, 68.9,49.0, 72.2,46.4, 75.8,45.0, 78.5,44.8, 80.7,45.6, 81.3,47.3, 80.5,49.6, 78.0,51.6, 74.5,53.0, 70.5,54.4, 67.3,55.4, 65.6,56.6, 65.6,58.3, 66.8,59.5, 69.2,60.3, 72.3,60.1, 75.9,58.5, 79.0,56.6, 81.5,54.3, 83.5,52.0, 86.0,48.5, 88.2,45.6, 89.9,44.3],
+      [89.9,44.3, 89.0,46.5, 88.3,50.0, 87.0,53.3, 85.8,56.0, 84.7,58.6, 84.0,60.2], [88.0,51.6, 91.2,51.5, 94.5,51.3, 97.5,51.2],
+      [100.0,44.6, 99.1,47.3, 98.2,50.2, 97.4,53.2, 96.3,56.0, 95.6,58.6, 95.9,59.9, 97.2,60.0, 98.6,59.2, 101.5,55.8, 104.8,51.6, 107.8,47.8, 110.4,44.9],
+      [110.4,44.9, 110.0,47.5, 108.8,51.5, 107.3,55.5, 106.2,58.6, 106.4,60.0, 107.4,60.2, 108.6,59.6, 111.4,57.2, 114.8,54.1, 117.6,50.8, 119.6,47.5, 121.0,45.0],
+      [121.0,45.0, 120.2,47.5, 119.0,50.5, 118.1,54.0, 116.8,57.6, 116.4,59.4, 117.4,60.4, 118.8,60.0, 121.5,57.0, 124.2,53.2, 126.6,50.0, 129.0,47.5, 131.0,45.0],
+      [131.0,45.0, 130.4,47.3, 129.4,50.5, 128.0,54.0, 126.8,57.2, 125.8,60.2],
+      [129.6,50.4, 131.2,48.4, 133.4,47.3, 136.2,45.7, 138.8,44.4, 140.6,44.5, 141.5,45.5, 141.6,47.2, 140.4,49.6, 139.0,52.0, 137.8,55.0, 136.6,58.0, 135.8,60.2],
+      [141.6,47.4, 143.6,47.1, 146.0,45.6, 148.4,44.3, 150.2,44.5, 151.0,45.6, 150.9,47.8, 149.6,50.4, 148.2,54.0, 146.7,56.6, 146.3,58.4, 146.8,60.0, 148.4,60.3, 150.4,59.5, 154.9,56.5, 159.5,53.8],
+      [135.9,39.3, 151.5,34.4, 167.3,29.2]];
+    const Z3M = [[0.15,1.43, 0.28,1.74,0.92,1.79,0.92,1.45, 0.92,1.15,0.56,0.98,0.34,0.95, 0.85,0.89,1.06,0.47,0.89,0.09, 0.72,-0.34,0.17,-0.47,0.0,-0.17],   // 3
+      [1.15,0.02, 1.2,0.2,1.24,0.4,1.28,0.56, 1.33,0.4,1.38,0.25,1.43,0.1, 1.48,0.25,1.53,0.4,1.58,0.56, 1.6,0.35,1.62,0.15,1.66,0.0]];   // м
+    { const PX = 16, W = 46, H = 21, cx = OX, cy = 64.2, k = 3.4 / 15.7, xc = 120.8;   // (on the prism's face: 46 x 21 mm at 16 px a millimetre; the x-height 3.4 mm, the line at 60)
+      decal(new THREE.PlaneGeometry(W, H).translate(cx, cy, MF + 0.02), W * PX, H * PX, (g, w, h) => {
+        const P = (x, y) => [w / 2 + (OX - 0.5 - cx + (x - xc) * k) * PX, h / 2 + (cy - 60 - (60.2 - y) * k) * PX], Q = (u, v) => P(172 + (u * 1.13 + 0.26 * v) * 15.7, 60.2 - v * 15.7);
+        g.strokeStyle = INK; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 2.5 * k * PX;   // (the line as thick as the photograph's)
+        for (const S of ZS){ const n = S.length / 2, p = i => { i = Math.max(0, Math.min(n - 1, i)); return [S[2 * i], S[2 * i + 1]]; };   // (through the points, Catmull-Rom as cubics)
+          g.beginPath(); g.moveTo(...P(...p(0))); for (let i = 0; i < n - 1; i++){ const [a, b, c, d] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+            g.bezierCurveTo(...P(b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6), ...P(c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6), ...P(...c)); } g.stroke(); }
+        for (const st of Z3M){ g.beginPath(); g.moveTo(...Q(st[0], st[1])); for (let i = 2; i + 5 < st.length; i += 6) g.bezierCurveTo(...Q(st[i], st[i + 1]), ...Q(st[i + 2], st[i + 3]), ...Q(st[i + 4], st[i + 5])); g.stroke(); } }); }
     // on the back: the mark and "СДЕЛАНО В СССР" left of the eyepiece (as you hold it), the number on the right
     decal(new THREE.PlaneGeometry(30, 11).rotateY(Math.PI).translate(43.5, 64.4, -0.02), 480, 176, (g, w, h) => { g.fillStyle = g.strokeStyle = INK;
       kmz(g, w / 2, h * 0.3, 140, 3.2); g.font = FONT(40); g.textAlign = 'center'; g.save(); g.translate(w / 2, h * 0.86); g.scale(0.92, 1); g.fillText('СДЕЛАНО В СССР', 0, 0); g.restore(); });
@@ -2604,10 +2741,11 @@ var roomLight, CHESS, CACTUS, CHURCH_CLOCK;   // (CACTUS: the Easter cactus on t
   const pickBook = (e) => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
     const hits = ray.intersectObjects([...BOOKS, ...deskLamp.parts, ...WIN_PARTS, ...calc.parts, ...desk.pick], false); return hits.length && hits[0].distance < 4 ? hits[0].object : null; };
   const setHover = (b) => { if (b === hovered) return;
-    if (hovered && !hovered.userData.lamp && !hovered.userData.win && !hovered.userData.calc && !hovered.userData.desk && !hovered.userData.chair) [].concat(hovered.material).forEach(m => m.emissive && m.emissive.set('#000000'));
+    const glow = (o, on) => o.userData.glow ? o.userData.glow(on) : [].concat(o.material).forEach(m => m.emissive && m.emissive.set(on ? '#3a2c10' : '#000000'));   // (the books glow through their shader)
+    if (hovered && !hovered.userData.lamp && !hovered.userData.win && !hovered.userData.calc && !hovered.userData.desk && !hovered.userData.chair) glow(hovered, false);
     hovered = b; renderer.domElement.style.cursor = b ? 'pointer' : '';
     if (b && (b.userData.lamp || b.userData.win || b.userData.calc || b.userData.desk || b.userData.chair)){ hovered = b; return; }
-    if (b){ [].concat(b.material).forEach(m => m.emissive && m.emissive.set('#3a2c10')); caption(b.userData.title + tr(' — click to open'), 3); } };
+    if (b){ glow(b, true); caption(b.userData.title + tr(' — click to open'), 3); } };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
   renderer.domElement.addEventListener('pointermove', e => { if (mode !== 'window' || pointers.size){ if (mode !== 'window') setHover(null); return; } setHover(pickBook(e)); });
   renderer.domElement.addEventListener('pointerup', e => { if (mode !== 'window' || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
@@ -10432,7 +10570,7 @@ const WIN_POS = new V3(HOME.x + 0.32, 8.75, BZ - 1.0), WIN_LOOK = TREE.clone().a
 function setMode(m){
   if (started && BIKE.riding){ if (m === 'walk'){ BIKE.dismount(); return; } BIKE.dismount(false); }   // (Walk gets off the bike at the door; anything else just leaves it there)
   if (!started || m === mode && m !== 'climb') return;
-  if (desk.on){ desk.on = false; desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); desk.sharp(false); }
+  if (desk.on){ desk.on = false; desk.f = null; camera.near = 0.1; camera.updateProjectionMatrix(); }
   const prev = mode;
   if (m === 'walk'){
     mode = 'walk'; resetBody();
